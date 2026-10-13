@@ -5,19 +5,27 @@ using UnityEngine.InputSystem;
 public sealed class CasinoPlayerController : MonoBehaviour
 {
     [SerializeField, Min(0f)] private float moveSpeed = 5f;
+    [SerializeField] private Vector2 floorHalfExtents = new Vector2(11.2f, 8.2f);
 
     private CharacterController characterController;
+    private bool movementEnabled = true;
 
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
     }
 
+    public void SetMovementEnabled(bool enabled)
+    {
+        movementEnabled = enabled;
+    }
+
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null)
+        if (!movementEnabled || keyboard == null)
         {
+            characterController.SimpleMove(Vector3.zero);
             return;
         }
 
@@ -28,6 +36,10 @@ public sealed class CasinoPlayerController : MonoBehaviour
         if (keyboard.wKey.isPressed) input.y += 1f;
 
         Vector3 movement = new Vector3(input.x, 0f, input.y).normalized;
-        characterController.SimpleMove(movement * moveSpeed);
+        Vector3 nextPosition = transform.position + movement * moveSpeed * Time.deltaTime;
+        nextPosition.x = Mathf.Clamp(nextPosition.x, -floorHalfExtents.x, floorHalfExtents.x);
+        nextPosition.z = Mathf.Clamp(nextPosition.z, -floorHalfExtents.y, floorHalfExtents.y);
+        Vector3 boundedMovement = Time.deltaTime > 0f ? (nextPosition - transform.position) / Time.deltaTime : Vector3.zero;
+        characterController.SimpleMove(boundedMovement);
     }
 }

@@ -20,6 +20,42 @@ public static class PitPanicPrototypeGenerator
         Material accentMaterial = GetOrCreateMaterial("Accent", new Color(0.25f, 0.49f, 0.55f));
         AssetDatabase.SaveAssets();
 
+        SceneSetup[] previousSceneSetup = EditorSceneManager.GetSceneManagerSetup();
+        bool hasSavedScenes = false;
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene loadedScene = SceneManager.GetSceneAt(i);
+            if (loadedScene.isLoaded && !string.IsNullOrEmpty(loadedScene.path))
+            {
+                hasSavedScenes = true;
+            }
+
+            if (loadedScene.isLoaded && loadedScene.path == ScenePath && loadedScene.isDirty &&
+                !Application.isBatchMode &&
+                !EditorUtility.DisplayDialog("Regenerate Pit Panic Prototype", "This will replace the contents of PitPanicPrototype.unity. Continue?", "Regenerate", "Cancel"))
+            {
+                return;
+            }
+        }
+
+        if (hasSavedScenes)
+        {
+            if (Application.isBatchMode && EditorSceneManager.GetSceneManagerSetup().Length > 0)
+            {
+                for (int i = 0; i < SceneManager.sceneCount; i++)
+                {
+                    if (SceneManager.GetSceneAt(i).isDirty)
+                    {
+                        throw new System.InvalidOperationException("Cannot regenerate the prototype while a modified scene is open in batch mode.");
+                    }
+                }
+            }
+            else if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                return;
+            }
+        }
+
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
         RenderSettings.ambientSkyColor = new Color(0.48f, 0.55f, 0.62f);
@@ -29,8 +65,8 @@ public static class PitPanicPrototypeGenerator
 
         CreateLighting();
         CreateFloor(floorMaterial, trimMaterial);
-        CreateBlackjackTable(woodMaterial, feltMaterial, trimMaterial, accentMaterial);
-        CreatePlayer(playerMaterial);
+        CasinoPlayerController playerController = CreatePlayer(playerMaterial);
+        CreateBlackjackTable(woodMaterial, feltMaterial, trimMaterial, accentMaterial, playerController);
         CreateCamera();
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -39,9 +75,110 @@ public static class PitPanicPrototypeGenerator
             throw new IOException($"Could not save the prototype scene to {ScenePath}.");
         }
 
+        if (hasSavedScenes)
+        {
+            EditorSceneManager.RestoreSceneManagerSetup(previousSceneSetup);
+        }
+
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         Debug.Log($"Pit Panic prototype scene saved to {ScenePath}.");
+    }
+
+    [MenuItem("Pit Panic/Run Blackjack Rule Checks")]
+    public static void RunBlackjackRuleChecks()
+    {
+        AssertTotal("ace and nine", 20, new BlackjackCard(1, 0), new BlackjackCard(9, 1));
+        AssertTotal("ace softens after bust", 15, new BlackjackCard(1, 0), new BlackjackCard(9, 1), new BlackjackCard(5, 2));
+        AssertTotal("multiple aces", 21, new BlackjackCard(1, 0), new BlackjackCard(1, 1), new BlackjackCard(9, 2));
+        AssertOutcome("player natural", BlackjackOutcome.Blackjack, 21, 18, true, false);
+        AssertOutcome("natural push", BlackjackOutcome.Push, 21, 21, true, true);
+        AssertOutcome("player bust", BlackjackOutcome.Lose, 22, 18, false, false);
+        AssertOutcome("dealer bust", BlackjackOutcome.Win, 20, 22, false, false);
+        AssertOutcome("equal totals", BlackjackOutcome.Push, 19, 19, false, false);
+
+        BlackjackRound standRound = new BlackjackRound();
+        if (!standRound.IsComplete)
+        {
+            standRound.Stand();
+            if (standRound.DealerTotal < 17 && standRound.DealerTotal <= 21)
+            {
+                throw new System.InvalidOperationException("Dealer failed to draw to at least 17.");
+            }
+        }
+
+        BlackjackRound hitRound = new BlackjackRound();
+        for (int i = 0; i < 52 && !hitRound.IsComplete; i++)
+        {
+            hitRound.Hit();
+        }
+
+        if (!hitRound.IsComplete)
+        {
+            throw new System.InvalidOperationException("Repeated hits did not finish the blackjack round.");
+        }
+
+        Debug.Log("Blackjack rule checks passed.");
+    }
+
+    [MenuItem("Pit Panic/Validate Prototype Scene")]
+    public static void ValidatePrototypeScene()
+    {
+        if (!File.Exists(ScenePath))
+        {
+            throw new FileNotFoundException($"Prototype scene not found at {ScenePath}.");
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            MonoBehaviour[] behaviours = root.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (MonoBehaviour behaviour in behaviours)
+            {
+                if (behaviour == null)
+                {
+                    throw new System.InvalidOperationException($"Missing script in generated scene object {root.name}.");
+                }
+            }
+        }
+
+        Camera camera = Object.FindFirstObjectByType<Camera>();
+        CasinoPlayerController player = Object.FindFirstObjectByType<CasinoPlayerController>();
+        BlackjackTableInteraction table = Object.FindFirstObjectByType<BlackjackTableInteraction>();
+        if (camera == null || !camera.orthographic || player == null || table == null || !table.IsConfigured)
+        {
+            throw new System.InvalidOperationException("Generated scene is missing its orthographic camera, player controller, or configured blackjack interaction.");
+        }
+
+        if (Mathf.Abs(camera.transform.eulerAngles.y) > 0.1f || Vector3.Angle(camera.transform.forward, new Vector3(0f, -0.866f, 0.5f)) > 1f)
+        {
+            throw new System.InvalidOperationException("Generated camera is not aligned to the overhead, yaw-zero viewpoint.");
+        }
+
+        if (Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf") == null)
+        {
+            throw new System.InvalidOperationException("Unity's LegacyRuntime.ttf font required by the blackjack panel is unavailable.");
+        }
+
+        Debug.Log("Prototype scene validation passed: camera, player, blackjack references, and scripts are present.");
+    }
+
+    private static void AssertTotal(string testName, int expected, params BlackjackCard[] cards)
+    {
+        int actual = BlackjackRules.CalculateBestTotal(cards);
+        if (actual != expected)
+        {
+            throw new System.InvalidOperationException($"Blackjack rule check '{testName}' failed: expected {expected}, got {actual}.");
+        }
+    }
+
+    private static void AssertOutcome(string testName, BlackjackOutcome expected, int playerTotal, int dealerTotal, bool playerNatural, bool dealerNatural)
+    {
+        BlackjackOutcome actual = BlackjackRules.ResolveOutcome(playerTotal, dealerTotal, playerNatural, dealerNatural);
+        if (actual != expected)
+        {
+            throw new System.InvalidOperationException($"Blackjack rule check '{testName}' failed: expected {expected}, got {actual}.");
+        }
     }
 
     private static void CreateFloor(Material floorMaterial, Material trimMaterial)
@@ -65,7 +202,7 @@ public static class PitPanicPrototypeGenerator
         }
     }
 
-    private static void CreateBlackjackTable(Material woodMaterial, Material feltMaterial, Material trimMaterial, Material accentMaterial)
+    private static void CreateBlackjackTable(Material woodMaterial, Material feltMaterial, Material trimMaterial, Material accentMaterial, CasinoPlayerController playerController)
     {
         GameObject table = new GameObject("Blackjack Table");
         Vector3 center = new Vector3(0f, 0f, 1.3f);
@@ -107,9 +244,15 @@ public static class PitPanicPrototypeGenerator
                 feltMaterial,
                 table.transform);
         }
+
+        GameObject dealerPosition = new GameObject("Dealer Interaction Position");
+        dealerPosition.transform.SetParent(table.transform, false);
+        dealerPosition.transform.localPosition = new Vector3(0f, 0f, -1.8f);
+        BlackjackTableInteraction interaction = table.AddComponent<BlackjackTableInteraction>();
+        interaction.Configure(playerController, dealerPosition.transform);
     }
 
-    private static void CreatePlayer(Material playerMaterial)
+    private static CasinoPlayerController CreatePlayer(Material playerMaterial)
     {
         GameObject player = new GameObject("Player");
         player.transform.position = new Vector3(0f, 0f, -6f);
@@ -128,6 +271,7 @@ public static class PitPanicPrototypeGenerator
         visual.transform.localScale = new Vector3(0.76f, 0.9f, 0.76f);
         Object.DestroyImmediate(visual.GetComponent<Collider>());
         visual.GetComponent<Renderer>().sharedMaterial = playerMaterial;
+        return player.GetComponent<CasinoPlayerController>();
     }
 
     private static void CreateCamera()
@@ -136,13 +280,13 @@ public static class PitPanicPrototypeGenerator
         cameraObject.tag = "MainCamera";
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.orthographic = true;
-        camera.orthographicSize = 12f;
+        camera.orthographicSize = 11f;
         camera.nearClipPlane = 0.3f;
         camera.farClipPlane = 100f;
         camera.backgroundColor = new Color(0.055f, 0.075f, 0.09f);
         camera.clearFlags = CameraClearFlags.SolidColor;
         cameraObject.AddComponent<AudioListener>();
-        cameraObject.transform.position = new Vector3(13f, 17f, -16f);
+        cameraObject.transform.position = new Vector3(0f, 16f, -9f);
         cameraObject.transform.LookAt(new Vector3(0f, 0.4f, 0f));
     }
 
@@ -201,11 +345,10 @@ public static class PitPanicPrototypeGenerator
             }
 
             material = new Material(shader);
+            material.color = color;
             AssetDatabase.CreateAsset(material, assetPath);
         }
 
-        material.color = color;
-        EditorUtility.SetDirty(material);
         return material;
     }
 
