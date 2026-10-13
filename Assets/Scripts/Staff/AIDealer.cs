@@ -9,6 +9,8 @@ public enum DealerDutyState
     TravelingToBreak,
     Resting,
     TravelingToPitDesk,
+    ReturningFromBreak,
+    WaitingForPitDeskPosition,
     ReadyAtPitDesk,
     TravelingToTable
 }
@@ -35,7 +37,6 @@ public sealed class AIDealer : MonoBehaviour
     private Vector3 originalScale;
     private bool hasRequestedExhaustion;
     private bool pathFailureReported;
-    private bool restAtPitDeskOnArrival;
 
     public string DealerId => string.IsNullOrWhiteSpace(dealerId) ? name : dealerId;
     public float Energy => energy;
@@ -45,6 +46,18 @@ public sealed class AIDealer : MonoBehaviour
     public CasinoDealerStation InitialAssignedStation => initialAssignedStation;
     public CasinoDealerStation AssignedStation { get; private set; }
     public DealerDutyState State => state;
+    public string CurrentAssignmentLabel => AssignedStation != null
+        ? AssignedStation.StationName
+        : pendingStation != null
+            ? pendingStation.StationName
+            : state == DealerDutyState.TravelingToBreak || state == DealerDutyState.Resting
+                ? "BREAK ROOM"
+                : state == DealerDutyState.TravelingToPitDesk ||
+                  state == DealerDutyState.ReturningFromBreak ||
+                  state == DealerDutyState.WaitingForPitDeskPosition ||
+                  state == DealerDutyState.ReadyAtPitDesk
+                    ? "PIT DESK"
+                    : "UNASSIGNED";
     public bool IsAtStation => AssignedStation != null &&
                                (state == DealerDutyState.Working || state == DealerDutyState.NeedsBreak ||
                                 state == DealerDutyState.ReplacementRequested);
@@ -57,9 +70,11 @@ public sealed class AIDealer : MonoBehaviour
     {
         DealerDutyState.TravelingToTable => pendingStation != null ? pendingStation.DealerPosition : null,
         DealerDutyState.TravelingToBreak => breakRoomPosition,
-        DealerDutyState.TravelingToPitDesk => ReservedPitPosition,
+        DealerDutyState.TravelingToPitDesk or DealerDutyState.ReturningFromBreak => ReservedPitPosition,
         _ => null
     };
+    public bool HasReportedPathFailure => pathFailureReported;
+    public bool IsWaitingForPitDeskPosition => state == DealerDutyState.WaitingForPitDeskPosition;
     public float CurrentStationTime { get; private set; }
     public float WorkSpeedMultiplier => 1f + Mathf.InverseLerp(100f, tiredThreshold, energy) * 1.8f;
     public string StatusLabel => state switch
@@ -67,9 +82,13 @@ public sealed class AIDealer : MonoBehaviour
         DealerDutyState.Working => "WORKING",
         DealerDutyState.NeedsBreak => "NEEDS BREAK",
         DealerDutyState.ReplacementRequested => "REPLACEMENT REQUESTED",
-        DealerDutyState.TravelingToBreak or DealerDutyState.TravelingToPitDesk or DealerDutyState.TravelingToTable => "IN TRANSIT",
+        DealerDutyState.TravelingToBreak => "WALKING TO BREAK",
+        DealerDutyState.TravelingToPitDesk => "RETURNING TO PIT DESK",
+        DealerDutyState.ReturningFromBreak => "RETURNING FROM BREAK",
+        DealerDutyState.TravelingToTable => "WALKING TO TABLE",
+        DealerDutyState.WaitingForPitDeskPosition => "WAITING FOR PIT DESK ROUTE",
         DealerDutyState.Resting => "RESTING",
-        DealerDutyState.ReadyAtPitDesk => "READY",
+        DealerDutyState.ReadyAtPitDesk => "READY AT PIT DESK",
         _ => "UNASSIGNED"
     };
 
@@ -131,7 +150,7 @@ public sealed class AIDealer : MonoBehaviour
 
     public bool BeginAssignment(CasinoDealerStation station)
     {
-        if (!IsReadyAtPitDesk || station == null || station.DealerPosition == null || !agent.isOnNavMesh)
+        if (!CanBeAssignedFromState(state) || station == null || station.DealerPosition == null || !agent.isOnNavMesh)
         {
             return false;
         }
@@ -152,28 +171,30 @@ public sealed class AIDealer : MonoBehaviour
 
     public bool ReturnToPitDesk(Transform position)
     {
-        return ReturnToPitDesk(position, false);
+        return BeginPitDeskRoute(position, returningFromBreak: false);
     }
 
-    public bool ReturnToPitDesk(Transform position, bool restAtPitDesk)
+    public bool ReturnFromBreakToPitDesk(Transform position)
     {
-        if (position == null || !agent.isOnNavMesh)
+        return BeginPitDeskRoute(position, returningFromBreak: true);
+    }
+
+    private bool BeginPitDeskRoute(Transform position, bool returningFromBreak)
+    {
+        if (position == null || agent == null || !agent.isOnNavMesh ||
+            !agent.SetDestination(position.position))
         {
             return false;
         }
 
         agent.updateRotation = true;
-        if (!agent.SetDestination(position.position))
-        {
-            return false;
-        }
-
         AssignedStation = null;
         pendingStation = null;
         ReservedPitPosition = position;
-        restAtPitDeskOnArrival = restAtPitDesk;
         pathFailureReported = false;
-        state = DealerDutyState.TravelingToPitDesk;
+        state = returningFromBreak
+            ? DealerDutyState.ReturningFromBreak
+            : DealerDutyState.TravelingToPitDesk;
         agent.isStopped = false;
         return true;
     }
@@ -185,22 +206,17 @@ public sealed class AIDealer : MonoBehaviour
 
     public bool GoToBreakRoom(Transform position)
     {
-        if (position == null || !agent.isOnNavMesh)
+        if (!CanRouteToBreakFromState(state) || position == null || agent == null ||
+            !agent.isOnNavMesh || !agent.SetDestination(position.position))
         {
             return false;
         }
 
         agent.updateRotation = true;
-        if (!agent.SetDestination(position.position))
-        {
-            return false;
-        }
-
         AssignedStation = null;
         pendingStation = null;
         ReservedPitPosition = null;
         breakRoomPosition = position;
-        restAtPitDeskOnArrival = false;
         CurrentStationTime = 0f;
         pathFailureReported = false;
         state = DealerDutyState.TravelingToBreak;
@@ -214,7 +230,6 @@ public sealed class AIDealer : MonoBehaviour
         CurrentStationTime = 0f;
         pendingStation = null;
         ReservedPitPosition = null;
-        restAtPitDeskOnArrival = false;
         hasRequestedExhaustion = false;
         state = DealerDutyState.Working;
         if (agent != null)
@@ -237,7 +252,6 @@ public sealed class AIDealer : MonoBehaviour
     {
         AssignedStation = null;
         pendingStation = null;
-        restAtPitDeskOnArrival = false;
         state = DealerDutyState.ReadyAtPitDesk;
         if (ReservedPitPosition != null)
         {
@@ -254,11 +268,37 @@ public sealed class AIDealer : MonoBehaviour
     public void MarkResting()
     {
         state = DealerDutyState.Resting;
-        restAtPitDeskOnArrival = false;
         if (agent.isOnNavMesh)
         {
             agent.isStopped = true;
         }
+    }
+
+    public void WaitForPitDeskPosition()
+    {
+        AssignedStation = null;
+        pendingStation = null;
+        ReservedPitPosition = null;
+        state = DealerDutyState.WaitingForPitDeskPosition;
+        pathFailureReported = false;
+        if (agent != null && agent.isOnNavMesh)
+        {
+            agent.isStopped = true;
+        }
+    }
+
+    public bool RetryCurrentRoute()
+    {
+        Transform destination = Destination;
+        if (destination == null || agent == null || !agent.isOnNavMesh ||
+            !agent.SetDestination(destination.position))
+        {
+            return false;
+        }
+
+        pathFailureReported = false;
+        agent.isStopped = false;
+        return true;
     }
 
     public void RequestBreak()
@@ -323,16 +363,13 @@ public sealed class AIDealer : MonoBehaviour
         else if (state == DealerDutyState.Resting)
         {
             energy = CalculateEnergyAfterRest(energy, energyRecoveryPerSecond, Time.deltaTime);
-            if (energy >= fullRestThreshold)
-            {
-                manager?.SendRestedDealerToPitDesk(this);
-            }
         }
         else if ((state == DealerDutyState.TravelingToTable ||
                   state == DealerDutyState.TravelingToBreak ||
-                  state == DealerDutyState.TravelingToPitDesk) &&
+                  state == DealerDutyState.TravelingToPitDesk ||
+                  state == DealerDutyState.ReturningFromBreak) &&
                  agent.isOnNavMesh && !agent.pathPending &&
-                 agent.pathStatus != NavMeshPathStatus.PathComplete)
+                 (!agent.hasPath || agent.pathStatus != NavMeshPathStatus.PathComplete))
         {
             NotifyAssignmentFailed();
         }
@@ -347,15 +384,9 @@ public sealed class AIDealer : MonoBehaviour
                     MarkResting();
                     break;
                 case DealerDutyState.TravelingToPitDesk:
-                    if (restAtPitDeskOnArrival)
-                    {
-                        MarkResting();
-                    }
-                    else
-                    {
-                        MarkReadyAtPitDesk();
-                        manager?.NotifyDealerReady(this);
-                    }
+                case DealerDutyState.ReturningFromBreak:
+                    MarkReadyAtPitDesk();
+                    manager?.NotifyDealerReady(this);
 
                     break;
             }
@@ -386,8 +417,13 @@ public sealed class AIDealer : MonoBehaviour
         return dealerState == DealerDutyState.ReadyAtPitDesk;
     }
 
-    public static bool ShouldRestAfterReplacement(float dealerEnergy, float tiredEnergyThreshold)
+    public static bool CanStartBreakFromState(DealerDutyState dealerState)
     {
-        return dealerEnergy <= tiredEnergyThreshold;
+        return dealerState == DealerDutyState.ReadyAtPitDesk;
+    }
+
+    public static bool CanRouteToBreakFromState(DealerDutyState dealerState)
+    {
+        return CanStartBreakFromState(dealerState) || dealerState == DealerDutyState.TravelingToBreak;
     }
 }

@@ -198,8 +198,14 @@ public static class PitPanicPrototypeGenerator
             AIDealer.CanBeAssignedFromState(DealerDutyState.Resting) ||
             AIDealer.CanBeAssignedFromState(DealerDutyState.TravelingToPitDesk) ||
             AIDealer.CanBeAssignedFromState(DealerDutyState.Working) ||
-            !AIDealer.ShouldRestAfterReplacement(30f, 40f) ||
-            AIDealer.ShouldRestAfterReplacement(80f, 40f) ||
+            AIDealer.CanBeAssignedFromState(DealerDutyState.NeedsBreak) ||
+            !AIDealer.CanStartBreakFromState(DealerDutyState.ReadyAtPitDesk) ||
+            AIDealer.CanStartBreakFromState(DealerDutyState.Working) ||
+            AIDealer.CanStartBreakFromState(DealerDutyState.NeedsBreak) ||
+            AIDealer.CanStartBreakFromState(DealerDutyState.ReplacementRequested) ||
+            AIDealer.CanStartBreakFromState(DealerDutyState.TravelingToBreak) ||
+            !AIDealer.CanRouteToBreakFromState(DealerDutyState.TravelingToBreak) ||
+            AIDealer.CanRouteToBreakFromState(DealerDutyState.TravelingToTable) ||
             CasinoCustomerAI.RoundsAfterCompletedHand(3) != 2 ||
             CasinoCustomerAI.RoundsAfterCompletedHand(1) != 0 ||
             CasinoCustomerAI.RoundsAfterCompletedHand(0) != 0 ||
@@ -339,6 +345,29 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Resolving the final reason did not hide the table attention indicator.");
         }
 
+        attention.RequestAttention(TableAttentionReason.CustomerComplaint);
+        attention.RequestAttention(TableAttentionReason.DealerReadyForAssignment);
+        attention.RequestAttention(TableAttentionReason.DealerReadyForAssignment);
+        if (attention.GetPendingCount(TableAttentionReason.DealerReadyForAssignment) != 2)
+        {
+            throw new System.InvalidOperationException("Separate pit-desk dealer decisions were not tracked independently.");
+        }
+
+        attention.ResolveAttention(TableAttentionReason.DealerReadyForAssignment);
+        if (attention.GetPendingCount(TableAttentionReason.DealerReadyForAssignment) != 1 ||
+            !attention.HasPendingTasks)
+        {
+            throw new System.InvalidOperationException("Acknowledging one dealer incorrectly cleared another pending desk decision.");
+        }
+
+        attention.ResolveAttention(TableAttentionReason.DealerReadyForAssignment);
+        if (!attention.HasPendingTasks ||
+            attention.GetPendingCount(TableAttentionReason.CustomerComplaint) != 1)
+        {
+            throw new System.InvalidOperationException("Resolving dealer decisions cleared an unrelated attention task.");
+        }
+
+        attention.ResolveAttention(TableAttentionReason.CustomerComplaint);
         attention.RequestAttentionOnce(TableAttentionReason.FlickAssistanceRequired);
         bool duplicateFlickTaskAdded = attention.RequestAttentionOnce(TableAttentionReason.FlickAssistanceRequired);
         if (duplicateFlickTaskAdded ||
@@ -488,6 +517,8 @@ public static class PitPanicPrototypeGenerator
         if (player == null || blackjackTables.Length != 2 || seats.Length != 6 ||
             stations.Length != 3 || dealers.Length != 4 || dealerManager == null ||
             !dealerManager.IsConfigured || pitDesk == null || !pitDesk.IsConfigured ||
+            dealerManager.PitDeskPositions.Count != dealers.Length ||
+            dealerManager.BreakPositions.Count < dealers.Length ||
             cashDesk == null || !cashDesk.IsConfigured || rouletteMinigame == null ||
             !rouletteMinigame.IsConfigured || packMinigame == null || !packMinigame.IsConfigured ||
             stationPrompts.Length != 2 ||
@@ -648,6 +679,15 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Generated blackjack, roulette, cashier, and pit desk attention indicators are missing or duplicated.");
         }
 
+        CasinoTableAttention pitDeskAttention = pitDesk.GetComponent<CasinoTableAttention>();
+        CasinoAttentionIndicator pitDeskIndicator =
+            pitDesk.GetComponentInChildren<CasinoAttentionIndicator>(true);
+        if (pitDeskAttention == null || pitDeskIndicator == null ||
+            pitDeskIndicator.Attention != pitDeskAttention)
+        {
+            throw new System.InvalidOperationException("Pit desk staffing decisions are not connected to the pit desk attention indicator.");
+        }
+
         if (GameObject.Find("Roulette Table") == null || GameObject.Find("Cashier Station") == null ||
             GameObject.Find("Dealer Break Room") == null || GameObject.Find("Pit Desk") == null)
         {
@@ -708,6 +748,24 @@ public static class PitPanicPrototypeGenerator
         CasinoAttentionIndicator[] indicators,
         DealerAssignmentManager manager)
     {
+        HashSet<Transform> uniquePitDeskPositions = new HashSet<Transform>();
+        foreach (Transform position in manager.PitDeskPositions)
+        {
+            if (position == null || !uniquePitDeskPositions.Add(position))
+            {
+                throw new System.InvalidOperationException("Pit desk dealer waiting positions are missing or shared.");
+            }
+        }
+
+        HashSet<Transform> uniqueBreakPositions = new HashSet<Transform>();
+        foreach (Transform position in manager.BreakPositions)
+        {
+            if (position == null || !uniqueBreakPositions.Add(position))
+            {
+                throw new System.InvalidOperationException("Dealer break positions are missing or shared.");
+            }
+        }
+
         foreach (BlackjackTableInteraction table in tables)
         {
             BoxCollider tabletop = table.GetComponentInChildren<BoxCollider>();
@@ -774,6 +832,24 @@ public static class PitPanicPrototypeGenerator
                 Vector3.Distance(dealerStand.position, station.DealerPosition.position) > 0.25f)
             {
                 throw new System.InvalidOperationException($"{station.StationName} dealer position is not directly on the NavMesh.");
+            }
+
+            bool hasReturnPosition = false;
+            foreach (Transform waitingPosition in manager.PitDeskPositions)
+            {
+                NavMeshPath returnPath = new NavMeshPath();
+                if (waitingPosition != null &&
+                    NavMesh.CalculatePath(dealerStand.position, waitingPosition.position, NavMesh.AllAreas, returnPath) &&
+                    returnPath.status == NavMeshPathStatus.PathComplete)
+                {
+                    hasReturnPosition = true;
+                    break;
+                }
+            }
+
+            if (!hasReturnPosition)
+            {
+                throw new System.InvalidOperationException($"{station.StationName} has no safe pit-desk position for an outgoing dealer.");
             }
         }
 

@@ -126,6 +126,11 @@ public sealed class PitDeskInteraction : MonoBehaviour
     private void RenderDealerRows()
     {
         nextRefreshTime = Time.unscaledTime + refreshInterval;
+        if (selectedDealer != null && !selectedDealer.IsReadyAtPitDesk)
+        {
+            selectedDealer = null;
+        }
+
         foreach (GameObject row in rows)
         {
             Destroy(row);
@@ -140,20 +145,26 @@ public sealed class PitDeskInteraction : MonoBehaviour
             AIDealer dealer = dealers[i];
             if (dealer == null) continue;
             float y = rowY - i * 98f;
-            string stationName = dealer.AssignedStation != null
-                ? dealer.AssignedStation.StationName
-                : dealer.StatusLabel;
             string minutes = dealer.CurrentStationTime >= 60f ? $"{dealer.CurrentStationTime / 60f:0.0}m" : $"{dealer.CurrentStationTime:0}s";
             GameObject row = CreateRect($"Dealer Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(-260f, y), new Vector2(490f, 80f));
             row.AddComponent<Image>().color = dealer == selectedDealer
                 ? new Color(0.24f, 0.39f, 0.28f, 0.95f)
                 : new Color(0.08f, 0.23f, 0.20f, 0.92f);
-            CreateText("Dealer Details", row.transform, new Vector2(-105f, 12f), new Vector2(275f, 58f), 15).text =
-                $"{dealer.DealerId}  •  {dealer.StatusLabel}  •  {stationName}\nENERGY  {dealer.Energy:0}%    {minutes} ON STATION";
+            bool breakRecommended = dealer.NeedsBreak || dealer.Energy <= dealer.TiredThreshold;
+            Text details = CreateText("Dealer Details", row.transform, new Vector2(-106f, 7f), new Vector2(270f, 62f), 14);
+            details.text =
+                $"{dealer.DealerId}  •  {dealer.CurrentAssignmentLabel}\n{dealer.StatusLabel}  •  ENERGY  {dealer.Energy:0}%\n{(breakRecommended ? "BREAK RECOMMENDED  •  " : string.Empty)}{minutes} ON STATION";
+            if (breakRecommended)
+            {
+                details.color = new Color(1f, 0.76f, 0.35f);
+            }
+
             if (dealer.IsReadyAtPitDesk)
             {
                 int dealerIndex = i;
-                CreateButton("Select Dealer", row.transform, dealer == selectedDealer ? "SELECTED" : "SELECT", new Vector2(164f, 12f), new Vector2(100f, 32f), () => SelectDealer(dealerIndex));
+                CreateButton("Select Dealer", row.transform, dealer == selectedDealer ? "SELECTED" : "ASSIGN", new Vector2(165f, 24f), new Vector2(106f, 22f), () => SelectDealer(dealerIndex));
+                CreateButton("Send On Break", row.transform, "SEND ON BREAK", new Vector2(165f, 0f), new Vector2(106f, 22f), () => SendDealerOnBreak(dealerIndex));
+                CreateButton("Leave Waiting", row.transform, "LEAVE WAITING", new Vector2(165f, -24f), new Vector2(106f, 22f), () => LeaveDealerWaiting(dealerIndex));
             }
 
             rows.Add(row);
@@ -176,7 +187,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
             Button assignmentButton = CreateButton(
                 "Assign Selected Dealer",
                 stationRow.transform,
-                selectedDealer == null ? "SELECT READY DEALER" : "ASSIGN / ROTATE",
+                selectedDealer == null ? "SELECT READY DEALER" : "ASSIGN TO TABLE",
                 new Vector2(165f, 0f),
                 new Vector2(150f, 36f),
                 () => AssignSelectedDealer(stationIndex));
@@ -198,13 +209,38 @@ public sealed class PitDeskInteraction : MonoBehaviour
         }
 
         statusText.text = selectedDealer == null
-            ? "SELECT A READY DEALER AT THE PIT DESK TO STAFF OR ROTATE ANY TABLE"
+            ? "SELECT A READY DEALER, THEN ASSIGN TO TABLE, SEND ON BREAK, OR LEAVE WAITING"
             : $"SELECTED  {selectedDealer.DealerId}  •  {selectedDealer.Energy:0}% ENERGY";
     }
 
     private void SelectDealer(int index)
     {
         selectedDealer = assignmentManager.Dealers[index];
+        RenderDealerRows();
+    }
+
+    private void SendDealerOnBreak(int index)
+    {
+        AIDealer dealer = assignmentManager.Dealers[index];
+        if (assignmentManager.TrySendDealerOnBreak(dealer, out string reason))
+        {
+            selectedDealer = null;
+            statusText.text = $"{dealer.DealerId} IS WALKING TO THE BREAK ROOM.";
+        }
+        else
+        {
+            statusText.text = reason;
+        }
+
+        RenderDealerRows();
+    }
+
+    private void LeaveDealerWaiting(int index)
+    {
+        AIDealer dealer = assignmentManager.Dealers[index];
+        assignmentManager.AcknowledgeDealerAtPitDesk(dealer);
+        selectedDealer = null;
+        statusText.text = $"{dealer.DealerId} WILL WAIT AT THE PIT DESK.";
         RenderDealerRows();
     }
 
