@@ -12,8 +12,14 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     {
         Wandering,
         TravellingToSeat,
+        VisitingCashier,
         Seated,
         Leaving
+    }
+
+    public static int RoundsAfterCompletedHand(int roundsRemaining)
+    {
+        return Mathf.Max(0, roundsRemaining - 1);
     }
 
     private NavMeshAgent agent;
@@ -22,6 +28,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private CasinoSeat[] seats;
     private CasinoSeat reservedSeat;
     private Transform exit;
+    private Transform cashierWaypoint;
     private Transform visual;
     private Renderer bodyRenderer;
     private MaterialPropertyBlock colorBlock;
@@ -36,6 +43,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private bool serviceActive;
     private bool penaltyRecorded;
     private bool headingToExit;
+    private int roundsRemaining;
     [SerializeField, Min(1)] private int minimumBetPence = 1000;
     [SerializeField, Min(1)] private int maximumBetPence = 5000;
 
@@ -45,6 +53,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public bool IsInService => serviceActive;
     public CasinoSeat Seat => reservedSeat;
     public float PatienceNormalized => patience != null ? patience.Normalized : 1f;
+    public int RoundsRemaining => roundsRemaining;
 
     private void Awake()
     {
@@ -64,6 +73,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         CasinoCustomerSpawner customerSpawner,
         CasinoSeat[] casinoSeats,
         Transform exitPoint,
+        Transform cashier,
         Transform characterVisual,
         Renderer coloredBody,
         Color color,
@@ -73,11 +83,15 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         spawner = customerSpawner;
         seats = casinoSeats;
         exit = exitPoint;
+        cashierWaypoint = cashier;
         visual = characterVisual;
         bodyRenderer = coloredBody;
         baseColor = color;
         wanderRadius = roamingRadius;
         seatChoiceChance = chooseSeatChance;
+        roundsRemaining = UnityEngine.Random.Range(
+            customerSpawner.MinimumRoundsPerVisit,
+            customerSpawner.MaximumRoundsPerVisit + 1);
         customerHitThreshold = UnityEngine.Random.Range(16f, 18f);
         colorBlock = new MaterialPropertyBlock();
         patience.PatienceExpired += OnPatienceExpired;
@@ -99,8 +113,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         {
             if (reservedSeat != null && reservedSeat.SeatCustomer(this))
             {
-                agent.Warp(seatNavPosition);
-                transform.SetPositionAndRotation(seatNavPosition, reservedSeat.Facing);
+                transform.rotation = reservedSeat.Facing;
                 state = CustomerState.Seated;
                 agent.isStopped = true;
                 patience.Begin(spawner.PatienceSeconds);
@@ -142,12 +155,21 @@ public sealed class CasinoCustomerAI : MonoBehaviour
                 Despawn();
             }
         }
+        else if (state == CustomerState.VisitingCashier && HasReachedDestination())
+        {
+            BeginWandering();
+        }
 
         if (visual != null)
         {
             float targetHeight = state == CustomerState.Seated ? 0.22f : 0f;
             Vector3 position = visual.localPosition;
+            Vector3 seatedOffset = state == CustomerState.Seated && reservedSeat != null
+                ? reservedSeat.SeatedVisualOffset
+                : Vector3.zero;
+            position.x = Mathf.MoveTowards(position.x, seatedOffset.x, Time.deltaTime * 2f);
             position.y = Mathf.MoveTowards(position.y, targetHeight, Time.deltaTime * 1.2f);
+            position.z = Mathf.MoveTowards(position.z, seatedOffset.z, Time.deltaTime * 2f);
             visual.localPosition = position;
             Vector3 scale = visual.localScale;
             scale.y = Mathf.MoveTowards(scale.y, state == CustomerState.Seated ? 0.82f : 1f, Time.deltaTime * 0.8f);
@@ -218,11 +240,41 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         return true;
     }
 
-    public void CompleteVisit()
+    public void CompleteBlackjackRound()
     {
-        if (state == CustomerState.Seated)
+        if (state != CustomerState.Seated || !serviceActive)
+        {
+            return;
+        }
+
+        serviceActive = false;
+        roundsRemaining = RoundsAfterCompletedHand(roundsRemaining);
+        if (roundsRemaining > 0)
+        {
+            patience.Restart(spawner.PatienceSeconds);
+            reservedSeat.NotifyReadyForService(this);
+            return;
+        }
+
+        float activity = UnityEngine.Random.value;
+        if (activity < spawner.LeaveAfterVisitChance)
         {
             StartLeaving(false);
+        }
+        else if (cashierWaypoint != null &&
+            activity < spawner.LeaveAfterVisitChance + spawner.CashierAfterVisitChance &&
+            agent.SetDestination(cashierWaypoint.position))
+        {
+            ReleaseSeat();
+            state = CustomerState.VisitingCashier;
+            agent.isStopped = false;
+        }
+        else
+        {
+            ReleaseSeat();
+            state = CustomerState.Wandering;
+            agent.isStopped = false;
+            SetNextDecisionTime();
         }
     }
 

@@ -11,33 +11,51 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField, Min(1f)] private float wanderRadius = 7f;
     [SerializeField, Range(0f, 1f)] private float seatChoiceChance = 0.28f;
     [SerializeField, Min(1f)] private float spawnInterval = 12f;
+    [SerializeField, Min(1)] private int minimumRoundsPerVisit = 2;
+    [SerializeField, Min(1)] private int maximumRoundsPerVisit = 7;
+    [SerializeField, Range(0f, 1f)] private float leaveAfterVisitChance = 0.35f;
+    [SerializeField, Range(0f, 1f)] private float cashierAfterVisitChance = 0.25f;
 
     private readonly HashSet<CasinoCustomerAI> activeCustomers = new HashSet<CasinoCustomerAI>();
     [SerializeField] private Transform entrance;
     [SerializeField] private Transform exit;
+    [SerializeField] private Transform cashierWaypoint;
     [SerializeField] private CasinoSeat[] seats;
     [SerializeField] private Material[] customerMaterials;
     private float spawnTimer;
     private int nextCustomerNumber = 1;
 
     public float PatienceSeconds => patienceSeconds;
+    public Transform CashierWaypoint => cashierWaypoint;
+    public int MinimumRoundsPerVisit => minimumRoundsPerVisit;
+    public int MaximumRoundsPerVisit => Mathf.Max(minimumRoundsPerVisit, maximumRoundsPerVisit);
+    public float LeaveAfterVisitChance => leaveAfterVisitChance;
+    public float CashierAfterVisitChance => cashierAfterVisitChance;
     public int InitialCustomerCount => initialCustomerCount;
     public int ActiveCustomerCount => activeCustomers.Count;
-    public bool IsConfigured => entrance != null && exit != null && seats != null && customerMaterials != null && customerMaterials.Length > 0;
+    public bool IsConfigured => entrance != null && exit != null && cashierWaypoint != null &&
+                                seats != null && customerMaterials != null && customerMaterials.Length > 0;
 
-    public void Configure(Transform entrancePoint, Transform exitPoint, CasinoSeat[] casinoSeats, Material[] materials)
+    public void Configure(
+        Transform entrancePoint,
+        Transform exitPoint,
+        Transform cashier,
+        CasinoSeat[] casinoSeats,
+        Material[] materials)
     {
         entrance = entrancePoint;
         exit = exitPoint;
+        cashierWaypoint = cashier;
         seats = casinoSeats;
         customerMaterials = materials;
     }
 
     private void Start()
     {
-        if (entrance == null || exit == null || seats == null || customerMaterials == null || customerMaterials.Length == 0)
+        if (entrance == null || exit == null || cashierWaypoint == null ||
+            seats == null || customerMaterials == null || customerMaterials.Length == 0)
         {
-            Debug.LogError($"{nameof(CasinoCustomerSpawner)} on {name} is missing its entrance, exit, seats, or character materials.", this);
+            Debug.LogError($"{nameof(CasinoCustomerSpawner)} on {name} is missing its entrance, exit, cashier waypoint, seats, or character materials.", this);
             enabled = false;
             return;
         }
@@ -118,7 +136,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         Object.Destroy(head.GetComponent<Collider>());
         head.GetComponent<Renderer>().sharedMaterial = customerMaterials[(nextCustomerNumber - 2) % customerMaterials.Length];
 
-        customer.Configure(this, seats, exit, visual.transform, bodyRenderer, color, wanderRadius, seatChoiceChance);
+        customer.Configure(this, seats, exit, cashierWaypoint, visual.transform, bodyRenderer, color, wanderRadius, seatChoiceChance);
         activeCustomers.Add(customer);
     }
 }

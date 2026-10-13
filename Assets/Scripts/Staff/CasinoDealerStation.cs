@@ -18,6 +18,10 @@ public sealed class CasinoDealerStation : MonoBehaviour
     public bool IsAvailable => AssignedDealer == null && PendingReplacement == null;
     public bool IsConfigured => dealerPosition != null && attention != null;
     public AIDealer InitialDealer => initialDealer;
+    public bool CanAcceptReplacement => CanReplaceDealer(
+        PendingReplacement != null,
+        AssignedDealer != null,
+        AssignedDealer != null && AssignedDealer.NeedsBreak);
 
     public void Configure(string displayName, Transform position, CasinoTableAttention tableAttention, BlackjackTableInteraction table)
     {
@@ -29,13 +33,18 @@ public sealed class CasinoDealerStation : MonoBehaviour
 
     public bool BeginReplacement(AIDealer replacement)
     {
-        if (replacement == null || PendingReplacement != null || AssignedDealer == replacement)
+        if (replacement == null || !CanAcceptReplacement || AssignedDealer == replacement)
         {
             return false;
         }
 
         PendingReplacement = replacement;
-        attention.RequestAttention(TableAttentionReason.StaffRotationRequired);
+        if (AssignedDealer != null)
+        {
+            AssignedDealer.MarkReplacementRequested();
+            attention.RequestAttention(TableAttentionReason.StaffRotationRequired);
+        }
+
         return true;
     }
 
@@ -98,6 +107,7 @@ public sealed class CasinoDealerStation : MonoBehaviour
             return false;
         }
 
+        AssignedDealer?.CancelReplacementRequest();
         PendingReplacement = null;
         ResolveAttention(TableAttentionReason.StaffRotationRequired);
         return true;
@@ -113,5 +123,10 @@ public sealed class CasinoDealerStation : MonoBehaviour
         while (attention.ResolveAttention(reason))
         {
         }
+    }
+
+    public static bool CanReplaceDealer(bool hasPendingReplacement, bool hasAssignedDealer, bool assignedDealerNeedsBreak)
+    {
+        return !hasPendingReplacement && (!hasAssignedDealer || assignedDealerNeedsBreak);
     }
 }

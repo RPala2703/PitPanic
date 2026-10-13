@@ -708,9 +708,9 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         {
             foreach (BlackjackHand hand in round.CustomerHands)
             {
-                        if (hand.Customer != null && hand.Customer.Seat == hand.Seat && hand.Customer.IsSeated)
+                if (hand.Customer != null && hand.Customer.Seat == hand.Seat && hand.Customer.IsSeated)
                 {
-                    hand.Customer.CompleteVisit();
+                    hand.Customer.CompleteBlackjackRound();
                 }
             }
         }

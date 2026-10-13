@@ -17,6 +17,11 @@ public sealed class CustomerPatience : MonoBehaviour
         IsWaiting = true;
     }
 
+    public void Restart(float patienceSeconds)
+    {
+        Begin(patienceSeconds);
+    }
+
     public void Pause()
     {
         IsWaiting = false;

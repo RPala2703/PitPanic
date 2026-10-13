@@ -9,6 +9,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
     [SerializeField] private CasinoPlayerController player;
     [SerializeField] private TableInteractionZone interactionZone;
     [SerializeField] private DealerAssignmentManager assignmentManager;
+    [SerializeField] private CasinoTableAttention attention;
     [SerializeField, Min(0f)] private float refreshInterval = 0.5f;
 
     private Canvas canvas;
@@ -21,14 +22,19 @@ public sealed class PitDeskInteraction : MonoBehaviour
     private float nextRefreshTime;
 
     public bool IsConfigured => player != null && interactionZone != null &&
-                                interactionZone.IsConfigured && assignmentManager != null &&
+                                interactionZone.IsConfigured && attention != null && assignmentManager != null &&
                                 assignmentManager.IsConfigured;
 
-    public void Configure(CasinoPlayerController casinoPlayer, TableInteractionZone zone, DealerAssignmentManager manager)
+    public void Configure(
+        CasinoPlayerController casinoPlayer,
+        TableInteractionZone zone,
+        DealerAssignmentManager manager,
+        CasinoTableAttention tableAttention)
     {
         player = casinoPlayer;
         interactionZone = zone;
         assignmentManager = manager;
+        attention = tableAttention;
     }
 
     private void Start()
@@ -126,7 +132,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
         }
 
         rows.Clear();
-        float rowY = 250f;
+        float rowY = 220f;
         IReadOnlyList<AIDealer> dealers = assignmentManager.Dealers;
         IReadOnlyList<CasinoDealerStation> stations = assignmentManager.Stations;
         for (int i = 0; i < dealers.Count; i++)
@@ -134,52 +140,65 @@ public sealed class PitDeskInteraction : MonoBehaviour
             AIDealer dealer = dealers[i];
             if (dealer == null) continue;
             float y = rowY - i * 98f;
-            string stationName = dealer.AssignedStation != null ? dealer.AssignedStation.StationName : dealer.StatusLabel;
+            string stationName = dealer.AssignedStation != null
+                ? dealer.AssignedStation.StationName
+                : dealer.StatusLabel;
             string minutes = dealer.CurrentStationTime >= 60f ? $"{dealer.CurrentStationTime / 60f:0.0}m" : $"{dealer.CurrentStationTime:0}s";
             GameObject row = CreateRect($"Dealer Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(-260f, y), new Vector2(490f, 80f));
             row.AddComponent<Image>().color = dealer == selectedDealer
                 ? new Color(0.24f, 0.39f, 0.28f, 0.95f)
                 : new Color(0.08f, 0.23f, 0.20f, 0.92f);
             CreateText("Dealer Details", row.transform, new Vector2(-105f, 12f), new Vector2(275f, 58f), 15).text =
-                $"{dealer.DealerId}  •  {stationName}\nENERGY  {dealer.Energy:0}%    {minutes} ON STATION";
-            int dealerIndex = i;
-            CreateButton("Select Dealer", row.transform, dealer == selectedDealer ? "SELECTED" : "SELECT", new Vector2(164f, 12f), new Vector2(100f, 32f), () => SelectDealer(dealerIndex));
-            if (dealer.AssignedStation != null)
+                $"{dealer.DealerId}  •  {dealer.StatusLabel}  •  {stationName}\nENERGY  {dealer.Energy:0}%    {minutes} ON STATION";
+            if (dealer.IsReadyAtPitDesk)
             {
-                CreateButton("Rotate Dealer", row.transform, "REQUEST ROTATION", new Vector2(164f, -20f), new Vector2(128f, 26f), () => SendDealerToBreak(dealerIndex));
-            }
-            else if (dealer.IsAvailable)
-            {
-                CreateText("Available", row.transform, new Vector2(164f, -16f), new Vector2(128f, 24f), 12).text = "AVAILABLE";
+                int dealerIndex = i;
+                CreateButton("Select Dealer", row.transform, dealer == selectedDealer ? "SELECTED" : "SELECT", new Vector2(164f, 12f), new Vector2(100f, 32f), () => SelectDealer(dealerIndex));
             }
 
             rows.Add(row);
         }
 
-        float stationY = 245f;
+        float stationY = 220f;
         for (int i = 0; i < stations.Count; i++)
         {
             CasinoDealerStation station = stations[i];
             float y = stationY - i * 98f;
             GameObject stationRow = CreateRect($"Table Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(275f, y), new Vector2(500f, 80f));
             stationRow.AddComponent<Image>().color = new Color(0.22f, 0.18f, 0.10f, 0.95f);
-            string currentName = station.AssignedDealer != null ? station.AssignedDealer.DealerId : "UNSTAFFED";
+            string currentName = station.AssignedDealer != null
+                ? $"{station.AssignedDealer.DealerId}  {station.AssignedDealer.StatusLabel}"
+                : "UNSTAFFED";
             string incomingName = station.PendingReplacement != null ? $"INCOMING: {station.PendingReplacement.DealerId}" : "NO ROTATION";
             CreateText("Table Details", stationRow.transform, new Vector2(-80f, 10f), new Vector2(280f, 55f), 15).text =
                 $"{station.StationName}  •  {currentName}\n{incomingName}";
             int stationIndex = i;
-            CreateButton(
+            Button assignmentButton = CreateButton(
                 "Assign Selected Dealer",
                 stationRow.transform,
-                selectedDealer == null ? "SELECT A DEALER" : "ASSIGN / REPLACE",
+                selectedDealer == null ? "SELECT READY DEALER" : "ASSIGN / ROTATE",
                 new Vector2(165f, 0f),
                 new Vector2(150f, 36f),
                 () => AssignSelectedDealer(stationIndex));
+            assignmentButton.interactable = selectedDealer != null &&
+                                            assignmentManager.CanAssignDealer(selectedDealer, station, out _);
+            Text stationHint = CreateText("Availability Hint", stationRow.transform, new Vector2(0f, -27f), new Vector2(440f, 20f), 11);
+            if (selectedDealer != null && !assignmentManager.CanAssignDealer(selectedDealer, station, out string assignmentReason))
+            {
+                stationHint.text = assignmentReason.ToUpperInvariant();
+            }
+            else
+            {
+                stationHint.text = station.CanAcceptReplacement
+                    ? station.AssignedDealer == null ? "UNSTAFFED — READY COVER CAN BE ASSIGNED" : "NEEDS BREAK — PIT BOSS ROTATION REQUIRED"
+                    : station.PendingReplacement != null ? "REPLACEMENT EN ROUTE" : "HEALTHY DEALER — ROTATION NOT AVAILABLE";
+            }
+
             rows.Add(stationRow);
         }
 
         statusText.text = selectedDealer == null
-            ? "SELECT A RESTING DEALER, THEN ASSIGN THEM TO A TABLE"
+            ? "SELECT A READY DEALER AT THE PIT DESK TO COVER AN UNSTAFFED OR TIRED TABLE"
             : $"SELECTED  {selectedDealer.DealerId}  •  {selectedDealer.Energy:0}% ENERGY";
     }
 
@@ -191,22 +210,19 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void AssignSelectedDealer(int stationIndex)
     {
-        if (selectedDealer == null) return;
-        bool assigned = assignmentManager.TryAssignDealer(selectedDealer, assignmentManager.Stations[stationIndex]);
-        statusText.text = assigned
-            ? $"{selectedDealer.DealerId} IS WALKING TO {assignmentManager.Stations[stationIndex].StationName}"
-            : "CHOOSE AN AVAILABLE, RESTED DEALER AND A TABLE WITHOUT AN ACTIVE ROTATION";
-        selectedDealer = null;
-        RenderDealerRows();
-    }
+        if (selectedDealer == null)
+        {
+            statusText.text = "SELECT A READY DEALER FIRST.";
+            return;
+        }
 
-    private void SendDealerToBreak(int dealerIndex)
-    {
-        AIDealer dealer = assignmentManager.Dealers[dealerIndex];
-        bool sent = assignmentManager.SendDealerToBreak(dealer);
-        statusText.text = sent
-            ? $"ROTATION STARTED. {dealer.DealerId} WILL TAKE A BREAK AFTER COVER ARRIVES."
-            : "ROTATION NEEDS AN AVAILABLE, RESTED RESERVE DEALER.";
+        AIDealer assignedDealer = selectedDealer;
+        CasinoDealerStation station = assignmentManager.Stations[stationIndex];
+        bool assigned = assignmentManager.TryAssignDealer(assignedDealer, station, out string reason);
+        statusText.text = assigned
+            ? $"{assignedDealer.DealerId} IS WALKING TO {station.StationName}"
+            : reason;
+        selectedDealer = null;
         RenderDealerRows();
     }
 

@@ -6,20 +6,25 @@ public sealed class CasinoSeat : MonoBehaviour
 {
     [SerializeField] private Transform customerPosition;
     [SerializeField] private Transform bettingPosition;
+    [SerializeField] private Transform approachPosition;
 
     public event Action<CasinoCustomerAI> CustomerSeated;
     public event Action<CasinoCustomerAI> CustomerReleased;
     public CasinoCustomerAI ReservedBy { get; private set; }
     public CasinoCustomerAI Occupant { get; private set; }
     public bool IsAvailable => ReservedBy == null && Occupant == null;
-    public Vector3 Position => customerPosition != null ? customerPosition.position : transform.position;
+    public Vector3 Position => approachPosition != null ? approachPosition.position : transform.position;
     public Quaternion Facing => customerPosition != null ? customerPosition.rotation : transform.rotation;
     public Transform BettingPosition => bettingPosition;
+    public Vector3 SeatedVisualOffset => customerPosition != null && approachPosition != null
+        ? transform.InverseTransformVector(customerPosition.position - approachPosition.position)
+        : Vector3.zero;
 
-    public void Configure(Transform waitingPosition, Transform betPosition)
+    public void Configure(Transform waitingPosition, Transform betPosition, Transform reachableApproach = null)
     {
         customerPosition = waitingPosition;
         bettingPosition = betPosition;
+        approachPosition = reachableApproach;
     }
 
     public bool TryReserve(CasinoCustomerAI customer)
@@ -58,6 +63,14 @@ public sealed class CasinoSeat : MonoBehaviour
         if (wasSeated)
         {
             CustomerReleased?.Invoke(customer);
+        }
+    }
+
+    public void NotifyReadyForService(CasinoCustomerAI customer)
+    {
+        if (customer != null && Occupant == customer && ReservedBy == customer)
+        {
+            CustomerSeated?.Invoke(customer);
         }
     }
 }

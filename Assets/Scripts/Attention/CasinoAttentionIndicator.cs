@@ -9,6 +9,7 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
     private Camera targetCamera;
     private Text indicatorText;
+    public CasinoTableAttention Attention => attention;
 
     public void Configure(CasinoTableAttention tableAttention, Canvas worldCanvas, Text text)
     {
@@ -63,7 +64,7 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
         if (targetCamera != null)
         {
-            Vector3 towardCamera = indicatorCanvas.transform.position - targetCamera.transform.position;
+            Vector3 towardCamera = targetCamera.transform.position - indicatorCanvas.transform.position;
             if (towardCamera.sqrMagnitude > 0.001f)
             {
                 indicatorCanvas.transform.rotation = Quaternion.LookRotation(towardCamera, Vector3.up);
