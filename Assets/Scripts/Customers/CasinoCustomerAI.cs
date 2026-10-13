@@ -30,8 +30,11 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private float seatChoiceChance;
     private float nextDecisionTime;
     private float customerHitThreshold;
+    private Vector3 seatNavPosition;
+    private float leavingDelay;
     private bool serviceActive;
     private bool penaltyRecorded;
+    private bool headingToExit;
 
     public event Action<CasinoCustomerAI> Seated;
     public event Action<CasinoCustomerAI> LeavingSeat;
@@ -93,6 +96,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         {
             if (reservedSeat != null && reservedSeat.SeatCustomer(this))
             {
+                agent.Warp(seatNavPosition);
+                transform.SetPositionAndRotation(seatNavPosition, reservedSeat.Facing);
                 state = CustomerState.Seated;
                 agent.isStopped = true;
                 patience.Begin(spawner.PatienceSeconds);
@@ -114,9 +119,25 @@ public sealed class CasinoCustomerAI : MonoBehaviour
 
             SetWanderDestination();
         }
-        else if (state == CustomerState.Leaving && HasReachedDestination())
+        else if (state == CustomerState.Leaving)
         {
-            Despawn();
+            if (leavingDelay > 0f)
+            {
+                leavingDelay -= Time.deltaTime;
+            }
+            else if (!headingToExit)
+            {
+                headingToExit = true;
+                agent.isStopped = false;
+                if (exit == null || !agent.SetDestination(exit.position))
+                {
+                    Debug.LogError($"{name} could not find a NavMesh path to the casino exit.", this);
+                }
+            }
+            else if (HasReachedDestination())
+            {
+                Despawn();
+            }
         }
 
         if (visual != null)
@@ -189,6 +210,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             }
 
             reservedSeat = candidate;
+            seatNavPosition = seatHit.position;
             state = CustomerState.TravellingToSeat;
             agent.isStopped = false;
             return true;
@@ -250,8 +272,10 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         ReleaseSeat();
         serviceActive = false;
         state = CustomerState.Leaving;
-        agent.isStopped = false;
-        if (exit == null || !agent.isOnNavMesh || !agent.SetDestination(exit.position))
+        agent.isStopped = true;
+        leavingDelay = 0.45f;
+        headingToExit = false;
+        if (exit == null || !agent.isOnNavMesh)
         {
             Debug.LogError($"{name} could not find a NavMesh path to the casino exit.", this);
         }

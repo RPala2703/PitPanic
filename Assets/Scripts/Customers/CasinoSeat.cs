@@ -5,6 +5,7 @@ using System;
 public sealed class CasinoSeat : MonoBehaviour
 {
     [SerializeField] private Transform customerPosition;
+    [SerializeField] private Transform bettingPosition;
 
     public event Action<CasinoCustomerAI> CustomerSeated;
     public event Action<CasinoCustomerAI> CustomerReleased;
@@ -12,10 +13,13 @@ public sealed class CasinoSeat : MonoBehaviour
     public CasinoCustomerAI Occupant { get; private set; }
     public bool IsAvailable => ReservedBy == null && Occupant == null;
     public Vector3 Position => customerPosition != null ? customerPosition.position : transform.position;
+    public Quaternion Facing => customerPosition != null ? customerPosition.rotation : transform.rotation;
+    public Transform BettingPosition => bettingPosition;
 
-    public void Configure(Transform waitingPosition)
+    public void Configure(Transform waitingPosition, Transform betPosition)
     {
         customerPosition = waitingPosition;
+        bettingPosition = betPosition;
     }
 
     public bool TryReserve(CasinoCustomerAI customer)

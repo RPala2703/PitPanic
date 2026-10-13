@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using Unity.AI.Navigation;
@@ -114,6 +115,17 @@ public static class PitPanicPrototypeGenerator
         AssertOutcome("player bust", BlackjackOutcome.Lose, 22, 18, false, false);
         AssertOutcome("dealer bust", BlackjackOutcome.Win, 20, 22, false, false);
         AssertOutcome("equal totals", BlackjackOutcome.Push, 19, 19, false, false);
+        AssertPayout("natural blackjack return", 5000, BlackjackOutcome.Blackjack, 2000);
+        AssertPayout("ordinary win return", 4000, BlackjackOutcome.Win, 2000);
+        AssertPayout("push returns stake", 2000, BlackjackOutcome.Push, 2000);
+        AssertPayout("loss returns nothing", 0, BlackjackOutcome.Lose, 2000);
+        if (!BlackjackRules.IsSoft17(new[] { new BlackjackCard(1, 0), new BlackjackCard(6, 1) }) ||
+            !BlackjackRules.IsSoft17(new[] { new BlackjackCard(1, 0), new BlackjackCard(1, 1), new BlackjackCard(5, 2) }) ||
+            BlackjackRules.DealerMustHit(new[] { new BlackjackCard(1, 0), new BlackjackCard(6, 1) }) ||
+            !BlackjackRules.DealerMustHit(new[] { new BlackjackCard(10, 0), new BlackjackCard(6, 1) }))
+        {
+            throw new System.InvalidOperationException("Dealer rules do not stand on soft 17 and hit totals below 17.");
+        }
 
         GameObject attentionObject = new GameObject("Attention Rule Test");
         CasinoTableAttention attention = attentionObject.AddComponent<CasinoTableAttention>();
@@ -163,26 +175,71 @@ public static class PitPanicPrototypeGenerator
         UnityEngine.Object.DestroyImmediate(secondCustomerObject);
         UnityEngine.Object.DestroyImmediate(seatObject);
 
-        BlackjackRound standRound = new BlackjackRound();
-        if (!standRound.IsComplete)
+        BlackjackCard[] scriptedShoeCards =
         {
-            standRound.Stand();
-            if (standRound.DealerTotal < 17 && standRound.DealerTotal <= 21)
+            new BlackjackCard(1, 3),
+            new BlackjackCard(10, 3),
+            new BlackjackCard(10, 2),
+            new BlackjackCard(10, 0),
+            new BlackjackCard(13, 0),
+            new BlackjackCard(8, 0),
+            new BlackjackCard(7, 3),
+            new BlackjackCard(8, 1),
+            new BlackjackCard(6, 1)
+        };
+        BlackjackShoe shuffledShoe = new BlackjackShoe(seed: 2703);
+        HashSet<string> drawnCards = new HashSet<string>();
+        for (int i = 0; i < 52; i++)
+        {
+            if (!drawnCards.Add(shuffledShoe.Draw().ToString()))
             {
-                throw new System.InvalidOperationException("Dealer failed to draw to at least 17.");
+                throw new System.InvalidOperationException("The shuffled shoe dealt a physical card more than once.");
             }
         }
 
-        BlackjackRound hitRound = new BlackjackRound();
-        for (int i = 0; i < 52 && !hitRound.IsComplete; i++)
+        if (shuffledShoe.RemainingCards != 0)
         {
-            hitRound.Hit();
+            throw new System.InvalidOperationException("The shared shoe did not remove dealt cards.");
         }
 
-        if (!hitRound.IsComplete)
+        BlackjackTableRound sharedRound = new BlackjackTableRound(2000, new BlackjackShoe(scriptedShoeCards));
+        BlackjackHand naturalHand = sharedRound.AddCustomer(null, null);
+        BlackjackHand pushHand = sharedRound.AddCustomer(null, null);
+        BlackjackHand bustHand = sharedRound.AddCustomer(null, null);
+
+        sharedRound.DealTo(naturalHand);
+        sharedRound.DealTo(pushHand);
+        sharedRound.DealTo(bustHand);
+        sharedRound.DealToDealer();
+        sharedRound.DealTo(naturalHand);
+        sharedRound.DealTo(pushHand);
+        sharedRound.DealTo(bustHand);
+        sharedRound.DealToDealer();
+        sharedRound.DealTo(bustHand);
+        AssertThrows("customer joining during a round", () => sharedRound.AddCustomer(null, null));
+
+        if (naturalHand.Total != 21 || !naturalHand.IsNatural || pushHand.Total != 18 ||
+            bustHand.Total != 23 || sharedRound.DealerTotal != 18 || sharedRound.Shoe.RemainingCards != 0)
         {
-            throw new System.InvalidOperationException("Repeated hits did not finish the blackjack round.");
+            throw new System.InvalidOperationException("Multiple customer hands did not use the expected shared shoe and deal order.");
         }
+
+        sharedRound.Settle();
+        if (naturalHand.Outcome != BlackjackOutcome.Blackjack || pushHand.Outcome != BlackjackOutcome.Push ||
+            bustHand.Outcome != BlackjackOutcome.Lose || naturalHand.PayoutPence != 5000 ||
+            pushHand.PayoutPence != 2000 || bustHand.PayoutPence != 0 ||
+            bustHand.Status != BlackjackHandStatus.Bust)
+        {
+            throw new System.InvalidOperationException("Three different customer outcomes were not settled correctly in one round.");
+        }
+
+        if (!sharedRound.TryMarkPayoutPaid(naturalHand) || sharedRound.TryMarkPayoutPaid(naturalHand) ||
+            !sharedRound.TryMarkPayoutPaid(pushHand) || sharedRound.TryMarkPayoutPaid(bustHand))
+        {
+            throw new System.InvalidOperationException("A payout was duplicated or a losing bet incorrectly required a payout.");
+        }
+
+        AssertThrows("settling a round twice", sharedRound.Settle);
 
         Debug.Log("Blackjack rule checks passed.");
     }
@@ -211,6 +268,7 @@ public static class PitPanicPrototypeGenerator
         Camera camera = Object.FindFirstObjectByType<Camera>();
         CasinoPlayerController player = Object.FindFirstObjectByType<CasinoPlayerController>();
         BlackjackTableInteraction table = Object.FindFirstObjectByType<BlackjackTableInteraction>();
+        BlackjackTableView tableView = Object.FindFirstObjectByType<BlackjackTableView>();
         CasinoCustomerSpawner spawner = Object.FindFirstObjectByType<CasinoCustomerSpawner>();
         NavMeshSurface navigation = Object.FindFirstObjectByType<NavMeshSurface>();
         CasinoSeat[] seats = Object.FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None);
@@ -219,9 +277,24 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Generated scene does not have an orthographic camera.");
         }
 
-        if (player == null || table == null || !table.IsConfigured || seats.Length != 3)
+        if (player == null || table == null || !table.IsConfigured || tableView == null || seats.Length != 3)
         {
-            throw new System.InvalidOperationException("Generated scene is missing the configured player, blackjack table, or three seats.");
+            throw new System.InvalidOperationException("Generated scene is missing the configured player, visual blackjack table, or three seats.");
+        }
+
+        foreach (CasinoSeat seat in seats)
+        {
+            if (seat.BettingPosition == null || Mathf.Abs(seat.Position.x - seat.BettingPosition.position.x) > 0.05f)
+            {
+                throw new System.InvalidOperationException($"{seat.name} is not aligned with its visible blackjack betting spot.");
+            }
+        }
+
+        if (GameObject.Find("Blackjack Bet Spot 1") == null ||
+            GameObject.Find("Blackjack Bet Spot 2") == null ||
+            GameObject.Find("Blackjack Bet Spot 3") == null)
+        {
+            throw new System.InvalidOperationException("Generated blackjack table does not have three visible betting spots.");
         }
 
         if (spawner == null || !spawner.IsConfigured || spawner.InitialCustomerCount != 4)
@@ -304,6 +377,29 @@ public static class PitPanicPrototypeGenerator
         }
     }
 
+    private static void AssertPayout(string testName, int expected, BlackjackOutcome outcome, int betPence)
+    {
+        int actual = BlackjackRules.GetPayoutPence(outcome, betPence);
+        if (actual != expected)
+        {
+            throw new System.InvalidOperationException($"Blackjack payout check '{testName}' failed: expected {expected}, got {actual}.");
+        }
+    }
+
+    private static void AssertThrows(string testName, System.Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (System.InvalidOperationException)
+        {
+            return;
+        }
+
+        throw new System.InvalidOperationException($"Blackjack rule check '{testName}' did not reject the invalid operation.");
+    }
+
     private static void CreateFloor(Material floorMaterial, Material trimMaterial)
     {
         GameObject floor = new GameObject("Casino Floor");
@@ -378,17 +474,28 @@ public static class PitPanicPrototypeGenerator
         float[] seatOffsets = { -1.7f, 0f, 1.7f };
         for (int i = 0; i < seats.Length; i++)
         {
+            Vector3 betSpotWorld = center + new Vector3(seatOffsets[i], 1.43f, -0.65f);
+            CreatePrimitive(PrimitiveType.Cylinder, $"Blackjack Bet Spot {i + 1} Rim", betSpotWorld, new Vector3(0.63f, 0.018f, 0.63f), trimMaterial, table.transform);
+            CreatePrimitive(PrimitiveType.Cylinder, $"Blackjack Bet Spot {i + 1}", betSpotWorld + new Vector3(0f, 0.035f, 0f), new Vector3(0.53f, 0.018f, 0.53f), feltMaterial, table.transform);
+
+            GameObject bettingPosition = new GameObject($"Betting Position {i + 1}");
+            bettingPosition.transform.SetParent(table.transform, false);
+            bettingPosition.transform.localPosition = new Vector3(seatOffsets[i], 1.47f, 0.65f);
+
             GameObject seatObject = new GameObject($"Customer Seat {i + 1}");
             seatObject.transform.SetParent(table.transform, false);
-            seatObject.transform.localPosition = new Vector3(seatOffsets[i], 0f, -2.8f);
+            seatObject.transform.localPosition = new Vector3(seatOffsets[i], 0f, -1.35f);
+            GameObject customerPosition = new GameObject("Customer Sitting Position");
+            customerPosition.transform.SetParent(seatObject.transform, false);
             CasinoSeat seat = seatObject.AddComponent<CasinoSeat>();
-            seat.Configure(seatObject.transform);
+            seat.Configure(customerPosition.transform, bettingPosition.transform);
             seats[i] = seat;
         }
 
         GameObject dealerPosition = new GameObject("Dealer Interaction Position");
         dealerPosition.transform.SetParent(table.transform, false);
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, -2.4f);
+        table.AddComponent<BlackjackTableView>();
         BlackjackTableInteraction interaction = table.AddComponent<BlackjackTableInteraction>();
         interaction.Configure(playerController, dealerPosition.transform, attention, seats);
         return seats;
