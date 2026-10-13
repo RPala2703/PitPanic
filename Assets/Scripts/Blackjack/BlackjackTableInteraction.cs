@@ -36,6 +36,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private bool forceFlickNextRound;
     private AIDealer assignedDealer;
     [SerializeField] private CasinoMinigameStation flickStation;
+    [SerializeField] private string tableIdentifier;
     private float nextDealerActionTime;
     private string message = "Waiting for customers.";
 
@@ -55,6 +56,20 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     public bool IsFlickReady => flickBoundaryReady && flickDealerPaused && flickStation != null && flickStation.IsTaskPending;
     public bool HasFlickAssistanceStation => flickStation != null;
     public AIDealer AssignedDealer => assignedDealer;
+    public string TableDisplayName
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(tableIdentifier))
+            {
+                return $"BLACKJACK {tableIdentifier.Substring(tableIdentifier.Length - 1)}";
+            }
+
+            return name == "Blackjack Table 1" ? "BLACKJACK 1" :
+                   name == "Blackjack Table 2" ? "BLACKJACK 2" :
+                   name.ToUpperInvariant();
+        }
+    }
     public bool IsDealerStaffed => assignedDealer != null && assignedDealer.IsAtStation;
     public bool IsActivelyServing => waitingSet.Count > 0 ||
                                      state != BlackjackTableState.WaitingForCustomers &&
@@ -64,12 +79,14 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         CasinoPlayerController player,
         TableInteractionZone tableInteractionZone,
         CasinoTableAttention tableAttention,
-        CasinoSeat[] tableSeats)
+        CasinoSeat[] tableSeats,
+        string identifier = null)
     {
         playerController = player;
         interactionZone = tableInteractionZone;
         attention = tableAttention;
         seats = tableSeats;
+        tableIdentifier = identifier;
     }
 
     public void ConfigureFlickAssistance(CasinoMinigameStation station)
@@ -115,7 +132,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             return;
         }
 
-        tableView.Configure(PerformDealerAction, ClosePanel, AddPayoutChip, RemovePayoutChip, ConfirmPayout, chipDenominations);
+        tableView.Configure(PerformDealerAction, ClosePanel, AddPayoutChip, RemovePayoutChip, ConfirmPayout, chipDenominations, TableDisplayName);
         RefreshView();
     }
 
@@ -188,7 +205,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         bool showPrompt = inRange && hasAction && (!flickTaskPending || flickReady);
         tableView.SetPromptVisible(
             showPrompt,
-            flickReady ? "E  •  FLICK! HELP THE DEALER" : GetActionPrompt());
+            flickReady ? $"E  •  FLICK! HELP {TableDisplayName}" : GetActionPrompt());
         if (inRange && hasAction && (flickStation == null || !flickStation.IsTaskPending) &&
             keyboard != null && keyboard.eKey.wasPressedThisFrame)
         {
@@ -880,7 +897,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private string GetActionPrompt()
     {
-        return "E  •  Inspect blackjack table and dealer";
+        return $"E  •  Inspect {TableDisplayName} and dealer";
     }
 
     public void QueueFlickAssistanceTest()

@@ -316,6 +316,44 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Cash desk chip packing does not match the pence total exactly.");
         }
 
+        int[] expectedPackingCounts = { 10, 5, 4, 0 };
+        int[] packingSequence = CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127);
+        int[] sequencedCounts = new int[4];
+        foreach (int denominationIndex in packingSequence)
+        {
+            if (denominationIndex < 0 || denominationIndex >= sequencedCounts.Length)
+            {
+                throw new System.InvalidOperationException("Cash desk packing sequence contains an invalid denomination.");
+            }
+
+            sequencedCounts[denominationIndex]++;
+        }
+
+        bool sequenceCountsMatch = true;
+        for (int i = 0; i < expectedPackingCounts.Length; i++)
+        {
+            sequenceCountsMatch &= sequencedCounts[i] == expectedPackingCounts[i];
+        }
+
+        int nextPackingIndex;
+        bool wrongChipAdvanced = CashDeskPackMinigame.TryAdvancePackingSequence(packingSequence, 0, 3, out nextPackingIndex);
+        bool rightChipAdvanced = CashDeskPackMinigame.TryAdvancePackingSequence(packingSequence, 0, packingSequence[0], out int advancedPackingIndex);
+        bool completedSequenceAdvanced = CashDeskPackMinigame.TryAdvancePackingSequence(
+            packingSequence,
+            packingSequence.Length,
+            0,
+            out int completedPackingIndex);
+        if (packingSequence.Length != 19 ||
+            !sequenceCountsMatch ||
+            CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127).Length != packingSequence.Length ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(19) <= CashDeskPackMinigame.GetSequenceTimeLimit(10) ||
+            wrongChipAdvanced || nextPackingIndex != 0 ||
+            !rightChipAdvanced || advancedPackingIndex != 1 ||
+            completedSequenceAdvanced || completedPackingIndex != packingSequence.Length)
+        {
+            throw new System.InvalidOperationException("Cash desk packing sequence does not preserve exact order quantities or scale its timer.");
+        }
+
         GameObject floatDestinationObject = new GameObject("Float Delivery Rule Test");
         BoxCollider floatFootprint = floatDestinationObject.AddComponent<BoxCollider>();
         floatFootprint.size = new Vector3(4f, 1f, 3f);
@@ -665,6 +703,12 @@ public static class PitPanicPrototypeGenerator
                 throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or FLICK! system.");
             }
 
+            string expectedTableLabel = blackjackTable.name == "Blackjack Table 1" ? "BLACKJACK 1" : "BLACKJACK 2";
+            if (blackjackTable.TableDisplayName != expectedTableLabel)
+            {
+                throw new System.InvalidOperationException($"{blackjackTable.name} does not have its distinct blackjack table identifier.");
+            }
+
             string[] requiredLabelNames =
             {
                 "Blackjack Table 1 Label",
@@ -674,16 +718,28 @@ public static class PitPanicPrototypeGenerator
                 "Cashier Station Label",
                 "Break Room Label"
             };
-            foreach (string labelName in requiredLabelNames)
+            string[] requiredLabelValues =
             {
+                "BLACKJACK 1",
+                "BLACKJACK 2",
+                "ROULETTE",
+                "PIT BOSS",
+                "CASHIER",
+                "DEALER BREAK ROOM"
+            };
+            for (int labelIndex = 0; labelIndex < requiredLabelNames.Length; labelIndex++)
+            {
+                string labelName = requiredLabelNames[labelIndex];
                 GameObject labelObject = GameObject.Find(labelName);
                 CameraFacingCanvas facing = labelObject != null
                     ? labelObject.GetComponent<CameraFacingCanvas>()
                     : null;
                 Canvas labelCanvas = labelObject != null ? labelObject.GetComponent<Canvas>() : null;
-                if (facing == null || labelCanvas == null)
+                Text labelText = labelObject != null ? labelObject.GetComponentInChildren<Text>(true) : null;
+                if (facing == null || labelCanvas == null || labelText == null ||
+                    labelText.text != requiredLabelValues[labelIndex])
                 {
-                    throw new System.InvalidOperationException($"{labelName} is missing its camera-facing world-space canvas.");
+                    throw new System.InvalidOperationException($"{labelName} is missing its readable camera-facing canvas or expected station text.");
                 }
 
                 facing.AlignTo(camera);
@@ -1441,7 +1497,9 @@ public static class PitPanicPrototypeGenerator
 
         CasinoTableAttention attention = table.AddComponent<CasinoTableAttention>();
         CreateAttentionIndicator(table.transform, attention, center + Vector3.up * 5.1f);
-        CreateWorldLabel(table.transform, $"{tableName} Label", tableName.ToUpperInvariant(), center + new Vector3(0f, 2.2f, -1.5f));
+        string destinationId = tableName == "Blackjack Table 1" ? "BJ1" : "BJ2";
+        string tableDisplayName = destinationId == "BJ1" ? "BLACKJACK 1" : "BLACKJACK 2";
+        CreateWorldLabel(table.transform, $"{tableName} Label", tableDisplayName, center + new Vector3(0f, 2.2f, -1.5f));
 
         CasinoSeat[] seats = new CasinoSeat[3];
         float[] seatOffsets = { -1.7f, 0f, 1.7f };
@@ -1470,11 +1528,10 @@ public static class PitPanicPrototypeGenerator
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
         interactionZone.Configure(tabletop.GetComponent<BoxCollider>());
         floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
-        string destinationId = tableName == "Blackjack Table 1" ? "BJ1" : "BJ2";
         floatDestination.Configure(destinationId, tableName, interactionZone, attention);
         table.AddComponent<BlackjackTableView>();
         BlackjackTableInteraction interaction = table.AddComponent<BlackjackTableInteraction>();
-        interaction.Configure(playerController, interactionZone, attention, seats);
+        interaction.Configure(playerController, interactionZone, attention, seats, destinationId);
         CasinoMinigameStation flickStation = table.AddComponent<CasinoMinigameStation>();
         FlickCardMinigame flickMinigame = table.AddComponent<FlickCardMinigame>();
         interaction.ConfigureFlickAssistance(flickStation);

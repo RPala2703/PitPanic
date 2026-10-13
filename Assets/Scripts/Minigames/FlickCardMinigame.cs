@@ -58,7 +58,8 @@ public sealed class FlickCardMinigame : CasinoMinigame
                                      table.ActiveRound != null && table.RemainingFlickCardCount > 0 &&
                                      player != null && tableRoot != null &&
                                      Mouse.current != null && Camera.main != null;
-    protected override string PresentationTitle => "FLICK! DEAL THE OPENING HANDS";
+    protected override string PresentationTitle =>
+        table != null ? $"FLICK!  •  {table.TableDisplayName}" : "FLICK! DEAL THE OPENING HANDS";
     protected override string PresentationInstructions =>
         "Grab a card from the shoe, aim at the glowing hand, and release to deal.";
     public int SuccessfulFlicks => successfulFlicks;

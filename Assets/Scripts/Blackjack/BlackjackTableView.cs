@@ -35,6 +35,9 @@ public sealed class BlackjackTableView : MonoBehaviour
     private Action<int> onAddChip;
     private Action onRemoveChip;
     private Action onConfirmPayout;
+    private string tableDisplayName = "BLACKJACK";
+
+    public string TableDisplayName => tableDisplayName;
 
     public void Configure(
         Action dealAction,
@@ -42,7 +45,8 @@ public sealed class BlackjackTableView : MonoBehaviour
         Action<int> addChipAction,
         Action removeChipAction,
         Action confirmPayoutAction,
-        BlackjackChipDenomination[] denominations)
+        BlackjackChipDenomination[] denominations,
+        string displayName = "BLACKJACK")
     {
         onDeal = dealAction;
         onClose = closeAction;
@@ -50,6 +54,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         onRemoveChip = removeChipAction;
         onConfirmPayout = confirmPayoutAction;
         chipDenominations = denominations;
+        tableDisplayName = string.IsNullOrWhiteSpace(displayName) ? "BLACKJACK" : displayName.ToUpperInvariant();
         EnsureInputEventSystem();
         Build();
     }
@@ -173,7 +178,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         Image feltImage = felt.AddComponent<Image>();
         feltImage.color = new Color(0.025f, 0.30f, 0.20f, 0.98f);
         feltImage.raycastTarget = false;
-        CreateText("Title", felt.transform, "BLACKJACK", new Vector2(0f, 245f), new Vector2(420f, 34f), 22, new Color(0.97f, 0.80f, 0.39f), TextAnchor.MiddleCenter);
+        CreateText("Title", felt.transform, tableDisplayName, new Vector2(0f, 245f), new Vector2(420f, 34f), 22, new Color(0.97f, 0.80f, 0.39f), TextAnchor.MiddleCenter);
         dealerLabel = CreateText("Dealer Label", felt.transform, "DEALER", new Vector2(0f, 210f), new Vector2(360f, 28f), 17, Color.white, TextAnchor.MiddleCenter);
 
         shoePosition = CreateRectObject("Shoe Position", felt.transform, new Vector2(-425f, 164f), new Vector2(54f, 78f)).GetComponent<RectTransform>();
@@ -229,7 +234,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         interactionPrompt = CreateUiObject("Dealer Interaction Prompt", canvas.transform);
         SetRect(interactionPrompt, new Vector2(0.5f, 0f), new Vector2(0f, 45f), new Vector2(420f, 42f));
         interactionPrompt.AddComponent<Image>().color = new Color(0.025f, 0.06f, 0.05f, 0.90f);
-        promptText = CreateText("Prompt", interactionPrompt.transform, "E  •  DEAL BLACKJACK", Vector2.zero, new Vector2(410f, 40f), 18, Color.white, TextAnchor.MiddleCenter);
+        promptText = CreateText("Prompt", interactionPrompt.transform, $"E  •  DEAL {tableDisplayName}", Vector2.zero, new Vector2(410f, 40f), 18, Color.white, TextAnchor.MiddleCenter);
         interactionPrompt.SetActive(false);
     }
 
