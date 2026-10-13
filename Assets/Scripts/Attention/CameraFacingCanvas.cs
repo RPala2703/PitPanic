@@ -23,10 +23,27 @@ public sealed class CameraFacingCanvas : MonoBehaviour
             return;
         }
 
-        Vector3 towardCamera = targetCamera.transform.position - targetCanvas.transform.position;
-        if (towardCamera.sqrMagnitude > 0.001f)
+        AlignTo(targetCamera);
+    }
+
+    public void AlignTo(Camera camera)
+    {
+        if (targetCanvas != null && camera != null)
         {
-            targetCanvas.transform.rotation = Quaternion.LookRotation(towardCamera, targetCamera.transform.up);
+            targetCanvas.worldCamera = camera;
+            targetCanvas.transform.rotation = camera.transform.rotation;
         }
+    }
+
+    public bool IsReadableFrom(Camera camera)
+    {
+        if (camera == null || targetCanvas == null)
+        {
+            return false;
+        }
+
+        Transform label = targetCanvas.transform;
+        return Vector3.Dot(label.right, camera.transform.right) > 0.99f &&
+               Vector3.Dot(label.up, camera.transform.up) > 0.99f;
     }
 }

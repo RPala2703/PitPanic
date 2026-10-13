@@ -22,6 +22,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField] private Transform cashierWaypoint;
     [SerializeField] private CasinoSeat[] seats;
     [SerializeField] private Material[] customerMaterials;
+    [SerializeField] private CasinoCashDeskInteraction cashDesk;
     private float spawnTimer;
     private int nextCustomerNumber = 1;
 
@@ -34,20 +35,34 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     public int InitialCustomerCount => initialCustomerCount;
     public int ActiveCustomerCount => activeCustomers.Count;
     public bool IsConfigured => entrance != null && exit != null && cashierWaypoint != null &&
-                                seats != null && customerMaterials != null && customerMaterials.Length > 0;
+                                seats != null && customerMaterials != null && customerMaterials.Length > 0 &&
+                                cashDesk != null && cashDesk.IsConfigured;
 
     public void Configure(
         Transform entrancePoint,
         Transform exitPoint,
         Transform cashier,
         CasinoSeat[] casinoSeats,
-        Material[] materials)
+        Material[] materials,
+        CasinoCashDeskInteraction casinoCashDesk = null)
     {
         entrance = entrancePoint;
         exit = exitPoint;
         cashierWaypoint = cashier;
         seats = casinoSeats;
         customerMaterials = materials;
+        cashDesk = casinoCashDesk;
+    }
+
+    public void NotifyCashierArrival(CasinoCustomerAI customer)
+    {
+        if (cashDesk == null)
+        {
+            Debug.LogError("A customer reached the cashier, but no cash desk is configured.", this);
+            return;
+        }
+
+        cashDesk.CustomerArrived(customer);
     }
 
     private void Start()

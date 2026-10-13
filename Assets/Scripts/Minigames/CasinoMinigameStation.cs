@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System;
 
 [DisallowMultipleComponent]
 public sealed class CasinoMinigameStation : MonoBehaviour
@@ -14,6 +15,9 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     public bool IsTaskPending { get; private set; }
     public bool IsMinigameRunning => minigame != null && minigame.IsRunning;
+    public CasinoMinigameType MinigameType => minigameType;
+    public event Action<CasinoMinigameResult> TaskSucceeded;
+    public event Action TaskAbandoned;
     public bool IsConfigured => player != null && interactionZone != null &&
                                 interactionZone.IsConfigured && attention != null &&
                                 minigame != null;
@@ -56,6 +60,18 @@ public sealed class CasinoMinigameStation : MonoBehaviour
         return true;
     }
 
+    public bool TryBegin()
+    {
+        if (!IsTaskPending || IsMinigameRunning || !IsConfigured ||
+            !interactionZone.IsPlayerInRange(player.transform) || !minigame.CanBegin)
+        {
+            return false;
+        }
+
+        minigame.Begin();
+        return true;
+    }
+
     private void OnEnable()
     {
         BindMinigame();
@@ -82,14 +98,12 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     private void Update()
     {
-        if (!IsTaskPending || IsMinigameRunning || player == null || interactionZone == null ||
-            !interactionZone.IsPlayerInRange(player.transform) || Keyboard.current == null ||
-            !Keyboard.current.eKey.wasPressedThisFrame || minigame == null || !minigame.CanBegin)
+        if (Keyboard.current == null || !Keyboard.current.eKey.wasPressedThisFrame)
         {
             return;
         }
 
-        minigame.Begin();
+        TryBegin();
     }
 
     private void OnMinigameCompleted(CasinoMinigameResult result)
@@ -97,6 +111,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
         if (result.Success)
         {
             ResolveTask();
+            TaskSucceeded?.Invoke(result);
         }
 
         // Failed tasks stay pending so the player can retry them.
@@ -105,6 +120,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
     private void OnMinigameAbandoned()
     {
         ResolveTask();
+        TaskAbandoned?.Invoke();
     }
 
     private void BindMinigame()
