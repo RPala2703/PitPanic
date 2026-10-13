@@ -10,10 +10,15 @@ public sealed class FlickCardMinigame : CasinoMinigame
     [SerializeField, Min(0.2f)] private float timeAllowance = 10f;
     [SerializeField, Min(0.2f)] private float targetHalfWidth = 0.55f;
     [SerializeField, Min(0.2f)] private float targetHalfDepth = 0.48f;
+    [SerializeField, Min(0.24f)] private float shoeHitHalfWidth = 0.55f;
+    [SerializeField, Min(0.34f)] private float shoeHitHalfDepth = 0.68f;
     [SerializeField, Min(0.05f)] private float cardFlightSeconds = 0.24f;
     [SerializeField, Min(0f)] private float flickArcHeight = 0.42f;
+    [SerializeField] private bool showInputDiagnostics;
 
     private static readonly string[] SuitSymbols = { "♠", "♥", "♦", "♣" };
+    private const float ShoeSurfaceHeight = 1.53f;
+    private const float ShoeLocalDepth = 0.96f;
     private readonly List<GameObject> targetMarkers = new List<GameObject>();
     private readonly List<GameObject> dealtCards = new List<GameObject>();
     [SerializeField] private BlackjackTableInteraction table;
@@ -25,6 +30,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private Text feedbackText;
     private LineRenderer aimGuide;
     private GameObject shoeVisual;
+    private GameObject pointerDebugMarker;
     private GameObject heldCard;
     private GameObject flyingCard;
     private Vector3 mouseWorld;
@@ -39,6 +45,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private bool completing;
     private bool completionSuccess;
     private bool flightIsDeal;
+    private bool hasMouseProjection;
     private int requiredFlicks;
     private Vector3 savedCursorPosition;
     private CursorLockMode savedCursorLockMode;
@@ -54,6 +61,11 @@ public sealed class FlickCardMinigame : CasinoMinigame
     public bool IsDraggingCard => isDragging;
     public bool IsWaitingForCardFlight => waitingForFlight;
     public static int RemainingOpeningCards(int activeHands) => activeHands <= 0 ? 0 : activeHands + 1;
+    public static int RemainingOpeningCards(int activeHands, int dealStep) =>
+        activeHands <= 0 || dealStep < 0
+            ? 0
+            : Mathf.Clamp(activeHands * 2 + 2 - dealStep, 0, activeHands * 2 + 2);
+
     public static int OpeningTargetForStep(int activeHands, int dealStep)
     {
         if (activeHands <= 0 || dealStep < 0 || dealStep >= activeHands * 2 + 2)
@@ -79,6 +91,17 @@ public sealed class FlickCardMinigame : CasinoMinigame
         return !cardInFlight && expectedTarget != -2 && targetIndex == expectedTarget;
     }
 
+    public static bool IsPointerWithinShoe(
+        Vector3 localPointer,
+        Vector3 localShoeCenter,
+        float halfWidth,
+        float halfDepth)
+    {
+        return halfWidth > 0f && halfDepth > 0f &&
+               Mathf.Abs(localPointer.x - localShoeCenter.x) <= halfWidth &&
+               Mathf.Abs(localPointer.z - localShoeCenter.z) <= halfDepth;
+    }
+
     public static bool TryProjectScreenPoint(
         Camera camera,
         Transform table,
@@ -91,7 +114,8 @@ public sealed class FlickCardMinigame : CasinoMinigame
             return false;
         }
 
-        Plane tablePlane = new Plane(Vector3.up, new Vector3(0f, table.position.y + 1.53f, 0f));
+        Vector3 shoeSurface = table.TransformPoint(new Vector3(0f, ShoeSurfaceHeight, ShoeLocalDepth));
+        Plane tablePlane = new Plane(table.up, shoeSurface);
         Ray ray = camera.ScreenPointToRay(screenPosition);
         if (!tablePlane.Raycast(ray, out float distance))
         {
@@ -129,13 +153,13 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     protected override void OnBegin()
     {
-        if (!table.TryBeginFlickAssistance())
+        if (!table.TryPrepareFlickAssistance())
         {
             Abandon();
             return;
         }
 
-        requiredFlicks = RemainingOpeningCards(table.ActiveRound.CustomerHands.Count);
+        requiredFlicks = table.RemainingFlickCardCount;
         timeRemaining = timeAllowance;
         successfulFlicks = 0;
         missedFlicks = 0;
@@ -143,6 +167,9 @@ public sealed class FlickCardMinigame : CasinoMinigame
         waitingForFlight = false;
         completing = false;
         completionSuccess = false;
+        flightIsDeal = false;
+        flightRoutine = null;
+        hasMouseProjection = false;
         completionDelay = 0f;
         savedCursorPosition = Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero;
         savedCursorLockMode = Cursor.lockState;
@@ -151,6 +178,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         Cursor.visible = true;
         player.SetMovementEnabled(false);
 
+        ClearPhysicalCards();
         CreateCardMaterials();
         CreateShoesAndTargets();
         CreateHud();
@@ -224,7 +252,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         CleanUpVisuals();
         if (table != null)
         {
-            table.EndFlickAssistance(cancelled: true);
+            table.NotifyFlickAttemptFailed();
         }
     }
 
@@ -233,12 +261,18 @@ public sealed class FlickCardMinigame : CasinoMinigame
         Camera camera = Camera.main;
         if (camera == null || tableRoot == null)
         {
+            hasMouseProjection = false;
             return;
         }
 
         if (TryProjectScreenPoint(camera, tableRoot, screenPosition, out Vector3 projectedPosition))
         {
             mouseWorld = projectedPosition;
+            hasMouseProjection = true;
+        }
+        else
+        {
+            hasMouseProjection = false;
         }
     }
 
@@ -260,24 +294,51 @@ public sealed class FlickCardMinigame : CasinoMinigame
             return;
         }
 
-        if (mouse.leftButton.wasPressedThisFrame && !isDragging &&
-            IsPointerOnShoe(mouseWorld))
+        if (showInputDiagnostics && pointerDebugMarker != null && hasMouseProjection)
         {
-            isDragging = true;
-            heldCard = CreatePhysicalCard(new BlackjackCard(1, 0), faceDown: true);
-            heldCard.transform.position = ShoePosition + Vector3.up * 0.055f;
-            SetFeedback("FLICK TO THE LIT TARGET!");
+            pointerDebugMarker.transform.position = mouseWorld + tableRoot.up * 0.045f;
         }
 
-        if (isDragging && heldCard != null)
+        if (mouse.leftButton.wasPressedThisFrame && !isDragging)
         {
-            heldCard.transform.position = mouseWorld + Vector3.up * 0.07f;
+            bool pointerOnShoe = hasMouseProjection && IsPointerOnShoe(mouseWorld);
+            if (pointerOnShoe)
+            {
+                isDragging = true;
+                heldCard = CreatePhysicalCard(new BlackjackCard(1, 0), faceDown: true);
+                heldCard.transform.position = ShoePosition + Vector3.up * 0.055f;
+                SetFeedback("FLICK TO THE LIT TARGET!");
+            }
+
+            if (showInputDiagnostics)
+            {
+                Vector3 localPointer = hasMouseProjection
+                    ? tableRoot.InverseTransformPoint(mouseWorld)
+                    : Vector3.zero;
+                Debug.Log(
+                    $"{name}: FLICK mouse press {(pointerOnShoe ? "grabbed the shoe" : "missed the shoe")}; " +
+                    $"projected={hasMouseProjection}, local=({localPointer.x:0.00}, {localPointer.z:0.00}).",
+                    this);
+            }
+        }
+
+        if (isDragging && heldCard != null && hasMouseProjection)
+        {
+            heldCard.transform.position = mouseWorld + tableRoot.up * 0.07f;
         }
 
         if (mouse.leftButton.wasReleasedThisFrame && isDragging)
         {
             isDragging = false;
-            TryReleaseCard(mouseWorld);
+            if (hasMouseProjection)
+            {
+                TryReleaseCard(mouseWorld);
+            }
+            else
+            {
+                ReturnHeldCard();
+                SetFeedback("AIM LOST — GRAB A CARD AND RETRY.");
+            }
         }
     }
 
@@ -336,8 +397,8 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private bool IsPointerOnShoe(Vector3 position)
     {
         Vector3 localPointer = tableRoot.InverseTransformPoint(position);
-        Vector3 localShoe = tableRoot.InverseTransformPoint(ShoePosition);
-        return new Vector2(localPointer.x - localShoe.x, localPointer.z - localShoe.z).sqrMagnitude <= 0.95f * 0.95f;
+        Vector3 localShoeCenter = new Vector3(0f, ShoeSurfaceHeight, ShoeLocalDepth);
+        return IsPointerWithinShoe(localPointer, localShoeCenter, shoeHitHalfWidth, shoeHitHalfDepth);
     }
 
     private void ReturnHeldCard()
@@ -422,6 +483,16 @@ public sealed class FlickCardMinigame : CasinoMinigame
         Destroy(shoeTop.GetComponent<Collider>());
         shoeTop.GetComponent<Renderer>().sharedMaterial = cardMaterial;
         SetColor(shoeTop.GetComponent<Renderer>(), new Color(0.77f, 0.62f, 0.29f));
+        if (showInputDiagnostics)
+        {
+            pointerDebugMarker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            pointerDebugMarker.name = "FLICK Projected Pointer Debug";
+            pointerDebugMarker.transform.SetParent(tableRoot, false);
+            pointerDebugMarker.transform.localScale = Vector3.one * 0.12f;
+            Destroy(pointerDebugMarker.GetComponent<Collider>());
+            pointerDebugMarker.GetComponent<Renderer>().sharedMaterial = guideMaterial;
+            SetColor(pointerDebugMarker.GetComponent<Renderer>(), new Color(1f, 0.25f, 0.2f));
+        }
 
         int targetCount = table.ActiveRound.CustomerHands.Count + 1;
         for (int i = 0; i < targetCount; i++)
@@ -626,7 +697,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
             return;
         }
 
-        Vector3 start = ShoePosition + Vector3.up * 0.09f;
+        Vector3 start = ShoePosition + tableRoot.up * 0.09f;
         Vector3 end = mouseWorld;
         for (int i = 0; i < aimGuide.positionCount; i++)
         {
@@ -722,6 +793,12 @@ public sealed class FlickCardMinigame : CasinoMinigame
             shoeVisual = null;
         }
 
+        if (pointerDebugMarker != null)
+        {
+            Destroy(pointerDebugMarker);
+            pointerDebugMarker = null;
+        }
+
         if (aimGuide != null)
         {
             Destroy(aimGuide.gameObject);
@@ -785,7 +862,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         isDragging = false;
     }
 
-    private Vector3 ShoePosition => tableRoot.TransformPoint(new Vector3(0f, 1.68f, 0.96f));
+    private Vector3 ShoePosition => tableRoot.TransformPoint(new Vector3(0f, ShoeSurfaceHeight + 0.15f, ShoeLocalDepth));
 
     private static string FormatCard(BlackjackCard card)
     {

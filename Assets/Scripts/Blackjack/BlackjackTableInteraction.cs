@@ -49,6 +49,9 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     public int WaitingCustomerCount => waitingSet.Count;
     public BlackjackTableRound ActiveRound => round;
+    public int RemainingFlickCardCount => round == null
+        ? 0
+        : Mathf.Max(0, round.CustomerHands.Count * 2 + 2 - dealStep);
     public bool IsFlickReady => flickBoundaryReady && flickDealerPaused && flickStation != null && flickStation.IsTaskPending;
     public bool HasFlickAssistanceStation => flickStation != null;
     public AIDealer AssignedDealer => assignedDealer;
@@ -145,6 +148,12 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             QueueFlickAssistanceTest();
         }
 
+        if (flickStation != null && flickStation.IsMinigameRunning)
+        {
+            tableView?.SetPromptVisible(false, "");
+            return;
+        }
+
         if (panelOpen)
         {
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
@@ -161,7 +170,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         bool inRange = IsPlayerInRange();
         bool hasAction = IsDealerStaffed && (waitingSet.Count > 0 || state != BlackjackTableState.WaitingForCustomers);
-        tableView.SetPromptVisible(inRange && hasAction, IsFlickReady ? "E  •  FLICK! HELP THE DEALER" : GetActionPrompt());
+        bool flickTaskPending = flickStation != null && flickStation.IsTaskPending;
+        tableView.SetPromptVisible(inRange && hasAction && !flickTaskPending, GetActionPrompt());
         if (inRange && hasAction && (flickStation == null || !flickStation.IsTaskPending) &&
             keyboard != null && keyboard.eKey.wasPressedThisFrame)
         {
@@ -910,6 +920,23 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     public bool TryBeginFlickAssistance()
     {
         return IsFlickReady && IsDealerStaffed && state == BlackjackTableState.InitialDeal;
+    }
+
+    public bool TryPrepareFlickAssistance()
+    {
+        if (!TryBeginFlickAssistance())
+        {
+            return false;
+        }
+
+        panelOpen = false;
+        if (tableView != null)
+        {
+            tableView.SetVisible(false);
+            tableView.SetPromptVisible(false, "");
+        }
+
+        return true;
     }
 
     public bool TryDealFlickCard(int targetIndex, out BlackjackCard card, out int cardIndex, out bool holeCard)

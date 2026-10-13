@@ -15,6 +15,8 @@ public sealed class BlackjackCardView : MonoBehaviour
     private Vector2 finalPosition;
     private bool isAnimating;
 
+    public bool IsAnimating => isAnimating;
+
     public void Configure(Font font, Canvas canvas)
     {
         rootCanvas = canvas;
@@ -55,30 +57,32 @@ public sealed class BlackjackCardView : MonoBehaviour
 
     public void AnimateFrom(RectTransform source, int staggerIndex)
     {
-        if (source == null || rootCanvas == null || rootCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
+        RectTransform rect = GetComponent<RectTransform>();
+        finalPosition = rect.anchoredPosition;
+        if (!isActiveAndEnabled || !gameObject.activeInHierarchy ||
+            source == null || rootCanvas == null ||
+            rootCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
         {
+            CompleteAnimation();
+            rect.anchoredPosition = finalPosition;
+            rect.localScale = Vector3.one;
             return;
         }
 
-        finalPosition = GetComponent<RectTransform>().anchoredPosition;
+        CompleteAnimation();
         isAnimating = true;
         cardAnimation = StartCoroutine(AnimateFromRoutine(source, staggerIndex));
     }
 
     public void CompleteAnimation()
     {
-        if (!isAnimating)
-        {
-            return;
-        }
-
-        isAnimating = false;
         if (cardAnimation != null)
         {
             StopCoroutine(cardAnimation);
             cardAnimation = null;
         }
 
+        isAnimating = false;
         RectTransform rect = GetComponent<RectTransform>();
         if (rect != null)
         {
@@ -91,6 +95,14 @@ public sealed class BlackjackCardView : MonoBehaviour
             animationGroup.alpha = 1f;
             Destroy(animationGroup);
             animationGroup = null;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (isAnimating)
+        {
+            CompleteAnimation();
         }
     }
 
