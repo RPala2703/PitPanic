@@ -93,6 +93,7 @@ public sealed class CasinoDealerStation : MonoBehaviour
 
         ResolveAttention(TableAttentionReason.TableUnstaffed);
         ResolveAttention(TableAttentionReason.DealerBreakRequired);
+        ResolveAttention(TableAttentionReason.DealerExhausted);
         ResolveAttention(TableAttentionReason.StaffRotationRequired);
         return outgoingDealer;
     }
