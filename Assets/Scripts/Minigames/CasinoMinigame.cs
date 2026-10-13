@@ -20,7 +20,9 @@ public abstract class CasinoMinigame : MonoBehaviour
     private float elapsedSeconds;
 
     public event Action<CasinoMinigameResult> Completed;
+    public event Action Abandoned;
     public bool IsRunning { get; private set; }
+    public virtual bool CanBegin => true;
 
     public void Begin()
     {
@@ -43,6 +45,7 @@ public abstract class CasinoMinigame : MonoBehaviour
 
         OnAbandon();
         IsRunning = false;
+        Abandoned?.Invoke();
     }
 
     protected abstract void OnBegin();

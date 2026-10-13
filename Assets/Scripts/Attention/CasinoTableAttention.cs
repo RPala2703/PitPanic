@@ -26,6 +26,17 @@ public sealed class CasinoTableAttention : MonoBehaviour
         }
     }
 
+    public bool RequestAttentionOnce(TableAttentionReason reason)
+    {
+        if (GetPendingCount(reason) > 0)
+        {
+            return false;
+        }
+
+        RequestAttention(reason);
+        return true;
+    }
+
     public bool ResolveAttention(TableAttentionReason reason)
     {
         int count = GetPendingCount(reason);

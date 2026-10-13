@@ -10,9 +10,13 @@ public sealed class CasinoMinigameStation : MonoBehaviour
     [SerializeField] private CasinoMinigame minigame;
     [SerializeField] private CasinoMinigameType minigameType;
     [SerializeField] private TableAttentionReason attentionReason;
+    private CasinoMinigame subscribedMinigame;
 
     public bool IsTaskPending { get; private set; }
     public bool IsMinigameRunning => minigame != null && minigame.IsRunning;
+    public bool IsConfigured => player != null && interactionZone != null &&
+                                interactionZone.IsConfigured && attention != null &&
+                                minigame != null;
 
     public void Configure(
         CasinoPlayerController casinoPlayer,
@@ -28,35 +32,51 @@ public sealed class CasinoMinigameStation : MonoBehaviour
         minigame = game;
         minigameType = type;
         attentionReason = reason;
+        BindMinigame();
     }
 
     public bool RequestMinigame(CasinoMinigameType type, TableAttentionReason reason)
     {
-        if (IsTaskPending || attention == null)
+        if (IsTaskPending)
         {
+            return false;
+        }
+
+        if (!IsConfigured)
+        {
+            Debug.LogError($"{nameof(CasinoMinigameStation)} on {name} cannot request a task before it is configured.", this);
             return false;
         }
 
         minigameType = type;
         attentionReason = reason;
         IsTaskPending = true;
-        attention.RequestAttention(reason);
+        attention.RequestAttentionOnce(reason);
+        BindMinigame();
         return true;
     }
 
     private void OnEnable()
     {
-        if (minigame != null)
+        BindMinigame();
+    }
+
+    private void Start()
+    {
+        if (!IsConfigured)
         {
-            minigame.Completed += OnMinigameCompleted;
+            Debug.LogError($"{nameof(CasinoMinigameStation)} on {name} is missing its player, interaction zone, attention system, or minigame.", this);
+            enabled = false;
         }
     }
 
     private void OnDisable()
     {
-        if (minigame != null)
+        if (subscribedMinigame != null)
         {
-            minigame.Completed -= OnMinigameCompleted;
+            subscribedMinigame.Completed -= OnMinigameCompleted;
+            subscribedMinigame.Abandoned -= OnMinigameAbandoned;
+            subscribedMinigame = null;
         }
     }
 
@@ -64,14 +84,8 @@ public sealed class CasinoMinigameStation : MonoBehaviour
     {
         if (!IsTaskPending || IsMinigameRunning || player == null || interactionZone == null ||
             !interactionZone.IsPlayerInRange(player.transform) || Keyboard.current == null ||
-            !Keyboard.current.eKey.wasPressedThisFrame)
+            !Keyboard.current.eKey.wasPressedThisFrame || minigame == null || !minigame.CanBegin)
         {
-            return;
-        }
-
-        if (minigame == null)
-        {
-            Debug.LogError($"{name} has a pending {minigameType} task but no minigame implementation is attached.", this);
             return;
         }
 
@@ -80,11 +94,42 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     private void OnMinigameCompleted(CasinoMinigameResult result)
     {
-        if (!result.Success)
+        if (result.Success)
+        {
+            ResolveTask();
+        }
+
+        // Failed tasks stay pending so the player can retry them.
+    }
+
+    private void OnMinigameAbandoned()
+    {
+        ResolveTask();
+    }
+
+    private void BindMinigame()
+    {
+        if (subscribedMinigame == minigame)
         {
             return;
         }
 
+        if (subscribedMinigame != null)
+        {
+            subscribedMinigame.Completed -= OnMinigameCompleted;
+            subscribedMinigame.Abandoned -= OnMinigameAbandoned;
+        }
+
+        subscribedMinigame = minigame;
+        if (subscribedMinigame != null && isActiveAndEnabled)
+        {
+            subscribedMinigame.Completed += OnMinigameCompleted;
+            subscribedMinigame.Abandoned += OnMinigameAbandoned;
+        }
+    }
+
+    private void ResolveTask()
+    {
         if (attention != null)
         {
             attention.ResolveAttention(attentionReason);

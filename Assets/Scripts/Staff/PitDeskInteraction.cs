@@ -190,15 +190,15 @@ public sealed class PitDeskInteraction : MonoBehaviour
             else
             {
                 stationHint.text = station.CanAcceptReplacement
-                    ? station.AssignedDealer == null ? "UNSTAFFED — READY COVER CAN BE ASSIGNED" : "NEEDS BREAK — PIT BOSS ROTATION REQUIRED"
-                    : station.PendingReplacement != null ? "REPLACEMENT EN ROUTE" : "HEALTHY DEALER — ROTATION NOT AVAILABLE";
+                    ? station.AssignedDealer == null ? "UNSTAFFED — READY COVER CAN BE ASSIGNED" : "READY DEALER CAN REPLACE CURRENT DEALER"
+                    : station.PendingReplacement != null ? "REPLACEMENT EN ROUTE" : "REPLACEMENT UNAVAILABLE";
             }
 
             rows.Add(stationRow);
         }
 
         statusText.text = selectedDealer == null
-            ? "SELECT A READY DEALER AT THE PIT DESK TO COVER AN UNSTAFFED OR TIRED TABLE"
+            ? "SELECT A READY DEALER AT THE PIT DESK TO STAFF OR ROTATE ANY TABLE"
             : $"SELECTED  {selectedDealer.DealerId}  •  {selectedDealer.Energy:0}% ENERGY";
     }
 

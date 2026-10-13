@@ -66,7 +66,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
 
             if (stations[i].AssignedDealer == null)
             {
-                stations[i].Attention.RequestAttention(TableAttentionReason.TableUnstaffed);
+                stations[i].Attention.RequestAttentionOnce(TableAttentionReason.TableUnstaffed);
             }
         }
 
@@ -114,7 +114,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         {
             reason = station.PendingReplacement != null
                 ? "A dealer is already walking to this table."
-                : "This table's dealer does not need a break.";
+                : "This table cannot accept a replacement.";
             return false;
         }
 
@@ -124,9 +124,10 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             return false;
         }
 
-        if (station.AssignedDealer != null && !TryFindBreakPosition(out _))
+        if (station.AssignedDealer != null &&
+            !TryGetOutgoingDestination(dealer, station, out _, out _, out string destinationError))
         {
-            reason = "All dealer break-room positions are occupied.";
+            reason = destinationError;
             return false;
         }
 
@@ -142,23 +143,34 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         }
 
         AIDealer outgoingDealer = station.AssignedDealer;
-        Transform outgoingBreakPosition = null;
+        Transform outgoingDestination = null;
+        bool outgoingNeedsBreak = false;
         if (outgoingDealer != null)
         {
-            if (!TryFindBreakPosition(out outgoingBreakPosition) ||
-                !HasCompletePath(station.DealerPosition.position, outgoingBreakPosition.position))
+            if (!TryGetOutgoingDestination(
+                    dealer,
+                    station,
+                    out outgoingDestination,
+                    out outgoingNeedsBreak,
+                    out reason))
             {
-                reason = "The outgoing dealer has no safe route to an available break position.";
                 return false;
             }
 
-            reservedBreakPositions.Add(outgoingBreakPosition);
-            dealerBreakReservations[outgoingDealer] = outgoingBreakPosition;
+            if (outgoingNeedsBreak)
+            {
+                reservedBreakPositions.Add(outgoingDestination);
+                dealerBreakReservations[outgoingDealer] = outgoingDestination;
+            }
+            else
+            {
+                outgoingDealer.ReservePitDeskPosition(outgoingDestination);
+            }
         }
 
         if (!station.BeginReplacement(dealer))
         {
-            ReleaseBreakReservation(outgoingDealer);
+            ReleaseOutgoingReservation(outgoingDealer, outgoingNeedsBreak);
             reason = "The table became unavailable before the assignment started.";
             return false;
         }
@@ -166,7 +178,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         if (!dealer.BeginAssignment(station))
         {
             station.CancelReplacement(dealer);
-            ReleaseBreakReservation(outgoingDealer);
+            ReleaseOutgoingReservation(outgoingDealer, outgoingNeedsBreak);
             reason = "The dealer could not begin the NavMesh route.";
             return false;
         }
@@ -210,24 +222,35 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         }
 
         AIDealer outgoingDealer = station.AssignedDealer;
-        if (outgoingDealer != null &&
-            (!dealerBreakReservations.TryGetValue(outgoingDealer, out Transform restPosition) ||
-             !HasCompletePath(outgoingDealer.transform.position, restPosition.position)))
+        if (outgoingDealer != null)
         {
-            station.CancelReplacement(dealer);
-            ReleaseBreakReservation(outgoingDealer);
-            ReturnFailedAssigneeToPitDesk(dealer);
-            SyncPitDeskAttention();
-            return;
-        }
+            bool needsBreak = dealerBreakReservations.TryGetValue(outgoingDealer, out Transform restPosition);
+            Transform destination = needsBreak ? restPosition : outgoingDealer.ReservedPitPosition;
+            if (destination == null || !HasCompletePath(outgoingDealer.transform.position, destination.position))
+            {
+                station.CancelReplacement(dealer);
+                ReleaseOutgoingReservation(outgoingDealer, needsBreak);
+                ReturnFailedAssigneeToPitDesk(dealer);
+                SyncPitDeskAttention();
+                return;
+            }
 
-        outgoingDealer = station.CompleteReplacement(dealer);
-        if (outgoingDealer != null &&
-            (!dealerBreakReservations.TryGetValue(outgoingDealer, out Transform assignedBreak) || assignedBreak == null ||
-             !HasCompletePath(outgoingDealer.transform.position, assignedBreak.position) ||
-             !outgoingDealer.GoToBreakRoom(assignedBreak)))
+            outgoingDealer = station.CompleteReplacement(dealer);
+            if (needsBreak)
+            {
+                if (!outgoingDealer.GoToBreakRoom(destination))
+                {
+                    RouteDealerToBreak(outgoingDealer);
+                }
+            }
+            else
+            {
+                RouteHealthyDealerToPitDesk(outgoingDealer, destination);
+            }
+        }
+        else
         {
-            RouteDealerToBreak(outgoingDealer);
+            station.CompleteReplacement(dealer);
         }
 
         SyncPitDeskAttention();
@@ -245,7 +268,9 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             CasinoDealerStation station = GetPendingStation(dealer);
             AIDealer outgoingDealer = station != null ? station.AssignedDealer : null;
             station?.CancelReplacement(dealer);
-            ReleaseBreakReservation(outgoingDealer);
+            ReleaseOutgoingReservation(
+                outgoingDealer,
+                outgoingDealer != null && dealerBreakReservations.ContainsKey(outgoingDealer));
             ReturnFailedAssigneeToPitDesk(dealer);
         }
         else if (dealer.State == DealerDutyState.TravelingToPitDesk)
@@ -285,6 +310,24 @@ public sealed class DealerAssignmentManager : MonoBehaviour
 
         Debug.LogError($"{dealer.name} has no safe route to an alternate break position or the pit desk.", dealer);
         dealer.MarkResting();
+    }
+
+    private void RouteHealthyDealerToPitDesk(AIDealer dealer, Transform preferredPosition)
+    {
+        if (dealer.ReturnToPitDesk(preferredPosition))
+        {
+            return;
+        }
+
+        dealer.ReservePitDeskPosition(null);
+        if (TryFindPitDeskPosition(dealer, dealer.transform.position, out Transform alternatePosition) &&
+            dealer.ReturnToPitDesk(alternatePosition))
+        {
+            Debug.LogWarning($"{dealer.name} is returning to an alternate pit-desk position.", dealer);
+            return;
+        }
+
+        RouteDealerToBreak(dealer);
     }
 
     private bool TryStartBreakRoute(AIDealer dealer, Transform position)
@@ -329,7 +372,11 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         return null;
     }
 
-    private bool TryFindPitDeskPosition(AIDealer dealer, Vector3 start, out Transform availablePosition)
+    private bool TryFindPitDeskPosition(
+        AIDealer dealer,
+        Vector3 start,
+        out Transform availablePosition,
+        AIDealer reservationReleasedAfterDispatch = null)
     {
         foreach (Transform position in pitDeskPositions)
         {
@@ -341,7 +388,8 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             bool occupied = false;
             foreach (AIDealer other in dealers)
             {
-                if (other != null && other != dealer && other.ReservedPitPosition == position)
+                if (other != null && other != dealer && other != reservationReleasedAfterDispatch &&
+                    other.ReservedPitPosition == position)
                 {
                     occupied = true;
                     break;
@@ -357,6 +405,53 @@ public sealed class DealerAssignmentManager : MonoBehaviour
 
         availablePosition = null;
         return false;
+    }
+
+    private bool TryGetOutgoingDestination(
+        AIDealer incomingDealer,
+        CasinoDealerStation station,
+        out Transform destination,
+        out bool needsBreak,
+        out string reason)
+    {
+        AIDealer outgoingDealer = station.AssignedDealer;
+        needsBreak = outgoingDealer != null &&
+                     AIDealer.ShouldRestAfterReplacement(outgoingDealer.Energy, outgoingDealer.TiredThreshold);
+        Vector3 origin = station.DealerPosition.position;
+        if (needsBreak)
+        {
+            if (TryFindReachableBreakPosition(origin, out destination))
+            {
+                reason = string.Empty;
+                return true;
+            }
+
+            reason = "All dealer break-room positions are occupied or unreachable.";
+            destination = null;
+            return false;
+        }
+
+        if (TryFindPitDeskPosition(incomingDealer, origin, out destination, incomingDealer))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        reason = "No unreserved pit-desk position has a safe route from this table.";
+        destination = null;
+        return false;
+    }
+
+    private void ReleaseOutgoingReservation(AIDealer dealer, bool needsBreak)
+    {
+        if (needsBreak)
+        {
+            ReleaseBreakReservation(dealer);
+        }
+        else if (dealer != null)
+        {
+            dealer.ReservePitDeskPosition(null);
+        }
     }
 
     private bool TryFindReachableBreakPosition(Vector3 start, out Transform availablePosition)
