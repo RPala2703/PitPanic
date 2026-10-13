@@ -46,10 +46,13 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private Material cardMaterial;
     private Material guideMaterial;
 
-    public override bool CanBegin => table != null && table.IsFlickReady;
+    public override bool CanBegin => table != null && table.IsFlickReady &&
+                                     Mouse.current != null && Camera.main != null;
     public int SuccessfulFlicks => successfulFlicks;
     public int MissedFlicks => missedFlicks;
     public bool IsConfigured => table != null && player != null && tableRoot != null;
+    public bool IsDraggingCard => isDragging;
+    public bool IsWaitingForCardFlight => waitingForFlight;
     public static int RemainingOpeningCards(int activeHands) => activeHands <= 0 ? 0 : activeHands + 1;
     public static int OpeningTargetForStep(int activeHands, int dealStep)
     {
@@ -69,6 +72,34 @@ public sealed class FlickCardMinigame : CasinoMinigame
         }
 
         return dealStep - activeHands - 1;
+    }
+
+    public static bool IsValidFlickTarget(int targetIndex, int expectedTarget, bool cardInFlight)
+    {
+        return !cardInFlight && expectedTarget != -2 && targetIndex == expectedTarget;
+    }
+
+    public static bool TryProjectScreenPoint(
+        Camera camera,
+        Transform table,
+        Vector2 screenPosition,
+        out Vector3 worldPosition)
+    {
+        worldPosition = default;
+        if (camera == null || table == null)
+        {
+            return false;
+        }
+
+        Plane tablePlane = new Plane(Vector3.up, new Vector3(0f, table.position.y + 1.53f, 0f));
+        Ray ray = camera.ScreenPointToRay(screenPosition);
+        if (!tablePlane.Raycast(ray, out float distance))
+        {
+            return false;
+        }
+
+        worldPosition = ray.GetPoint(distance);
+        return true;
     }
 
     public void Configure(
@@ -205,11 +236,9 @@ public sealed class FlickCardMinigame : CasinoMinigame
             return;
         }
 
-        Plane tablePlane = new Plane(Vector3.up, new Vector3(0f, tableRoot.position.y + 1.46f, 0f));
-        Ray ray = camera.ScreenPointToRay(screenPosition);
-        if (tablePlane.Raycast(ray, out float distance))
+        if (TryProjectScreenPoint(camera, tableRoot, screenPosition, out Vector3 projectedPosition))
         {
-            mouseWorld = ray.GetPoint(distance);
+            mouseWorld = projectedPosition;
         }
     }
 
@@ -232,7 +261,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         }
 
         if (mouse.leftButton.wasPressedThisFrame && !isDragging &&
-            HorizontalDistance(mouseWorld, ShoePosition) <= 0.72f)
+            IsPointerOnShoe(mouseWorld))
         {
             isDragging = true;
             heldCard = CreatePhysicalCard(new BlackjackCard(1, 0), faceDown: true);
@@ -254,9 +283,9 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private void TryReleaseCard(Vector3 releasePosition)
     {
-        int targetIndex = FindTarget(releasePosition);
         int expectedIndex = table.GetNextFlickTarget();
-        if (targetIndex != expectedIndex)
+        int targetIndex = FindTarget(releasePosition);
+        if (!IsValidFlickTarget(targetIndex, expectedIndex, waitingForFlight || completing))
         {
             missedFlicks++;
             timeRemaining = Mathf.Max(0f, timeRemaining - 1.15f);
@@ -302,6 +331,13 @@ public sealed class FlickCardMinigame : CasinoMinigame
         dealtCards.Add(flyingCard);
         SetFeedback(targetIndex < 0 ? "DEALER!" : $"NICE DEAL — SEAT {targetIndex + 1}!");
         flightRoutine = StartCoroutine(AnimateFlight(ShoePosition, flightDestination, returningMiss: false));
+    }
+
+    private bool IsPointerOnShoe(Vector3 position)
+    {
+        Vector3 localPointer = tableRoot.InverseTransformPoint(position);
+        Vector3 localShoe = tableRoot.InverseTransformPoint(ShoePosition);
+        return new Vector2(localPointer.x - localShoe.x, localPointer.z - localShoe.z).sqrMagnitude <= 0.95f * 0.95f;
     }
 
     private void ReturnHeldCard()
@@ -430,7 +466,12 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private void CreateHud()
     {
-        GameObject canvasObject = new GameObject("FLICK HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+        GameObject canvasObject = new GameObject(
+            "FLICK HUD",
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster));
         hud = canvasObject.GetComponent<Canvas>();
         hud.renderMode = RenderMode.ScreenSpaceOverlay;
         hud.sortingOrder = 60;
@@ -568,7 +609,8 @@ public sealed class FlickCardMinigame : CasinoMinigame
             Vector3 target = table.GetFlickTargetPosition(targetId);
             Vector3 delta = position - target;
             delta.y = 0f;
-            if (Mathf.Abs(delta.x) <= targetHalfWidth && Mathf.Abs(delta.z) <= targetHalfDepth)
+            Vector3 localDelta = tableRoot.InverseTransformVector(delta);
+            if (Mathf.Abs(localDelta.x) <= targetHalfWidth && Mathf.Abs(localDelta.z) <= targetHalfDepth)
             {
                 return targetId;
             }
@@ -640,7 +682,15 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private void Finish(bool success)
     {
-        table.EndFlickAssistance();
+        if (success)
+        {
+            table.EndFlickAssistance();
+        }
+        else
+        {
+            table.NotifyFlickAttemptFailed();
+        }
+
         RestorePlayerAndCursor();
         CleanUpStaging();
         int score = Mathf.Max(0, successfulFlicks * 100 + Mathf.RoundToInt(timeRemaining * 10f) - missedFlicks * 25);
@@ -736,13 +786,6 @@ public sealed class FlickCardMinigame : CasinoMinigame
     }
 
     private Vector3 ShoePosition => tableRoot.TransformPoint(new Vector3(0f, 1.68f, 0.96f));
-
-    private static float HorizontalDistance(Vector3 first, Vector3 second)
-    {
-        first.y = 0f;
-        second.y = 0f;
-        return Vector3.Distance(first, second);
-    }
 
     private static string FormatCard(BlackjackCard card)
     {

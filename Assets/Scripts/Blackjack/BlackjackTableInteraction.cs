@@ -945,6 +945,15 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         RefreshView();
     }
 
+    public void NotifyFlickAttemptFailed()
+    {
+        if (IsFlickReady)
+        {
+            message = "FLICK! was not completed. Press E to try again.";
+            RefreshView();
+        }
+    }
+
     private bool RequestFlickAssistanceAtBoundary()
     {
         if (!IsDealerStaffed || state != BlackjackTableState.InitialDeal ||

@@ -43,6 +43,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private bool serviceActive;
     private bool penaltyRecorded;
     private bool headingToExit;
+    private bool cashierArrivalReported;
     private int roundsRemaining;
     [SerializeField, Min(1)] private int minimumBetPence = 1000;
     [SerializeField, Min(1)] private int maximumBetPence = 5000;
@@ -50,6 +51,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public event Action<CasinoCustomerAI> Seated;
     public event Action<CasinoCustomerAI> LeavingSeat;
     public bool IsSeated => state == CustomerState.Seated;
+    public bool IsWaitingAtCashDesk => state == CustomerState.VisitingCashier && cashierArrivalReported;
     public bool IsInService => serviceActive;
     public CasinoSeat Seat => reservedSeat;
     public float PatienceNormalized => patience != null ? patience.Normalized : 1f;
@@ -157,7 +159,12 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
         else if (state == CustomerState.VisitingCashier && HasReachedDestination())
         {
-            BeginWandering();
+            if (!cashierArrivalReported)
+            {
+                cashierArrivalReported = true;
+                agent.isStopped = true;
+                spawner.NotifyCashierArrival(this);
+            }
         }
 
         if (visual != null)
@@ -267,6 +274,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         {
             ReleaseSeat();
             state = CustomerState.VisitingCashier;
+            cashierArrivalReported = false;
             agent.isStopped = false;
         }
         else
@@ -276,6 +284,19 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             agent.isStopped = false;
             SetNextDecisionTime();
         }
+    }
+
+    public void CompleteCashierVisit()
+    {
+        if (state != CustomerState.VisitingCashier || !cashierArrivalReported)
+        {
+            return;
+        }
+
+        cashierArrivalReported = false;
+        state = CustomerState.Wandering;
+        agent.isStopped = false;
+        SetNextDecisionTime();
     }
 
     private bool TryChooseSeat()

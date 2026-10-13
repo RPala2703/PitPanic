@@ -269,10 +269,22 @@ public sealed class BlackjackTableView : MonoBehaviour
             eventSystem = eventSystemObject.AddComponent<EventSystem>();
         }
 
-        if (eventSystem.GetComponent<BaseInputModule>() == null)
+        BaseInputModule inputModule = eventSystem.GetComponent<BaseInputModule>();
+        if (!(inputModule is InputSystemUIInputModule))
         {
-            InputSystemUIInputModule inputModule = eventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
-            inputModule.AssignDefaultActions();
+            if (inputModule != null)
+            {
+                Destroy(inputModule);
+            }
+
+            InputSystemUIInputModule inputSystemModule =
+                eventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
+            inputSystemModule.AssignDefaultActions();
+        }
+
+        if (eventSystem.GetComponent<InputSystemUIInputModule>() == null)
+        {
+            throw new InvalidOperationException("The EventSystem requires Unity's Input System UI Input Module.");
         }
     }
 

@@ -5,6 +5,8 @@ using UnityEditor.SceneManagement;
 using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -118,9 +120,20 @@ public static class PitPanicPrototypeGenerator
         firstTableSeats.CopyTo(seats, 0);
         secondTableSeats.CopyTo(seats, firstTableSeats.Length);
         (Transform entrance, Transform exit) = CreateCasinoEntrances(trimMaterial, accentMaterial);
-        CasinoDealerStation rouletteStation = CreateRouletteTable(new Vector3(0f, 0f, 6.4f), woodMaterial, feltMaterial, trimMaterial, accentMaterial);
+        CasinoDealerStation rouletteStation = CreateRouletteTable(
+            new Vector3(0f, 0f, 6.4f),
+            woodMaterial,
+            feltMaterial,
+            trimMaterial,
+            accentMaterial,
+            playerController);
         Transform[] breakPositions = CreateBreakRoom(woodMaterial, feltMaterial, trimMaterial);
-        Transform cashierWaypoint = CreateCashierStation(new Vector3(0f, 0f, -8.1f), woodMaterial, accentMaterial);
+        Transform cashierWaypoint = CreateCashierStation(
+            new Vector3(0f, 0f, -8.1f),
+            woodMaterial,
+            accentMaterial,
+            playerController,
+            out CasinoCashDeskInteraction cashDesk);
         PitDeskInteraction pitDesk = CreatePitDesk(new Vector3(12f, 0f, -4f), woodMaterial, trimMaterial, playerController);
         Transform[] pitDeskPositions = CreatePitDeskWaitingPositions(new Vector3(12f, 0f, -4f), trimMaterial);
         DealerAssignmentManager dealerManager = CreateDealerManager(
@@ -134,9 +147,10 @@ public static class PitPanicPrototypeGenerator
             pitDesk.GetComponent<TableInteractionZone>(),
             dealerManager,
             pitDesk.GetComponent<CasinoTableAttention>());
-        CreateCustomerSpawner(entrance, exit, cashierWaypoint, seats, customerMaterials);
+        CreateCustomerSpawner(entrance, exit, cashierWaypoint, seats, customerMaterials, cashDesk);
         NavMeshSurface navigationSurface = CreateNavigationSurface();
         CreateCamera();
+        CreateInputEventSystem();
         SaveNavigationData(navigationSurface);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -253,6 +267,30 @@ public static class PitPanicPrototypeGenerator
             {
                 throw new System.InvalidOperationException($"FLICK! recipient at opening-deal step {dealStep} is incorrect.");
             }
+        }
+
+        if (FlickCardMinigame.IsValidFlickTarget(1, 1, false) == false ||
+            FlickCardMinigame.IsValidFlickTarget(2, 1, false) ||
+            FlickCardMinigame.IsValidFlickTarget(1, 1, true) ||
+            FlickCardMinigame.IsValidFlickTarget(-2, -2, false))
+        {
+            throw new System.InvalidOperationException("FLICK! accepted an invalid, duplicate, or in-flight card target.");
+        }
+
+        if (!RouletteTableMinigame.TryGetWinningNumber(0f, out int firstPocket) || firstPocket != 0 ||
+            !RouletteTableMinigame.TryGetWinningNumber(0.99f, out int lastPocket) || lastPocket != 36 ||
+            RouletteTableMinigame.TryGetWinningNumber(1f, out _) ||
+            RouletteTableMinigame.TryGetWinningNumber(float.NaN, out _))
+        {
+            throw new System.InvalidOperationException("Roulette spin result mapping is invalid.");
+        }
+
+        int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 1000, 2500 });
+        if (packedChips.Length != 3 || packedChips[0] != 2500 ||
+            packedChips[1] != 1000 || packedChips[2] != 500 ||
+            CashDeskPackMinigame.GetExactChipComposition(5000, new[] { 500, 1000, 2500 }).Length != 2)
+        {
+            throw new System.InvalidOperationException("Cash desk chip packing does not match the pence total exactly.");
         }
 
         AssertCardViewLayout(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
@@ -413,23 +451,34 @@ public static class PitPanicPrototypeGenerator
         }
 
         Camera camera = Object.FindFirstObjectByType<Camera>();
+        EventSystem eventSystem = Object.FindFirstObjectByType<EventSystem>();
         CasinoPlayerController player = Object.FindFirstObjectByType<CasinoPlayerController>();
         BlackjackTableInteraction[] blackjackTables = Object.FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None);
         CasinoDealerStation[] stations = Object.FindObjectsByType<CasinoDealerStation>(FindObjectsSortMode.None);
         DealerAssignmentManager dealerManager = Object.FindFirstObjectByType<DealerAssignmentManager>();
         PitDeskInteraction pitDesk = Object.FindFirstObjectByType<PitDeskInteraction>();
+        CasinoCashDeskInteraction cashDesk = Object.FindFirstObjectByType<CasinoCashDeskInteraction>();
+        RouletteTableMinigame rouletteMinigame = Object.FindFirstObjectByType<RouletteTableMinigame>();
+        CasinoMinigameStationPrompt[] stationPrompts =
+            Object.FindObjectsByType<CasinoMinigameStationPrompt>(FindObjectsSortMode.None);
+        CashDeskPackMinigame packMinigame = Object.FindFirstObjectByType<CashDeskPackMinigame>();
         CasinoCustomerSpawner spawner = Object.FindFirstObjectByType<CasinoCustomerSpawner>();
         NavMeshSurface navigation = Object.FindFirstObjectByType<NavMeshSurface>();
         CasinoSeat[] seats = Object.FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None);
         AIDealer[] dealers = Object.FindObjectsByType<AIDealer>(FindObjectsSortMode.None);
-        if (camera == null || !camera.orthographic)
+        if (camera == null || !camera.orthographic || eventSystem == null ||
+            eventSystem.GetComponent<InputSystemUIInputModule>() == null ||
+            eventSystem.GetComponent<StandaloneInputModule>() != null)
         {
-            throw new System.InvalidOperationException("Generated scene does not have an orthographic camera.");
+            throw new System.InvalidOperationException("Generated scene needs its orthographic camera and a new Input System UI EventSystem.");
         }
 
         if (player == null || blackjackTables.Length != 2 || seats.Length != 6 ||
             stations.Length != 3 || dealers.Length != 4 || dealerManager == null ||
             !dealerManager.IsConfigured || pitDesk == null || !pitDesk.IsConfigured ||
+            cashDesk == null || !cashDesk.IsConfigured || rouletteMinigame == null ||
+            !rouletteMinigame.IsConfigured || packMinigame == null || !packMinigame.IsConfigured ||
+            stationPrompts.Length != 2 ||
             GameObject.Find("Dealer Interaction Position") != null)
         {
             throw new System.InvalidOperationException("Generated scene is missing the player, two blackjack tables, six seats, three staffed stations, four dealers, or configured pit desk.");
@@ -488,6 +537,34 @@ public static class PitPanicPrototypeGenerator
                 !HasBettingSpots(blackjackTable.transform))
             {
                 throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or FLICK! system.");
+            }
+
+            string[] requiredLabelNames =
+            {
+                "Blackjack Table 1 Label",
+                "Blackjack Table 2 Label",
+                "Roulette Table Label",
+                "Pit Desk Label",
+                "Cashier Station Label",
+                "Break Room Label"
+            };
+            foreach (string labelName in requiredLabelNames)
+            {
+                GameObject labelObject = GameObject.Find(labelName);
+                CameraFacingCanvas facing = labelObject != null
+                    ? labelObject.GetComponent<CameraFacingCanvas>()
+                    : null;
+                Canvas labelCanvas = labelObject != null ? labelObject.GetComponent<Canvas>() : null;
+                if (facing == null || labelCanvas == null)
+                {
+                    throw new System.InvalidOperationException($"{labelName} is missing its camera-facing world-space canvas.");
+                }
+
+                facing.AlignTo(camera);
+                if (labelCanvas.renderMode != RenderMode.WorldSpace || !facing.IsReadableFrom(camera))
+                {
+                    throw new System.InvalidOperationException($"{labelName} is not screen-aligned and readable from the gameplay camera.");
+                }
             }
         }
 
@@ -553,16 +630,37 @@ public static class PitPanicPrototypeGenerator
         }
 
         CasinoAttentionIndicator[] indicators = Object.FindObjectsByType<CasinoAttentionIndicator>(FindObjectsSortMode.None);
-        if (indicators.Length != 4 || stations.Length != 3 ||
-            Object.FindObjectsByType<CasinoTableAttention>(FindObjectsSortMode.None).Length != 4)
+        if (indicators.Length != 5 || stations.Length != 3 ||
+            Object.FindObjectsByType<CasinoTableAttention>(FindObjectsSortMode.None).Length != 5)
         {
-            throw new System.InvalidOperationException("Generated blackjack, roulette, and pit desk attention indicators are missing or duplicated.");
+            throw new System.InvalidOperationException("Generated blackjack, roulette, cashier, and pit desk attention indicators are missing or duplicated.");
         }
 
         if (GameObject.Find("Roulette Table") == null || GameObject.Find("Cashier Station") == null ||
             GameObject.Find("Dealer Break Room") == null || GameObject.Find("Pit Desk") == null)
         {
             throw new System.InvalidOperationException("Generated scene is missing the roulette, cashier, break room, or pit desk.");
+        }
+
+        TableInteractionZone rouletteZone = rouletteMinigame.GetComponent<TableInteractionZone>();
+        TableInteractionZone cashDeskZone = cashDesk.GetComponent<TableInteractionZone>();
+        if (rouletteZone == null || !rouletteZone.IsConfigured ||
+            cashDeskZone == null || !cashDeskZone.IsConfigured ||
+            rouletteMinigame.GetComponent<CasinoMinigameStation>() == null ||
+            cashDesk.GetComponent<CasinoMinigameStation>() == null ||
+            rouletteMinigame.GetComponent<CasinoTableAttention>() == null ||
+            cashDesk.GetComponent<CasinoTableAttention>() == null)
+        {
+            throw new System.InvalidOperationException("Roulette or cash desk is missing interaction, attention, or minigame station wiring.");
+        }
+
+        foreach (Canvas hudCanvas in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+        {
+            if (hudCanvas.name.Contains("HUD") && hudCanvas.renderMode == RenderMode.ScreenSpaceOverlay &&
+                hudCanvas.GetComponent<GraphicRaycaster>() == null)
+            {
+                throw new System.InvalidOperationException($"{hudCanvas.name} is missing its GraphicRaycaster.");
+            }
         }
 
         foreach (Transform breakPosition in dealerManager.BreakPositions)
@@ -1112,26 +1210,56 @@ public static class PitPanicPrototypeGenerator
         text.raycastTarget = false;
     }
 
+    private static void CreateInputEventSystem()
+    {
+        GameObject eventSystemObject = new GameObject("EventSystem");
+        EventSystem eventSystem = eventSystemObject.AddComponent<EventSystem>();
+        InputSystemUIInputModule inputModule = eventSystemObject.AddComponent<InputSystemUIInputModule>();
+        inputModule.AssignDefaultActions();
+    }
+
     private static CasinoDealerStation CreateRouletteTable(
         Vector3 center,
         Material woodMaterial,
         Material feltMaterial,
         Material trimMaterial,
-        Material accentMaterial)
+        Material accentMaterial,
+        CasinoPlayerController player)
     {
         GameObject table = new GameObject("Roulette Table");
         table.transform.position = center;
         NavMeshModifier modifier = table.AddComponent<NavMeshModifier>();
         modifier.overrideArea = true;
         modifier.area = 1;
-        CreatePrimitive(PrimitiveType.Cube, "Roulette Counter", center + new Vector3(0f, 1.05f, 0f), new Vector3(4.4f, 0.32f, 2.6f), woodMaterial, table.transform);
+        GameObject counter = CreatePrimitive(PrimitiveType.Cube, "Roulette Counter", center + new Vector3(0f, 1.05f, 0f), new Vector3(4.4f, 0.32f, 2.6f), woodMaterial, table.transform);
         CreatePrimitive(PrimitiveType.Cylinder, "Roulette Wheel Rim", center + new Vector3(0f, 1.32f, 0f), new Vector3(1.65f, 0.14f, 1.65f), trimMaterial, table.transform);
-        CreatePrimitive(PrimitiveType.Cylinder, "Roulette Wheel", center + new Vector3(0f, 1.42f, 0f), new Vector3(1.38f, 0.12f, 1.38f), feltMaterial, table.transform);
+        GameObject wheel = CreatePrimitive(PrimitiveType.Cylinder, "Roulette Wheel", center + new Vector3(0f, 1.42f, 0f), new Vector3(1.38f, 0.12f, 1.38f), feltMaterial, table.transform);
         CreatePrimitive(PrimitiveType.Cylinder, "Roulette Hub", center + new Vector3(0f, 1.52f, 0f), new Vector3(0.36f, 0.11f, 0.36f), accentMaterial, table.transform);
 
         CasinoTableAttention attention = table.AddComponent<CasinoTableAttention>();
         CreateAttentionIndicator(table.transform, attention, center + Vector3.up * 4f);
         CreateWorldLabel(table.transform, "Roulette Table Label", "ROULETTE", center + new Vector3(0f, 2.2f, -1.5f));
+        TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
+        interactionZone.Configure(counter.GetComponent<BoxCollider>());
+        RouletteTableMinigame minigame = table.AddComponent<RouletteTableMinigame>();
+        minigame.Configure(player, table.transform, wheel.transform, attention);
+        CasinoMinigameStation minigameStation = table.AddComponent<CasinoMinigameStation>();
+        minigameStation.Configure(
+            player,
+            interactionZone,
+            attention,
+            minigame,
+            CasinoMinigameType.Spin,
+            TableAttentionReason.RouletteSpinRequired);
+        table.AddComponent<CasinoMinigameStationPrompt>().Configure(
+            player,
+            interactionZone,
+            attention,
+            minigameStation,
+            CasinoMinigameType.Spin,
+            TableAttentionReason.RouletteSpinRequired,
+            "SPIN! AND SWEEP THE ROULETTE TABLE",
+            allowTaskRequestWhenIdle: true);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.25f);
@@ -1169,15 +1297,45 @@ public static class PitPanicPrototypeGenerator
         return positions;
     }
 
-    private static Transform CreateCashierStation(Vector3 center, Material woodMaterial, Material accentMaterial)
+    private static Transform CreateCashierStation(
+        Vector3 center,
+        Material woodMaterial,
+        Material accentMaterial,
+        CasinoPlayerController player,
+        out CasinoCashDeskInteraction cashDeskInteraction)
     {
         GameObject cashier = new GameObject("Cashier Station");
         cashier.transform.position = center;
-        CreatePrimitive(PrimitiveType.Cube, "Cashier Counter", center + new Vector3(0f, 0.65f, 0f), new Vector3(4.2f, 1.3f, 1.2f), woodMaterial, cashier.transform);
+        GameObject counter = CreatePrimitive(PrimitiveType.Cube, "Cashier Counter", center + new Vector3(0f, 0.65f, 0f), new Vector3(4.2f, 1.3f, 1.2f), woodMaterial, cashier.transform);
         CreatePrimitive(PrimitiveType.Cube, "Cashier Sign", center + new Vector3(0f, 1.55f, 0.7f), new Vector3(2.4f, 0.45f, 0.15f), accentMaterial, cashier.transform);
         CreateWorldLabel(cashier.transform, "Cashier Station Label", "CASHIER", center + new Vector3(0f, 1.9f, 0.65f));
         GameObject waypoint = new GameObject("Cashier Customer Waypoint");
         waypoint.transform.position = center + new Vector3(0f, 0f, -1.5f);
+        CasinoTableAttention attention = cashier.AddComponent<CasinoTableAttention>();
+        CreateAttentionIndicator(cashier.transform, attention, center + Vector3.up * 3.2f);
+        TableInteractionZone zone = cashier.AddComponent<TableInteractionZone>();
+        zone.Configure(counter.GetComponent<BoxCollider>(), 1.5f);
+        CashDeskPackMinigame packMinigame = cashier.AddComponent<CashDeskPackMinigame>();
+        packMinigame.Configure(player, cashier.transform);
+        CasinoMinigameStation station = cashier.AddComponent<CasinoMinigameStation>();
+        station.Configure(
+            player,
+            zone,
+            attention,
+            packMinigame,
+            CasinoMinigameType.Pack,
+            TableAttentionReason.CashDeskPackRequired);
+        cashier.AddComponent<CasinoMinigameStationPrompt>().Configure(
+            player,
+            zone,
+            attention,
+            station,
+            CasinoMinigameType.Pack,
+            TableAttentionReason.CashDeskPackRequired,
+            "PACK CUSTOMER CHIPS",
+            allowTaskRequestWhenIdle: false);
+        cashDeskInteraction = cashier.AddComponent<CasinoCashDeskInteraction>();
+        cashDeskInteraction.Configure(attention, station, packMinigame);
         return waypoint.transform;
     }
 
@@ -1313,11 +1471,12 @@ public static class PitPanicPrototypeGenerator
         Transform exit,
         Transform cashierWaypoint,
         CasinoSeat[] seats,
-        Material[] customerMaterials)
+        Material[] customerMaterials,
+        CasinoCashDeskInteraction cashDesk)
     {
         GameObject spawnerObject = new GameObject("Customer Spawner");
         CasinoCustomerSpawner spawner = spawnerObject.AddComponent<CasinoCustomerSpawner>();
-        spawner.Configure(entrance, exit, cashierWaypoint, seats, customerMaterials);
+        spawner.Configure(entrance, exit, cashierWaypoint, seats, customerMaterials, cashDesk);
     }
 
     private static NavMeshSurface CreateNavigationSurface()
