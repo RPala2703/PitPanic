@@ -18,10 +18,7 @@ public sealed class CasinoDealerStation : MonoBehaviour
     public bool IsAvailable => AssignedDealer == null && PendingReplacement == null;
     public bool IsConfigured => dealerPosition != null && attention != null;
     public AIDealer InitialDealer => initialDealer;
-    public bool CanAcceptReplacement => CanReplaceDealer(
-        PendingReplacement != null,
-        AssignedDealer != null,
-        AssignedDealer != null && AssignedDealer.NeedsBreak);
+    public bool CanAcceptReplacement => CanReplaceDealer(PendingReplacement != null);
 
     public void Configure(string displayName, Transform position, CasinoTableAttention tableAttention, BlackjackTableInteraction table)
     {
@@ -42,7 +39,7 @@ public sealed class CasinoDealerStation : MonoBehaviour
         if (AssignedDealer != null)
         {
             AssignedDealer.MarkReplacementRequested();
-            attention.RequestAttention(TableAttentionReason.StaffRotationRequired);
+            attention.RequestAttentionOnce(TableAttentionReason.StaffRotationRequired);
         }
 
         return true;
@@ -115,7 +112,7 @@ public sealed class CasinoDealerStation : MonoBehaviour
 
     public void RequestDealerBreakAttention()
     {
-        attention.RequestAttention(TableAttentionReason.DealerBreakRequired);
+        attention.RequestAttentionOnce(TableAttentionReason.DealerBreakRequired);
     }
 
     private void ResolveAttention(TableAttentionReason reason)
@@ -125,8 +122,8 @@ public sealed class CasinoDealerStation : MonoBehaviour
         }
     }
 
-    public static bool CanReplaceDealer(bool hasPendingReplacement, bool hasAssignedDealer, bool assignedDealerNeedsBreak)
+    public static bool CanReplaceDealer(bool hasPendingReplacement)
     {
-        return !hasPendingReplacement && (!hasAssignedDealer || assignedDealerNeedsBreak);
+        return !hasPendingReplacement;
     }
 }

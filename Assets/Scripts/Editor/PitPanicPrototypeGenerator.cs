@@ -184,15 +184,15 @@ public static class PitPanicPrototypeGenerator
             AIDealer.CanBeAssignedFromState(DealerDutyState.Resting) ||
             AIDealer.CanBeAssignedFromState(DealerDutyState.TravelingToPitDesk) ||
             AIDealer.CanBeAssignedFromState(DealerDutyState.Working) ||
+            !AIDealer.ShouldRestAfterReplacement(30f, 40f) ||
+            AIDealer.ShouldRestAfterReplacement(80f, 40f) ||
             CasinoCustomerAI.RoundsAfterCompletedHand(3) != 2 ||
             CasinoCustomerAI.RoundsAfterCompletedHand(1) != 0 ||
             CasinoCustomerAI.RoundsAfterCompletedHand(0) != 0 ||
-            CasinoDealerStation.CanReplaceDealer(false, true, false) ||
-            !CasinoDealerStation.CanReplaceDealer(false, true, true) ||
-            CasinoDealerStation.CanReplaceDealer(true, true, true) ||
-            !CasinoDealerStation.CanReplaceDealer(false, false, false))
+            !CasinoDealerStation.CanReplaceDealer(false) ||
+            CasinoDealerStation.CanReplaceDealer(true))
         {
-            throw new System.InvalidOperationException("Dealer availability, rotation eligibility, visit-round decrement, or energy recovery is incorrect.");
+            throw new System.InvalidOperationException("Dealer availability, visit-round decrement, or energy recovery is incorrect.");
         }
 
         GameObject stationObject = new GameObject("Dealer Station Reservation Test");
@@ -203,13 +203,12 @@ public static class PitPanicPrototypeGenerator
         GameObject currentDealerObject = new GameObject("Current Dealer Handover Test");
         AIDealer currentDealer = currentDealerObject.AddComponent<AIDealer>();
         reservationStation.SetInitialDealer(currentDealer);
-        if (currentDealer.IsAvailable || reservationStation.CanAcceptReplacement ||
+        if (currentDealer.IsAvailable || !reservationStation.CanAcceptReplacement ||
             reservationStation.BeginReplacement(null))
         {
-            throw new System.InvalidOperationException("A healthy working dealer was incorrectly made available for replacement.");
+            throw new System.InvalidOperationException("A healthy working dealer could not be replaced.");
         }
 
-        currentDealer.RequestBreak();
         GameObject firstReplacementObject = new GameObject("First Dealer Replacement Test");
         AIDealer firstReplacement = firstReplacementObject.AddComponent<AIDealer>();
         GameObject secondReplacementObject = new GameObject("Second Dealer Replacement Test");
@@ -225,7 +224,7 @@ public static class PitPanicPrototypeGenerator
         {
             throw new System.InvalidOperationException("A dealer station released its current dealer before replacement arrived.");
         }
-        if (currentDealer.State != DealerDutyState.ReplacementRequested || !currentDealer.IsAtStation)
+        if (currentDealer.State != DealerDutyState.Working || !currentDealer.IsAtStation)
         {
             throw new System.InvalidOperationException("The outgoing dealer stopped working before replacement arrival.");
         }
@@ -242,6 +241,20 @@ public static class PitPanicPrototypeGenerator
         UnityEngine.Object.DestroyImmediate(secondReplacementObject);
         UnityEngine.Object.DestroyImmediate(dealerPoint);
         UnityEngine.Object.DestroyImmediate(stationObject);
+        int[] expectedFlickTargets = { 0, 1, 2, -1, 0, 1, 2, -1, -2 };
+        if (FlickCardMinigame.RemainingOpeningCards(3) != 4)
+        {
+            throw new System.InvalidOperationException("FLICK! opening-deal recipient sequence is incorrect.");
+        }
+
+        for (int dealStep = 0; dealStep < expectedFlickTargets.Length; dealStep++)
+        {
+            if (FlickCardMinigame.OpeningTargetForStep(3, dealStep) != expectedFlickTargets[dealStep])
+            {
+                throw new System.InvalidOperationException($"FLICK! recipient at opening-deal step {dealStep} is incorrect.");
+            }
+        }
+
         AssertCardViewLayout(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
         AssertInteractionZoneReachability();
         if (!BlackjackRules.IsSoft17(new[] { new BlackjackCard(1, 0), new BlackjackCard(6, 1) }) ||
@@ -274,6 +287,14 @@ public static class PitPanicPrototypeGenerator
         if (attention.HasPendingTasks || attentionEvents != 2)
         {
             throw new System.InvalidOperationException("Resolving the final reason did not hide the table attention indicator.");
+        }
+
+        attention.RequestAttentionOnce(TableAttentionReason.FlickAssistanceRequired);
+        bool duplicateFlickTaskAdded = attention.RequestAttentionOnce(TableAttentionReason.FlickAssistanceRequired);
+        if (duplicateFlickTaskAdded ||
+            attention.GetPendingCount(TableAttentionReason.FlickAssistanceRequired) != 1)
+        {
+            throw new System.InvalidOperationException("Repeated FLICK assistance requests created duplicate attention tasks.");
         }
 
         UnityEngine.Object.DestroyImmediate(attentionObject);
@@ -455,13 +476,18 @@ public static class PitPanicPrototypeGenerator
 
         foreach (BlackjackTableInteraction blackjackTable in blackjackTables)
         {
+            CasinoMinigameStation flickStation = blackjackTable.GetComponent<CasinoMinigameStation>();
+            FlickCardMinigame flickMinigame = blackjackTable.GetComponent<FlickCardMinigame>();
             if (!blackjackTable.IsConfigured || blackjackTable.GetComponent<TableInteractionZone>() == null ||
                 !blackjackTable.GetComponent<TableInteractionZone>().IsConfigured ||
                 blackjackTable.GetComponent<BlackjackTableView>() == null ||
                 blackjackTable.GetComponent<CasinoTableAttention>() == null ||
+                !blackjackTable.HasFlickAssistanceStation ||
+                flickStation == null || !flickStation.IsConfigured ||
+                flickMinigame == null || !flickMinigame.IsConfigured ||
                 !HasBettingSpots(blackjackTable.transform))
             {
-                throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, or attention system.");
+                throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or FLICK! system.");
             }
         }
 
@@ -1004,6 +1030,17 @@ public static class PitPanicPrototypeGenerator
         table.AddComponent<BlackjackTableView>();
         BlackjackTableInteraction interaction = table.AddComponent<BlackjackTableInteraction>();
         interaction.Configure(playerController, interactionZone, attention, seats);
+        CasinoMinigameStation flickStation = table.AddComponent<CasinoMinigameStation>();
+        FlickCardMinigame flickMinigame = table.AddComponent<FlickCardMinigame>();
+        interaction.ConfigureFlickAssistance(flickStation);
+        flickMinigame.Configure(interaction, playerController, table.transform);
+        flickStation.Configure(
+            playerController,
+            interactionZone,
+            attention,
+            flickMinigame,
+            CasinoMinigameType.Flick,
+            TableAttentionReason.FlickAssistanceRequired);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.35f);

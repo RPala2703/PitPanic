@@ -178,6 +178,11 @@ public sealed class AIDealer : MonoBehaviour
         return true;
     }
 
+    public void ReservePitDeskPosition(Transform position)
+    {
+        ReservedPitPosition = position;
+    }
+
     public bool GoToBreakRoom(Transform position)
     {
         if (position == null || !agent.isOnNavMesh)
@@ -193,6 +198,7 @@ public sealed class AIDealer : MonoBehaviour
 
         AssignedStation = null;
         pendingStation = null;
+        ReservedPitPosition = null;
         breakRoomPosition = position;
         restAtPitDeskOnArrival = false;
         CurrentStationTime = 0f;
@@ -311,7 +317,7 @@ public sealed class AIDealer : MonoBehaviour
             if (!hasRequestedExhaustion && energy <= exhaustedThreshold)
             {
                 hasRequestedExhaustion = true;
-                AssignedStation?.Attention.RequestAttention(TableAttentionReason.DealerExhausted);
+                AssignedStation?.Attention.RequestAttentionOnce(TableAttentionReason.DealerExhausted);
             }
         }
         else if (state == DealerDutyState.Resting)
@@ -378,5 +384,10 @@ public sealed class AIDealer : MonoBehaviour
     public static bool CanBeAssignedFromState(DealerDutyState dealerState)
     {
         return dealerState == DealerDutyState.ReadyAtPitDesk;
+    }
+
+    public static bool ShouldRestAfterReplacement(float dealerEnergy, float tiredEnergyThreshold)
+    {
+        return dealerEnergy <= tiredEnergyThreshold;
     }
 }
