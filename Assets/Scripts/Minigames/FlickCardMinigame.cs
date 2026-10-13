@@ -46,6 +46,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private bool completionSuccess;
     private bool flightIsDeal;
     private bool hasMouseProjection;
+    private bool controlsCaptured;
     private int requiredFlicks;
     private Vector3 savedCursorPosition;
     private CursorLockMode savedCursorLockMode;
@@ -54,6 +55,8 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private Material guideMaterial;
 
     public override bool CanBegin => table != null && table.IsFlickReady &&
+                                     table.ActiveRound != null && table.RemainingFlickCardCount > 0 &&
+                                     player != null && tableRoot != null &&
                                      Mouse.current != null && Camera.main != null;
     public int SuccessfulFlicks => successfulFlicks;
     public int MissedFlicks => missedFlicks;
@@ -89,6 +92,11 @@ public sealed class FlickCardMinigame : CasinoMinigame
     public static bool IsValidFlickTarget(int targetIndex, int expectedTarget, bool cardInFlight)
     {
         return !cardInFlight && expectedTarget != -2 && targetIndex == expectedTarget;
+    }
+
+    public static bool CanCompleteChallenge(int successfulDeals, int requiredDeals, int remainingDeals)
+    {
+        return requiredDeals > 0 && successfulDeals == requiredDeals && remainingDeals == 0;
     }
 
     public static bool IsPointerWithinShoe(
@@ -140,7 +148,14 @@ public sealed class FlickCardMinigame : CasinoMinigame
     {
         if (IsRunning)
         {
-            Abandon();
+            if (HasCompletedRequiredDeals())
+            {
+                CompleteCommittedChallenge();
+            }
+            else
+            {
+                Abandon();
+            }
         }
         else
         {
@@ -151,48 +166,95 @@ public sealed class FlickCardMinigame : CasinoMinigame
         ClearPhysicalCards();
     }
 
+    private void OnDisable()
+    {
+        if (IsRunning)
+        {
+            if (HasCompletedRequiredDeals())
+            {
+                CompleteCommittedChallenge();
+            }
+            else
+            {
+                Abandon();
+            }
+        }
+    }
+
     protected override void OnBegin()
     {
-        if (!table.TryPrepareFlickAssistance())
+        if (!CanBegin || !table.TryPrepareFlickAssistance())
         {
             Abandon();
             return;
         }
 
-        requiredFlicks = table.RemainingFlickCardCount;
-        timeRemaining = timeAllowance;
-        successfulFlicks = 0;
-        missedFlicks = 0;
-        isDragging = false;
-        waitingForFlight = false;
-        completing = false;
-        completionSuccess = false;
-        flightIsDeal = false;
-        flightRoutine = null;
-        hasMouseProjection = false;
-        completionDelay = 0f;
-        savedCursorPosition = Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero;
+        savedCursorPosition = Mouse.current.position.ReadValue();
         savedCursorLockMode = Cursor.lockState;
         savedCursorVisible = Cursor.visible;
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-        player.SetMovementEnabled(false);
+        try
+        {
+            requiredFlicks = table.RemainingFlickCardCount;
+            timeRemaining = timeAllowance;
+            successfulFlicks = 0;
+            missedFlicks = 0;
+            isDragging = false;
+            waitingForFlight = false;
+            completing = false;
+            completionSuccess = false;
+            flightIsDeal = false;
+            flightRoutine = null;
+            hasMouseProjection = false;
+            completionDelay = 0f;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            controlsCaptured = true;
+            player.SetMovementEnabled(false);
 
-        ClearPhysicalCards();
-        CreateCardMaterials();
-        CreateShoesAndTargets();
-        CreateHud();
-        RenderExistingCards();
-        UpdateTargetHighlight();
-        SetFeedback("GRAB THE SHOE, AIM AT THE GLOWING BOX, THEN FLICK!  ESC TO CANCEL");
-        aimGuide.enabled = true;
+            ClearPhysicalCards();
+            CreateCardMaterials();
+            CreateShoesAndTargets();
+            CreateHud();
+            RenderExistingCards();
+            UpdateTargetHighlight();
+            SetFeedback("GRAB THE SHOE, AIM AT THE GLOWING BOX, THEN FLICK!  ESC TO CANCEL");
+            if (aimGuide == null)
+            {
+                throw new System.InvalidOperationException("FLICK could not create the aiming guide.");
+            }
+
+            aimGuide.enabled = true;
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogError($"{name}: FLICK could not initialize its visuals and will resume automated dealing. {exception}", this);
+            RestorePlayerAndCursor();
+            CleanUpVisuals();
+            ClearPhysicalCards();
+            table.AbortFlickAssistance();
+            Complete(false, 0);
+        }
     }
 
     protected override void OnTick(float deltaTime)
     {
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            Abandon();
+            if (HasCompletedRequiredDeals())
+            {
+                CompleteCommittedChallenge();
+            }
+            else
+            {
+                Abandon();
+            }
+
+            return;
+        }
+
+        if (table == null || player == null || tableRoot == null)
+        {
+            AbortUnrecoverableChallenge("the table, player, or table root was destroyed");
             return;
         }
 
@@ -223,7 +285,10 @@ public sealed class FlickCardMinigame : CasinoMinigame
             completing = true;
             completionSuccess = false;
             completionDelay = 0.85f;
-            aimGuide.enabled = false;
+            if (aimGuide != null)
+            {
+                aimGuide.enabled = false;
+            }
         }
     }
 
@@ -235,18 +300,22 @@ public sealed class FlickCardMinigame : CasinoMinigame
             flightRoutine = null;
         }
 
-        if (flightIsDeal && flyingCard != null)
+        if (flightIsDeal && flyingCard != null && tableRoot != null)
         {
-            flyingCard.transform.position = flightDestination;
-            flyingCard.transform.rotation = tableRoot.rotation;
-            flyingCard = null;
+            if (!TrySetCardPose(flyingCard, flightDestination, tableRoot.rotation))
+            {
+                Debug.LogWarning($"{name}: A dealt card visual was lost during cancellation; the blackjack round still retains the dealt card.", this);
+            }
         }
         else if (flyingCard != null)
         {
             Destroy(flyingCard);
-            flyingCard = null;
         }
 
+        flyingCard = null;
+        waitingForFlight = false;
+        flightIsDeal = false;
+        flightRoutine = null;
         DestroyHeldCard();
         RestorePlayerAndCursor();
         CleanUpVisuals();
@@ -304,10 +373,17 @@ public sealed class FlickCardMinigame : CasinoMinigame
             bool pointerOnShoe = hasMouseProjection && IsPointerOnShoe(mouseWorld);
             if (pointerOnShoe)
             {
-                isDragging = true;
                 heldCard = CreatePhysicalCard(new BlackjackCard(1, 0), faceDown: true);
-                heldCard.transform.position = ShoePosition + Vector3.up * 0.055f;
-                SetFeedback("FLICK TO THE LIT TARGET!");
+                if (heldCard != null)
+                {
+                    isDragging = true;
+                    heldCard.transform.position = ShoePosition + tableRoot.up * 0.055f;
+                    SetFeedback("FLICK TO THE LIT TARGET!");
+                }
+                else
+                {
+                    SetFeedback("CARD VISUAL UNAVAILABLE — TRY AGAIN.");
+                }
             }
 
             if (showInputDiagnostics)
@@ -344,6 +420,13 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private void TryReleaseCard(Vector3 releasePosition)
     {
+        if (!IsRunning || waitingForFlight || completing || table == null ||
+            tableRoot == null || heldCard == null)
+        {
+            ReturnHeldCard();
+            return;
+        }
+
         int expectedIndex = table.GetNextFlickTarget();
         int targetIndex = FindTarget(releasePosition);
         if (!IsValidFlickTarget(targetIndex, expectedIndex, waitingForFlight || completing))
@@ -359,19 +442,28 @@ public sealed class FlickCardMinigame : CasinoMinigame
                 SetFeedback("WIDE! BRING IT BACK AND FLICK AGAIN.");
             }
 
-            waitingForFlight = true;
-            flightIsDeal = false;
-            flyingCard = heldCard;
-            heldCard = null;
             Vector3 direction = releasePosition - ShoePosition;
-            direction.y = 0f;
+            direction = Vector3.ProjectOnPlane(direction, tableRoot.up);
             if (direction.sqrMagnitude < 0.01f)
             {
-                direction = Vector3.forward;
+                direction = tableRoot.forward;
             }
 
             flightDestination = releasePosition + direction.normalized * (targetIndex >= 0 ? 0.18f : 0.42f);
-            flightRoutine = StartCoroutine(AnimateFlight(ShoePosition, flightDestination, returningMiss: true));
+            GameObject missedCard = heldCard;
+            heldCard = null;
+            if (!TryStartFlight(missedCard, ShoePosition, flightDestination, returningMiss: true))
+            {
+                RecoverFlightVisualFailure(missedCard, returningMiss: true, "starting a missed-card animation");
+            }
+
+            return;
+        }
+
+        if (!IsCardVisualReady(heldCard))
+        {
+            ReturnHeldCard();
+            SetFeedback("CARD VISUAL UNAVAILABLE — RETRY THE DEAL.");
             return;
         }
 
@@ -383,15 +475,24 @@ public sealed class FlickCardMinigame : CasinoMinigame
         }
 
         successfulFlicks++;
-        waitingForFlight = true;
-        flightIsDeal = true;
-        flyingCard = heldCard;
+        GameObject dealtCard = heldCard;
         heldCard = null;
-        SetCardFace(flyingCard, card, faceDown: holeCard);
+        if (!TrySetCardFace(dealtCard, card, faceDown: holeCard))
+        {
+            Debug.LogWarning($"{name}: The dealt card face could not be rendered; keeping the card back while preserving the dealt card.", this);
+        }
+
         flightDestination = GetCardDestination(targetIndex, cardIndex);
-        dealtCards.Add(flyingCard);
+        if (!dealtCards.Contains(dealtCard))
+        {
+            dealtCards.Add(dealtCard);
+        }
+
         SetFeedback(targetIndex < 0 ? "DEALER!" : $"NICE DEAL — SEAT {targetIndex + 1}!");
-        flightRoutine = StartCoroutine(AnimateFlight(ShoePosition, flightDestination, returningMiss: false));
+        if (!TryStartFlight(dealtCard, ShoePosition, flightDestination, returningMiss: false))
+        {
+            RecoverFlightVisualFailure(dealtCard, returningMiss: false, "starting a dealt-card animation");
+        }
     }
 
     private bool IsPointerOnShoe(Vector3 position)
@@ -406,63 +507,186 @@ public sealed class FlickCardMinigame : CasinoMinigame
         DestroyHeldCard();
     }
 
-    private IEnumerator AnimateFlight(Vector3 start, Vector3 end, bool returningMiss)
+    private bool TryStartFlight(GameObject card, Vector3 start, Vector3 end, bool returningMiss)
+    {
+        if (card == null || !card.activeInHierarchy || !isActiveAndEnabled ||
+            !gameObject.activeInHierarchy || tableRoot == null)
+        {
+            return false;
+        }
+
+        flyingCard = card;
+        flightDestination = end;
+        flightIsDeal = !returningMiss;
+        waitingForFlight = true;
+        try
+        {
+            Coroutine startedRoutine = StartCoroutine(AnimateFlight(card, start, end, returningMiss));
+            if (startedRoutine == null)
+            {
+                waitingForFlight = false;
+                flyingCard = null;
+                flightIsDeal = false;
+                return false;
+            }
+
+            flightRoutine = waitingForFlight ? startedRoutine : null;
+            return true;
+        }
+        catch (System.InvalidOperationException exception)
+        {
+            waitingForFlight = false;
+            flyingCard = null;
+            flightRoutine = null;
+            flightIsDeal = false;
+            Debug.LogWarning($"{name}: Could not start the FLICK card animation; resolving the card without animation. {exception.Message}", this);
+            return false;
+        }
+    }
+
+    private IEnumerator AnimateFlight(GameObject card, Vector3 start, Vector3 end, bool returningMiss)
     {
         float elapsed = 0f;
-        Vector3 initial = flyingCard.transform.position;
+        if (card == null)
+        {
+            RecoverFlightVisualFailure(card, returningMiss, "starting a card flight");
+            yield break;
+        }
+
+        Vector3 initial = card.transform.position;
         float duration = returningMiss ? cardFlightSeconds * 1.5f : cardFlightSeconds;
         while (elapsed < duration)
         {
+            if (tableRoot == null)
+            {
+                RecoverFlightVisualFailure(card, returningMiss, "animating after the table root was destroyed");
+                yield break;
+            }
+
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
             float arc = Mathf.Sin(t * Mathf.PI) * flickArcHeight;
             Vector3 destination = returningMiss ? end : Vector3.Lerp(start, end, t);
             Vector3 position = returningMiss
                 ? Vector3.Lerp(initial, end, t)
-                : destination + Vector3.up * arc;
-            flyingCard.transform.position = position;
-            flyingCard.transform.rotation = Quaternion.Slerp(
+                : destination + tableRoot.up * arc;
+            if (!TrySetCardPose(card, position, Quaternion.Slerp(
                 Quaternion.Euler(0f, 0f, -12f),
                 tableRoot.rotation,
-                t);
+                t)))
+            {
+                RecoverFlightVisualFailure(card, returningMiss, "moving a card in flight");
+                yield break;
+            }
+
             yield return null;
         }
 
         if (returningMiss)
         {
             elapsed = 0f;
-            Vector3 missPosition = flyingCard.transform.position;
-            Vector3 shoe = ShoePosition + Vector3.up * 0.045f;
+            if (card == null)
+            {
+                RecoverFlightVisualFailure(card, returningMiss: true, "returning a missed card");
+                yield break;
+            }
+
+            Vector3 missPosition = card.transform.position;
+            Vector3 shoe = ShoePosition + tableRoot.up * 0.045f;
             while (elapsed < 0.14f)
             {
                 elapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(elapsed / 0.14f);
-                flyingCard.transform.position = Vector3.Lerp(missPosition, shoe, t);
+                if (!TrySetCardPose(card, Vector3.Lerp(missPosition, shoe, t), tableRoot.rotation))
+                {
+                    RecoverFlightVisualFailure(card, returningMiss: true, "returning a missed card to the shoe");
+                    yield break;
+                }
+
                 yield return null;
             }
 
-            Destroy(flyingCard);
-            flyingCard = null;
+            CompleteFlight(card, returningMiss: true);
         }
         else
         {
-            flyingCard.transform.position = end;
-            flyingCard.transform.rotation = tableRoot.rotation;
-            if (successfulFlicks >= requiredFlicks)
+            if (!TrySetCardPose(card, end, tableRoot.rotation))
             {
-                completing = true;
-                completionSuccess = true;
-                completionDelay = 0.55f;
-                aimGuide.enabled = false;
-                SetFeedback($"PERFECT DEAL!  {successfulFlicks} FLICKS");
+                RecoverFlightVisualFailure(card, returningMiss: false, "placing a dealt card");
+                yield break;
             }
 
-            flyingCard = null;
+            CompleteFlight(card, returningMiss: false);
         }
+    }
 
+    private void CompleteFlight(GameObject card, bool returningMiss)
+    {
         waitingForFlight = false;
         flightRoutine = null;
+        flyingCard = null;
+        flightIsDeal = false;
+        if (returningMiss && card != null)
+        {
+            Destroy(card);
+        }
+
+        if (!returningMiss && CanCompleteChallenge(
+                successfulFlicks,
+                requiredFlicks,
+                table != null ? table.RemainingFlickCardCount : 1))
+        {
+            completing = true;
+            completionSuccess = true;
+            completionDelay = 0.55f;
+            if (aimGuide != null)
+            {
+                aimGuide.enabled = false;
+            }
+
+            SetFeedback($"PERFECT DEAL!  {successfulFlicks} FLICKS");
+        }
+
         UpdateTargetHighlight();
+    }
+
+    private void RecoverFlightVisualFailure(GameObject card, bool returningMiss, string operation)
+    {
+        Debug.LogWarning($"{name}: Recovered from a missing or invalid card visual while {operation}. The blackjack card/deal state was preserved.", this);
+        if (!returningMiss && card != null && tableRoot != null)
+        {
+            TrySetCardPose(card, flightDestination, tableRoot.rotation);
+            if (!dealtCards.Contains(card))
+            {
+                dealtCards.Add(card);
+            }
+        }
+
+        CompleteFlight(card, returningMiss);
+    }
+
+    private bool TrySetCardPose(GameObject card, Vector3 position, Quaternion rotation)
+    {
+        if (card == null || !card.activeInHierarchy)
+        {
+            return false;
+        }
+
+        try
+        {
+            card.transform.SetPositionAndRotation(position, rotation);
+            return true;
+        }
+        catch (MissingReferenceException exception)
+        {
+            Debug.LogWarning($"{name}: The FLICK card visual disappeared during animation. {exception.Message}", this);
+            return false;
+        }
+    }
+
+    private static bool IsCardVisualReady(GameObject card)
+    {
+        return card != null && card.activeInHierarchy && card.GetComponent<Renderer>() != null;
     }
 
     private void CreateShoesAndTargets()
@@ -582,12 +806,22 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private void RenderExistingCards()
     {
         BlackjackTableRound round = table.ActiveRound;
+        if (round == null)
+        {
+            throw new System.InvalidOperationException("FLICK cannot render cards without an active blackjack round.");
+        }
+
         for (int handIndex = 0; handIndex < round.CustomerHands.Count; handIndex++)
         {
             BlackjackHand hand = round.CustomerHands[handIndex];
             for (int cardIndex = 0; cardIndex < hand.Cards.Count; cardIndex++)
             {
                 GameObject card = CreatePhysicalCard(hand.Cards[cardIndex], faceDown: false);
+                if (card == null)
+                {
+                    continue;
+                }
+
                 card.transform.position = GetCardDestination(handIndex, cardIndex);
                 card.transform.rotation = tableRoot.rotation;
                 dealtCards.Add(card);
@@ -598,6 +832,11 @@ public sealed class FlickCardMinigame : CasinoMinigame
         {
             bool hidden = cardIndex == 1;
             GameObject card = CreatePhysicalCard(round.DealerCards[cardIndex], hidden);
+            if (card == null)
+            {
+                continue;
+            }
+
             card.transform.position = GetCardDestination(-1, cardIndex);
             card.transform.rotation = tableRoot.rotation;
             dealtCards.Add(card);
@@ -606,59 +845,120 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private GameObject CreatePhysicalCard(BlackjackCard card, bool faceDown)
     {
+        if (tableRoot == null || cardMaterial == null)
+        {
+            Debug.LogWarning($"{name}: FLICK cannot create a card without its table root and card material.", this);
+            return null;
+        }
+
         GameObject cardObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cardObject.name = faceDown ? "FLICK Card Back" : $"FLICK {card}";
         cardObject.transform.SetParent(tableRoot, true);
         cardObject.transform.localScale = new Vector3(0.48f, 0.035f, 0.68f);
         Destroy(cardObject.GetComponent<Collider>());
-        cardObject.GetComponent<Renderer>().sharedMaterial = cardMaterial;
-        SetColor(cardObject.GetComponent<Renderer>(), faceDown ? new Color(0.10f, 0.19f, 0.30f) : new Color(0.97f, 0.96f, 0.89f));
-        if (!faceDown)
+        Renderer renderer = cardObject.GetComponent<Renderer>();
+        if (renderer == null)
         {
-            TextMesh face = cardObject.AddComponent<TextMesh>();
-            face.text = FormatCard(card);
-            face.anchor = TextAnchor.MiddleCenter;
-            face.alignment = TextAlignment.Center;
-            face.fontSize = 80;
-            face.characterSize = 0.015f;
-            face.color = card.Suit == 1 || card.Suit == 2 ? new Color(0.75f, 0.08f, 0.08f) : new Color(0.08f, 0.10f, 0.12f);
-            face.transform.localPosition = new Vector3(0f, 0.53f, 0f);
-            face.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
-            face.transform.localScale = new Vector3(1f / 0.48f, 1f / 0.035f, 1f / 0.68f);
+            Destroy(cardObject);
+            return null;
+        }
+
+        renderer.sharedMaterial = cardMaterial;
+        SetColor(renderer, faceDown ? new Color(0.10f, 0.19f, 0.30f) : new Color(0.97f, 0.96f, 0.89f));
+        if (!faceDown && !TryCreateCardFaceText(cardObject.transform, card, out _))
+        {
+            Debug.LogWarning($"{name}: FLICK created a card back because its face text could not be created.", this);
         }
 
         return cardObject;
     }
 
-    private void SetCardFace(GameObject cardObject, BlackjackCard card, bool faceDown)
+    private bool TrySetCardFace(GameObject cardObject, BlackjackCard card, bool faceDown)
     {
-        Renderer renderer = cardObject.GetComponent<Renderer>();
-        SetColor(renderer, faceDown ? new Color(0.10f, 0.19f, 0.30f) : new Color(0.97f, 0.96f, 0.89f));
-        TextMesh face = cardObject.GetComponent<TextMesh>();
-        if (faceDown)
+        if (cardObject == null || !cardObject.activeInHierarchy)
         {
-            if (face != null)
-            {
-                Destroy(face);
-            }
-
-            return;
+            return false;
         }
 
-        if (face == null)
+        Renderer renderer = cardObject.GetComponent<Renderer>();
+        if (renderer == null)
         {
-            face = cardObject.AddComponent<TextMesh>();
+            return false;
+        }
+
+        Transform faceTransform = cardObject.transform.Find("Card Face");
+        if (faceDown)
+        {
+            if (faceTransform != null)
+            {
+                faceTransform.gameObject.SetActive(false);
+                Destroy(faceTransform.gameObject);
+            }
+
+            SetColor(renderer, new Color(0.10f, 0.19f, 0.30f));
+            return true;
+        }
+
+        if (!TryCreateCardFaceText(cardObject.transform, card, out TextMesh face))
+        {
+            SetColor(renderer, new Color(0.10f, 0.19f, 0.30f));
+            return false;
+        }
+
+        face.gameObject.SetActive(true);
+        SetColor(renderer, new Color(0.97f, 0.96f, 0.89f));
+        face.color = card.Suit == 1 || card.Suit == 2
+            ? new Color(0.75f, 0.08f, 0.08f)
+            : new Color(0.08f, 0.10f, 0.12f);
+        return true;
+    }
+
+    public static bool TryCreateCardFaceText(Transform cardTransform, BlackjackCard card, out TextMesh face)
+    {
+        face = null;
+        if (cardTransform == null || card.Rank < 1 || card.Rank > 13 || card.Suit < 0 || card.Suit >= SuitSymbols.Length)
+        {
+            return false;
+        }
+
+        try
+        {
+            Transform faceTransform = cardTransform.Find("Card Face");
+            if (faceTransform == null)
+            {
+                GameObject faceObject = new GameObject("Card Face");
+                faceObject.transform.SetParent(cardTransform, false);
+                faceTransform = faceObject.transform;
+            }
+
+            face = faceTransform.GetComponent<TextMesh>();
+            if (face == null)
+            {
+                face = faceTransform.gameObject.AddComponent<TextMesh>();
+            }
+
             face.anchor = TextAnchor.MiddleCenter;
             face.alignment = TextAlignment.Center;
             face.fontSize = 80;
             face.characterSize = 0.015f;
+            face.text = FormatCard(card);
             face.transform.localPosition = new Vector3(0f, 0.53f, 0f);
             face.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
             face.transform.localScale = new Vector3(1f / 0.48f, 1f / 0.035f, 1f / 0.68f);
+            return true;
         }
-
-        face.text = FormatCard(card);
-        face.color = card.Suit == 1 || card.Suit == 2 ? new Color(0.75f, 0.08f, 0.08f) : new Color(0.08f, 0.10f, 0.12f);
+        catch (MissingReferenceException exception)
+        {
+            Debug.LogWarning($"FLICK could not create a playing-card face because its visual was destroyed. {exception.Message}");
+            face = null;
+            return false;
+        }
+        catch (System.InvalidOperationException exception)
+        {
+            Debug.LogWarning($"FLICK could not create a playing-card face. {exception.Message}");
+            face = null;
+            return false;
+        }
     }
 
     private Vector3 GetCardDestination(int targetId, int cardIndex)
@@ -708,7 +1008,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private void UpdateTargetHighlight()
     {
-        if (targetMarkers.Count == 0 || table.ActiveRound == null)
+        if (table == null || targetMarkers.Count == 0 || table.ActiveRound == null)
         {
             return;
         }
@@ -753,11 +1053,18 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private void Finish(bool success)
     {
+        if (success && (table == null || table.RemainingFlickCardCount != 0))
+        {
+            Debug.LogWarning($"{name}: FLICK could not confirm that every required blackjack card was dealt; preserving the task for retry.", this);
+            success = false;
+        }
+
+        StopAndSettleFlight();
         if (success)
         {
             table.EndFlickAssistance();
         }
-        else
+        else if (table != null)
         {
             table.NotifyFlickAttemptFailed();
         }
@@ -768,8 +1075,49 @@ public sealed class FlickCardMinigame : CasinoMinigame
         Complete(success, score);
     }
 
+    private bool HasCompletedRequiredDeals()
+    {
+        return CanCompleteChallenge(
+            successfulFlicks,
+            requiredFlicks,
+            table != null ? table.RemainingFlickCardCount : 1);
+    }
+
+    private void CompleteCommittedChallenge()
+    {
+        Finish(success: true);
+    }
+
+    private void StopAndSettleFlight()
+    {
+        if (flightRoutine != null)
+        {
+            StopCoroutine(flightRoutine);
+            flightRoutine = null;
+        }
+
+        if (flightIsDeal && flyingCard != null && tableRoot != null)
+        {
+            TrySetCardPose(flyingCard, flightDestination, tableRoot.rotation);
+        }
+        else if (flyingCard != null)
+        {
+            Destroy(flyingCard);
+        }
+
+        flyingCard = null;
+        waitingForFlight = false;
+        flightIsDeal = false;
+    }
+
     private void RestorePlayerAndCursor()
     {
+        if (!controlsCaptured)
+        {
+            return;
+        }
+
+        controlsCaptured = false;
         if (player != null)
         {
             player.SetMovementEnabled(true);
@@ -777,6 +1125,30 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
         Cursor.lockState = savedCursorLockMode;
         Cursor.visible = savedCursorVisible;
+    }
+
+    private void AbortUnrecoverableChallenge(string reason)
+    {
+        Debug.LogError($"{name}: FLICK cannot continue because {reason}; resolving the task and resuming automated dealing.", this);
+        if (flightRoutine != null)
+        {
+            StopCoroutine(flightRoutine);
+            flightRoutine = null;
+        }
+
+        DestroyHeldCard();
+        flyingCard = null;
+        waitingForFlight = false;
+        flightIsDeal = false;
+        RestorePlayerAndCursor();
+        CleanUpVisuals();
+        ClearPhysicalCards();
+        if (table != null)
+        {
+            table.AbortFlickAssistance();
+        }
+
+        Complete(false, 0);
     }
 
     private void CleanUpVisuals()
@@ -866,6 +1238,11 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
     private static string FormatCard(BlackjackCard card)
     {
+        if (card.Rank < 1 || card.Rank > 13 || card.Suit < 0 || card.Suit >= SuitSymbols.Length)
+        {
+            throw new System.ArgumentOutOfRangeException(nameof(card), "FLICK card rank or suit is outside the supported range.");
+        }
+
         string rank = card.Rank == 1 ? "A" : card.Rank > 10 ? "JQK"[card.Rank - 11].ToString() : card.Rank.ToString();
         return $"{rank}{SuitSymbols[card.Suit]}";
     }

@@ -171,7 +171,11 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         bool inRange = IsPlayerInRange();
         bool hasAction = IsDealerStaffed && (waitingSet.Count > 0 || state != BlackjackTableState.WaitingForCustomers);
         bool flickTaskPending = flickStation != null && flickStation.IsTaskPending;
-        tableView.SetPromptVisible(inRange && hasAction && !flickTaskPending, GetActionPrompt());
+        bool flickReady = IsFlickReady;
+        bool showPrompt = inRange && hasAction && (!flickTaskPending || flickReady);
+        tableView.SetPromptVisible(
+            showPrompt,
+            flickReady ? "E  •  FLICK! HELP THE DEALER" : GetActionPrompt());
         if (inRange && hasAction && (flickStation == null || !flickStation.IsTaskPending) &&
             keyboard != null && keyboard.eKey.wasPressedThisFrame)
         {
@@ -970,6 +974,12 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         nextDealerActionTime = Time.time + dealerActionInterval;
         RefreshView();
+    }
+
+    public void AbortFlickAssistance()
+    {
+        flickStation?.ResolveTaskAfterFatalFailure();
+        EndFlickAssistance();
     }
 
     public void NotifyFlickAttemptFailed()

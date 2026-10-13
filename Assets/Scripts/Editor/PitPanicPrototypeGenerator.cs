@@ -260,12 +260,16 @@ public static class PitPanicPrototypeGenerator
             FlickCardMinigame.RemainingOpeningCards(3, 4) != 4 ||
             FlickCardMinigame.RemainingOpeningCards(3, 5) != 3 ||
             FlickCardMinigame.RemainingOpeningCards(3, 8) != 0 ||
+            FlickCardMinigame.CanCompleteChallenge(4, 4, 1) ||
+            FlickCardMinigame.CanCompleteChallenge(5, 4, 0) ||
+            !FlickCardMinigame.CanCompleteChallenge(4, 4, 0) ||
             CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Flick) ||
             !CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Pack))
         {
             throw new System.InvalidOperationException("FLICK! retry state or remaining-card counts are incorrect.");
         }
 
+        AssertFlickChallengeLifecycle();
         for (int dealStep = 0; dealStep < expectedFlickTargets.Length; dealStep++)
         {
             if (FlickCardMinigame.OpeningTargetForStep(3, dealStep) != expectedFlickTargets[dealStep])
@@ -299,6 +303,7 @@ public static class PitPanicPrototypeGenerator
         }
 
         AssertCardViewLayout(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        AssertFlickCardFaceHierarchy();
         AssertHiddenHandRendering(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
         AssertFlickMouseProjection();
         AssertInteractionZoneReachability();
@@ -975,6 +980,94 @@ public static class PitPanicPrototypeGenerator
 
         UnityEngine.Object.DestroyImmediate(cardObject);
         UnityEngine.Object.DestroyImmediate(canvasObject);
+    }
+
+    private static void AssertFlickCardFaceHierarchy()
+    {
+        GameObject card = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Transform cardTransform = card.transform;
+        cardTransform.localPosition = new Vector3(1f, 2f, 3f);
+        cardTransform.localRotation = Quaternion.Euler(5f, 15f, 25f);
+        cardTransform.localScale = new Vector3(0.48f, 0.035f, 0.68f);
+        Vector3 positionBefore = cardTransform.localPosition;
+        Quaternion rotationBefore = cardTransform.localRotation;
+        Vector3 scaleBefore = cardTransform.localScale;
+
+        if (!FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(12, 1), out TextMesh face) ||
+            face == null || face.transform.parent != cardTransform ||
+            cardTransform.GetComponent<TextMesh>() != null ||
+            cardTransform.localPosition != positionBefore ||
+            cardTransform.localRotation != rotationBefore ||
+            cardTransform.localScale != scaleBefore ||
+            face.text != "Q♥")
+        {
+            throw new System.InvalidOperationException("FLICK card face text is missing, attached to the physical card, or changed its transform.");
+        }
+
+        if (!FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(1, 3), out TextMesh updatedFace) ||
+            updatedFace != face || updatedFace.text != "A♣" ||
+            cardTransform.Find("Card Face") == null ||
+            FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(0, 0), out _))
+        {
+            throw new System.InvalidOperationException("FLICK card face update duplicated its child or accepted an invalid card.");
+        }
+
+        UnityEngine.Object.DestroyImmediate(card);
+    }
+
+    private static void AssertFlickChallengeLifecycle()
+    {
+        int cancelledDealStep = 4;
+        int firstAttemptCards = FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep);
+        if (firstAttemptCards != 4)
+        {
+            throw new System.InvalidOperationException("A new FLICK challenge did not begin with all four remaining opening cards.");
+        }
+
+        int firstAttemptTarget = FlickCardMinigame.OpeningTargetForStep(3, cancelledDealStep);
+        cancelledDealStep++;
+        if (firstAttemptTarget != 0 || FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep) != 3)
+        {
+            throw new System.InvalidOperationException("Cancelling after one successful flick did not preserve exactly three remaining cards.");
+        }
+
+        int retryCards = FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep);
+        int retrySuccesses = 0;
+        while (FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep) > 0)
+        {
+            if (FlickCardMinigame.OpeningTargetForStep(3, cancelledDealStep) == -2)
+            {
+                throw new System.InvalidOperationException("A FLICK retry produced an invalid remaining-card target.");
+            }
+
+            cancelledDealStep++;
+            retrySuccesses++;
+        }
+
+        if (!FlickCardMinigame.CanCompleteChallenge(retrySuccesses, retryCards, 0))
+        {
+            throw new System.InvalidOperationException("A cancelled FLICK challenge could not complete on retry.");
+        }
+
+        int nextRoundDealStep = 4;
+        int nextRoundCards = FlickCardMinigame.RemainingOpeningCards(3, nextRoundDealStep);
+        for (int i = 0; i < nextRoundCards; i++)
+        {
+            if (FlickCardMinigame.OpeningTargetForStep(3, nextRoundDealStep) == -2)
+            {
+                throw new System.InvalidOperationException("A consecutive FLICK challenge produced an invalid target.");
+            }
+
+            nextRoundDealStep++;
+        }
+
+        if (!FlickCardMinigame.CanCompleteChallenge(
+                nextRoundCards,
+                nextRoundCards,
+                FlickCardMinigame.RemainingOpeningCards(3, nextRoundDealStep)))
+        {
+            throw new System.InvalidOperationException("A second consecutive FLICK challenge did not complete cleanly.");
+        }
     }
 
     private static void AssertHiddenHandRendering(Font font)

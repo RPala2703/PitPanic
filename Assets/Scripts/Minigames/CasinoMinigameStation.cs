@@ -160,4 +160,12 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
         IsTaskPending = false;
     }
+
+    public void ResolveTaskAfterFatalFailure()
+    {
+        if (IsTaskPending)
+        {
+            ResolveTask();
+        }
+    }
 }
