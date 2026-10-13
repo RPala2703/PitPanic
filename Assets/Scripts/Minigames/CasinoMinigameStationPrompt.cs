@@ -57,6 +57,12 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
             return;
         }
 
+        if (player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true)
+        {
+            canvas.enabled = false;
+            return;
+        }
+
         bool inRange = interactionZone.IsPlayerInRange(player.transform);
         bool canRequest = requestWhenIdle && !station.IsTaskPending;
         bool canStart = station.IsTaskPending && !station.IsMinigameRunning;

@@ -142,6 +142,19 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         UpdateRoundProgress();
         UpdateAutomatedDealer();
 
+        if (CasinoMinigamePresentation.IsOpen)
+        {
+            tableView?.SetPromptVisible(false, "");
+            return;
+        }
+
+        if (playerController != null &&
+            playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true)
+        {
+            tableView?.SetPromptVisible(false, "");
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
         if (keyboard != null && keyboard.f8Key.wasPressedThisFrame)
         {

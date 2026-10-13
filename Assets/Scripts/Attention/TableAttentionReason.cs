@@ -14,5 +14,6 @@ public enum TableAttentionReason
     FlickAssistanceRequired,
     RouletteSpinRequired,
     RouletteSweepRequired,
-    CashDeskPackRequired
+    CashDeskPackRequired,
+    FloatRefillRequired
 }

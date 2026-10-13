@@ -51,6 +51,16 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (!isOpen && CasinoMinigamePresentation.IsOpen)
+        {
+            if (promptText != null)
+            {
+                promptText.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
         if (isOpen)
         {
             if (promptText != null)

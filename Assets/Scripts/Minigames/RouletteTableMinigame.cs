@@ -40,6 +40,9 @@ public sealed class RouletteTableMinigame : CasinoMinigame
 
     public bool IsConfigured => player != null && tableRoot != null && wheel != null && attention != null;
     public override bool CanBegin => IsConfigured && Mouse.current != null && Camera.main != null;
+    protected override string PresentationTitle => "SPIN! THEN SWEEP THE TABLE";
+    protected override string PresentationInstructions =>
+        "Drag to spin the live roulette wheel, then clear every loose chip into the dealer tray.";
     public int WinningNumber => winningNumber;
     public int SweptChipCount => sweptCount;
     public static bool TryGetWinningNumber(float normalizedSpin, out int number)
@@ -150,6 +153,13 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     }
 
     protected override void OnAbandon()
+    {
+        ResolveSweepAttention();
+        RestorePlayer();
+        CleanUp();
+    }
+
+    protected override void OnComplete(bool success)
     {
         ResolveSweepAttention();
         RestorePlayer();
@@ -368,8 +378,9 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     private void CreateHud()
     {
         hud = CasinoMinigameHud.Create("Roulette Service HUD", 70);
-        statusText = CasinoMinigameHud.CreateText(hud.transform, "Roulette Status", new Vector2(0f, -36f), new Vector2(800f, 42f), 24);
-        instructionText = CasinoMinigameHud.CreateText(hud.transform, "Roulette Instructions", new Vector2(0f, -82f), new Vector2(850f, 38f), 20);
+        hud.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1600f, 900f);
+        statusText = CasinoMinigameHud.CreateText(hud.transform, "Roulette Status", new Vector2(0f, -44f), new Vector2(1100f, 54f), 30);
+        instructionText = CasinoMinigameHud.CreateText(hud.transform, "Roulette Instructions", new Vector2(0f, -100f), new Vector2(1250f, 48f), 22);
     }
 
     private void SetStatus(string value)
