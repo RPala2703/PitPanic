@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 [DisallowMultipleComponent]
 public sealed class BlackjackBettingSpotView : MonoBehaviour
@@ -9,31 +10,30 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
     private Text statusText;
     private Text betText;
     private BlackjackHandView handView;
-    private BlackjackChipView[] betChips;
+    private readonly List<BlackjackChipView> betChips = new List<BlackjackChipView>();
+    private readonly List<BlackjackChipDenomination> chipComposition = new List<BlackjackChipDenomination>();
+    private IReadOnlyList<BlackjackChipDenomination> denominations;
+    private RectTransform betStack;
+    private Font font;
     private string seatLabel;
 
-    public void Configure(int seatNumber, Font font, Canvas canvas, RectTransform shoe)
+    public void Configure(int seatNumber, Font runtimeFont, Canvas canvas, RectTransform shoe, IReadOnlyList<BlackjackChipDenomination> chipDenominations)
     {
+        font = runtimeFont;
+        denominations = chipDenominations;
         background = gameObject.AddComponent<Image>();
         background.color = new Color(0.035f, 0.24f, 0.17f, 0.84f);
         background.raycastTarget = false;
 
         nameText = CreateText("Seat Name", transform, font, new Vector2(0f, 87f), new Vector2(270f, 28f), 16, TextAnchor.MiddleCenter);
         statusText = CreateText("Hand Status", transform, font, new Vector2(0f, -78f), new Vector2(270f, 26f), 15, TextAnchor.MiddleCenter);
-        betText = CreateText("Stake", transform, font, new Vector2(0f, -99f), new Vector2(112f, 22f), 13, TextAnchor.MiddleCenter);
+        betText = CreateText("Stake", transform, font, new Vector2(-70f, -99f), new Vector2(108f, 22f), 13, TextAnchor.MiddleCenter);
 
         GameObject handObject = CreateRectObject("Customer Hand", transform, new Vector2(0f, 8f), new Vector2(275f, 135f));
         handView = handObject.AddComponent<BlackjackHandView>();
         handView.Configure(font, canvas, shoe);
 
-        GameObject betStack = CreateRectObject("Bet Chips", transform, new Vector2(88f, -98f), new Vector2(86f, 26f));
-        betChips = new BlackjackChipView[4];
-        for (int i = 0; i < betChips.Length; i++)
-        {
-            GameObject chip = CreateRectObject($"Bet Chip {i + 1}", betStack.transform, new Vector2((i - 1.5f) * 17f, 0f), new Vector2(21f, 21f));
-            betChips[i] = chip.AddComponent<BlackjackChipView>();
-            betChips[i].Configure(500, font, new Vector2(21f, 21f), false);
-        }
+        betStack = CreateRectObject("Bet Chips", transform, new Vector2(82f, -98f), new Vector2(100f, 26f)).GetComponent<RectTransform>();
 
         seatLabel = $"SEAT {seatNumber}";
         nameText.text = seatLabel;
@@ -53,11 +53,9 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
             handView.Render(hand.Cards, hiddenCardIndex, revealAll, hand.Status, true);
             statusText.text = StatusLabel(hand.Status, active && awaitingCard);
             statusText.color = StatusColor(hand.Status, active && awaitingCard);
-            betText.text = hand.BetPence > 0 ? "BET" : "";
-            for (int i = 0; i < betChips.Length; i++)
-            {
-                betChips[i].gameObject.SetActive(!hand.PayoutPaid && i < hand.BetPence / 500);
-            }
+            bool betVisible = hand.BetPence > 0 && !hand.PayoutPaid;
+            betText.text = betVisible ? FormatPounds(hand.BetPence) : "";
+            RenderBetChips(betVisible ? hand.BetPence : 0);
         }
         else
         {
@@ -65,11 +63,44 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
             statusText.text = customer == null ? "OPEN" : queuedForNextRound ? "NEXT ROUND" : "WAITING";
             statusText.color = Color.white;
             betText.text = customer == null ? "" : "READY";
-            for (int i = 0; i < betChips.Length; i++)
-            {
-                betChips[i].gameObject.SetActive(false);
-            }
+            RenderBetChips(0);
         }
+    }
+
+    private void RenderBetChips(int amountPence)
+    {
+        chipComposition.Clear();
+        if (amountPence > 0)
+        {
+            chipComposition.AddRange(BlackjackChipDenomination.GetExactComposition(amountPence, denominations));
+        }
+
+        while (betChips.Count < chipComposition.Count)
+        {
+            GameObject chipObject = CreateRectObject($"Bet Chip {betChips.Count + 1}", betStack, Vector2.zero, new Vector2(21f, 21f));
+            BlackjackChipView chipView = chipObject.AddComponent<BlackjackChipView>();
+            chipView.Configure(chipComposition[betChips.Count], font, new Vector2(21f, 21f), false);
+            betChips.Add(chipView);
+        }
+
+        for (int i = 0; i < betChips.Count; i++)
+        {
+            bool visible = i < chipComposition.Count;
+            betChips[i].gameObject.SetActive(visible);
+            if (!visible)
+            {
+                continue;
+            }
+
+            betChips[i].SetValue(chipComposition[i]);
+            RectTransform chipRect = betChips[i].GetComponent<RectTransform>();
+            chipRect.anchoredPosition = new Vector2((i - (chipComposition.Count - 1) * 0.5f) * 19f, 0f);
+        }
+    }
+
+    private static string FormatPounds(int pence)
+    {
+        return $"£{pence / 100}.{pence % 100:00}";
     }
 
     private static string StatusLabel(BlackjackHandStatus status, bool active)

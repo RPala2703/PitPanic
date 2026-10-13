@@ -1,16 +1,11 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 [DisallowMultipleComponent]
 public sealed class BlackjackChipView : MonoBehaviour
 {
     private const int ChipTextureSize = 64;
-    private static readonly Color[] ChipColors =
-    {
-        new Color(0.81f, 0.16f, 0.13f),
-        new Color(0.16f, 0.43f, 0.78f),
-        new Color(0.20f, 0.62f, 0.34f)
-    };
     private static Sprite chipSprite;
 
     private Image image;
@@ -18,12 +13,17 @@ public sealed class BlackjackChipView : MonoBehaviour
 
     public void Configure(int valuePence, Font font, Vector2 size, bool showValue = true)
     {
+        Configure(FindDefaultDenomination(valuePence), font, size, showValue);
+    }
+
+    public void Configure(BlackjackChipDenomination denomination, Font font, Vector2 size, bool showValue = true)
+    {
         image = gameObject.AddComponent<Image>();
         image.sprite = GetChipSprite();
         image.raycastTarget = false;
         RectTransform rect = GetComponent<RectTransform>();
         rect.sizeDelta = size;
-        SetValue(valuePence);
+        SetValue(denomination);
         AddChipMarks(size);
 
         if (!showValue)
@@ -45,21 +45,55 @@ public sealed class BlackjackChipView : MonoBehaviour
         label.color = Color.white;
         label.alignment = TextAnchor.MiddleCenter;
         label.raycastTarget = false;
-        SetValue(valuePence);
+        SetValue(denomination);
     }
 
     public void SetValue(int valuePence)
     {
+        SetValue(FindDefaultDenomination(valuePence));
+    }
+
+    public void SetValue(int valuePence, IReadOnlyList<BlackjackChipDenomination> denominations)
+    {
+        SetValue(FindDenomination(valuePence, denominations));
+    }
+
+    public void SetValue(BlackjackChipDenomination denomination)
+    {
         if (image == null) image = GetComponent<Image>();
-        if (image != null) image.color = GetChipColor(valuePence);
-        if (label != null) label.text = valuePence == 500 ? "5" : valuePence == 1000 ? "10" : "25";
+        if (image != null) image.color = denomination.Color;
+        if (label != null) label.text = denomination.Label.Replace("£", "");
     }
 
     public static Color GetChipColor(int valuePence)
     {
-        if (valuePence == 500) return ChipColors[0];
-        if (valuePence == 1000) return ChipColors[1];
-        return ChipColors[2];
+        return FindDefaultDenomination(valuePence).Color;
+    }
+
+    public static Color GetChipColor(int valuePence, IReadOnlyList<BlackjackChipDenomination> denominations)
+    {
+        return FindDenomination(valuePence, denominations).Color;
+    }
+
+    private static BlackjackChipDenomination FindDefaultDenomination(int valuePence)
+    {
+        return FindDenomination(valuePence, BlackjackChipDenomination.CreateDefaults());
+    }
+
+    private static BlackjackChipDenomination FindDenomination(int valuePence, IReadOnlyList<BlackjackChipDenomination> denominations)
+    {
+        if (denominations != null)
+        {
+            for (int i = 0; i < denominations.Count; i++)
+            {
+                if (denominations[i].ValuePence == valuePence)
+                {
+                    return denominations[i];
+                }
+            }
+        }
+
+        throw new System.ArgumentOutOfRangeException(nameof(valuePence), valuePence, "No chip denomination is configured for this amount.");
     }
 
     private void AddChipMarks(Vector2 size)

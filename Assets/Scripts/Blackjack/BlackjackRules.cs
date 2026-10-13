@@ -16,7 +16,7 @@ public readonly struct BlackjackCard
     public override string ToString()
     {
         string[] ranks = { "", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K" };
-        string[] suits = { "S", "H", "D", "C" };
+        string[] suits = { "♠", "♥", "♦", "♣" };
         return $"{ranks[Rank]}-{suits[Suit]}";
     }
 }
