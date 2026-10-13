@@ -58,6 +58,9 @@ public sealed class FlickCardMinigame : CasinoMinigame
                                      table.ActiveRound != null && table.RemainingFlickCardCount > 0 &&
                                      player != null && tableRoot != null &&
                                      Mouse.current != null && Camera.main != null;
+    protected override string PresentationTitle => "FLICK! DEAL THE OPENING HANDS";
+    protected override string PresentationInstructions =>
+        "Grab a card from the shoe, aim at the glowing hand, and release to deal.";
     public int SuccessfulFlicks => successfulFlicks;
     public int MissedFlicks => missedFlicks;
     public bool IsConfigured => table != null && player != null && tableRoot != null;
@@ -769,14 +772,14 @@ public sealed class FlickCardMinigame : CasinoMinigame
             typeof(GraphicRaycaster));
         hud = canvasObject.GetComponent<Canvas>();
         hud.renderMode = RenderMode.ScreenSpaceOverlay;
-        hud.sortingOrder = 60;
+        hud.sortingOrder = 70;
         CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1280f, 720f);
+        scaler.referenceResolution = new Vector2(1600f, 900f);
         scaler.matchWidthOrHeight = 0.5f;
-        progressText = CreateHudText(canvasObject.transform, "FLICK  0/0", new Vector2(0f, -34f), new Vector2(420f, 36f), 25);
-        timerText = CreateHudText(canvasObject.transform, "TIME  10.0", new Vector2(0f, -70f), new Vector2(340f, 28f), 19);
-        feedbackText = CreateHudText(canvasObject.transform, "", new Vector2(0f, -112f), new Vector2(650f, 34f), 20);
+        progressText = CreateHudText(canvasObject.transform, "FLICK  0/0", new Vector2(0f, -42f), new Vector2(620f, 52f), 30);
+        timerText = CreateHudText(canvasObject.transform, "TIME  10.0", new Vector2(0f, -96f), new Vector2(420f, 38f), 22);
+        feedbackText = CreateHudText(canvasObject.transform, "", new Vector2(0f, -145f), new Vector2(1000f, 48f), 22);
     }
 
     private static Text CreateHudText(Transform parent, string value, Vector2 position, Vector2 size, int fontSize)

@@ -106,7 +106,8 @@ public static class PitPanicPrototypeGenerator
             trimMaterial,
             accentMaterial,
             playerController,
-            out CasinoDealerStation firstBlackjackStation);
+            out CasinoDealerStation firstBlackjackStation,
+            out CasinoFloatRefillDestination firstFloatDestination);
         CasinoSeat[] secondTableSeats = CreateBlackjackTable(
             "Blackjack Table 2",
             new Vector3(6.2f, 0f, 0.6f),
@@ -115,7 +116,8 @@ public static class PitPanicPrototypeGenerator
             trimMaterial,
             accentMaterial,
             playerController,
-            out CasinoDealerStation secondBlackjackStation);
+            out CasinoDealerStation secondBlackjackStation,
+            out CasinoFloatRefillDestination secondFloatDestination);
         CasinoSeat[] seats = new CasinoSeat[firstTableSeats.Length + secondTableSeats.Length];
         firstTableSeats.CopyTo(seats, 0);
         secondTableSeats.CopyTo(seats, firstTableSeats.Length);
@@ -126,7 +128,8 @@ public static class PitPanicPrototypeGenerator
             feltMaterial,
             trimMaterial,
             accentMaterial,
-            playerController);
+            playerController,
+            out CasinoFloatRefillDestination rouletteFloatDestination);
         Transform[] breakPositions = CreateBreakRoom(woodMaterial, feltMaterial, trimMaterial);
         Transform cashierWaypoint = CreateCashierStation(
             new Vector3(0f, 0f, -8.1f),
@@ -134,6 +137,11 @@ public static class PitPanicPrototypeGenerator
             accentMaterial,
             playerController,
             out CasinoCashDeskInteraction cashDesk);
+        cashDesk.ConfigureFloatRefills(
+            playerController,
+            firstFloatDestination,
+            secondFloatDestination,
+            rouletteFloatDestination);
         PitDeskInteraction pitDesk = CreatePitDesk(new Vector3(12f, 0f, -4f), woodMaterial, trimMaterial, playerController);
         Transform[] pitDeskPositions = CreatePitDeskWaitingPositions(new Vector3(12f, 0f, -4f), trimMaterial);
         DealerAssignmentManager dealerManager = CreateDealerManager(
@@ -307,6 +315,43 @@ public static class PitPanicPrototypeGenerator
         {
             throw new System.InvalidOperationException("Cash desk chip packing does not match the pence total exactly.");
         }
+
+        GameObject floatDestinationObject = new GameObject("Float Delivery Rule Test");
+        BoxCollider floatFootprint = floatDestinationObject.AddComponent<BoxCollider>();
+        floatFootprint.size = new Vector3(4f, 1f, 3f);
+        TableInteractionZone floatZone = floatDestinationObject.AddComponent<TableInteractionZone>();
+        floatZone.Configure(floatFootprint);
+        CasinoTableAttention floatAttention = floatDestinationObject.AddComponent<CasinoTableAttention>();
+        CasinoFloatRefillDestination floatDestination = floatDestinationObject.AddComponent<CasinoFloatRefillDestination>();
+        floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention);
+        CasinoFloatRefillOrder floatOrder = CasinoFloatRefillOrder.CreateStandard("float-test", "TEST", floatDestination);
+        int[] correctFloatCounts = { 10, 5, 4, 0 };
+        int[] incorrectFloatCounts = { 10, 5, 3, 0 };
+        floatDestination.RequestAttention();
+        if (!floatDestination.NeedsRefill() ||
+            floatOrder.TotalPence != 20000 || floatOrder.TotalChips != 19 ||
+            !floatOrder.HasExactContents(correctFloatCounts) ||
+            floatOrder.HasExactContents(incorrectFloatCounts) ||
+            !floatDestination.Receive(floatOrder, correctFloatCounts) ||
+            floatDestination.GetChipCount(0) != 10 ||
+            floatDestination.GetChipCount(1) != 5 ||
+            floatDestination.GetChipCount(2) != 4 ||
+            floatDestination.NeedsRefill() ||
+            floatAttention.HasPendingTasks ||
+            floatDestination.Receive(floatOrder, correctFloatCounts) ||
+            floatDestination.Receive(floatOrder, incorrectFloatCounts))
+        {
+            throw new System.InvalidOperationException("Float refill packing, exact denomination totals, or duplicate delivery validation failed.");
+        }
+
+        if (!floatDestination.TryConsumeChips(new[] { 10, 0, 0, 0 }) ||
+            !floatDestination.NeedsRefill() ||
+            floatDestination.TryConsumeChips(new[] { 1, 0, 0, 0 }))
+        {
+            throw new System.InvalidOperationException("Table float consumption did not atomically trigger a low-stock refill.");
+        }
+
+        UnityEngine.Object.DestroyImmediate(floatDestinationObject);
 
         AssertCardViewLayout(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
         AssertFlickCardFaceHierarchy();
@@ -507,6 +552,7 @@ public static class PitPanicPrototypeGenerator
         NavMeshSurface navigation = Object.FindFirstObjectByType<NavMeshSurface>();
         CasinoSeat[] seats = Object.FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None);
         AIDealer[] dealers = Object.FindObjectsByType<AIDealer>(FindObjectsSortMode.None);
+        cashDesk?.InitializeRuntime();
         if (camera == null || !camera.orthographic || eventSystem == null ||
             eventSystem.GetComponent<InputSystemUIInputModule>() == null ||
             eventSystem.GetComponent<StandaloneInputModule>() != null)
@@ -556,6 +602,43 @@ public static class PitPanicPrototypeGenerator
         if (assignedDealers.Count != 3 || dealerManager.Dealers.Count != 4 || reserveDealers != 1)
         {
             throw new System.InvalidOperationException("The three initial casino tables must each have one unique dealer and one reserve dealer.");
+        }
+
+        CasinoFloatRefillDestination[] floatDestinations =
+            Object.FindObjectsByType<CasinoFloatRefillDestination>(FindObjectsSortMode.None);
+        if (floatDestinations.Length != 3 || cashDesk.Destinations.Count != 3)
+        {
+            throw new System.InvalidOperationException("The generated casino needs float refill destinations for both blackjack tables and roulette.");
+        }
+
+        foreach (CasinoFloatRefillDestination destination in floatDestinations)
+        {
+            if (!destination.IsConfigured || destination.Attention == null ||
+                destination.InteractionZone == null || !destination.InteractionZone.IsConfigured ||
+                destination.RefillOrderCounts.Length != 4)
+            {
+                throw new System.InvalidOperationException($"{destination.name} has incomplete float inventory or delivery wiring.");
+            }
+        }
+
+        cashDesk.RefreshFloatRequests();
+        IReadOnlyList<CasinoFloatRefillOrder> requestedFloats = cashDesk.GetRequestedOrders();
+        if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence != 20000 ||
+            !requestedFloats[0].HasExactContents(new[] { 10, 5, 4, 0 }))
+        {
+            throw new System.InvalidOperationException("Low table floats did not create distinct, exact-value delivery requests.");
+        }
+
+        string testOrderId = requestedFloats[0].Id;
+        int redRegisterStock = cashDesk.GetRegisterStock(0);
+        if (!cashDesk.TryBeginPacking(testOrderId) ||
+            cashDesk.GetOrderStatus(testOrderId) != CasinoFloatRefillStatus.Packing ||
+            cashDesk.GetRegisterStock(0) != redRegisterStock - 10 ||
+            !cashDesk.CancelPacking(testOrderId) ||
+            cashDesk.GetOrderStatus(testOrderId) != CasinoFloatRefillStatus.Requested ||
+            cashDesk.GetRegisterStock(0) != redRegisterStock)
+        {
+            throw new System.InvalidOperationException("Float packing cancellation did not restore the reserved chips and request.");
         }
 
         foreach (AIDealer dealer in dealerManager.Dealers)
@@ -704,6 +787,12 @@ public static class PitPanicPrototypeGenerator
             cashDesk.GetComponent<CasinoTableAttention>() == null)
         {
             throw new System.InvalidOperationException("Roulette or cash desk is missing interaction, attention, or minigame station wiring.");
+        }
+
+        if (player.GetComponent<CasinoPlayerFloatCarrier>() == null ||
+            cashDesk.GetComponent<CashDeskPackMinigame>().GetComponent<CasinoMinigameStation>() == null)
+        {
+            throw new System.InvalidOperationException("The float packing system is missing its player carrier or PACK! station.");
         }
 
         foreach (Canvas hudCanvas in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
@@ -1303,7 +1392,8 @@ public static class PitPanicPrototypeGenerator
         Material trimMaterial,
         Material accentMaterial,
         CasinoPlayerController playerController,
-        out CasinoDealerStation dealerStation)
+        out CasinoDealerStation dealerStation,
+        out CasinoFloatRefillDestination floatDestination)
     {
         GameObject table = new GameObject(tableName);
         table.transform.position = center;
@@ -1379,6 +1469,9 @@ public static class PitPanicPrototypeGenerator
 
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
         interactionZone.Configure(tabletop.GetComponent<BoxCollider>());
+        floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
+        string destinationId = tableName == "Blackjack Table 1" ? "BJ1" : "BJ2";
+        floatDestination.Configure(destinationId, tableName, interactionZone, attention);
         table.AddComponent<BlackjackTableView>();
         BlackjackTableInteraction interaction = table.AddComponent<BlackjackTableInteraction>();
         interaction.Configure(playerController, interactionZone, attention, seats);
@@ -1478,7 +1571,8 @@ public static class PitPanicPrototypeGenerator
         Material feltMaterial,
         Material trimMaterial,
         Material accentMaterial,
-        CasinoPlayerController player)
+        CasinoPlayerController player,
+        out CasinoFloatRefillDestination floatDestination)
     {
         GameObject table = new GameObject("Roulette Table");
         table.transform.position = center;
@@ -1495,6 +1589,8 @@ public static class PitPanicPrototypeGenerator
         CreateWorldLabel(table.transform, "Roulette Table Label", "ROULETTE", center + new Vector3(0f, 2.2f, -1.5f));
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
         interactionZone.Configure(counter.GetComponent<BoxCollider>());
+        floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
+        floatDestination.Configure("ROULETTE", "Roulette Table", interactionZone, attention);
         RouletteTableMinigame minigame = table.AddComponent<RouletteTableMinigame>();
         minigame.Configure(player, table.transform, wheel.transform, attention);
         CasinoMinigameStation minigameStation = table.AddComponent<CasinoMinigameStation>();
@@ -1586,7 +1682,7 @@ public static class PitPanicPrototypeGenerator
             station,
             CasinoMinigameType.Pack,
             TableAttentionReason.CashDeskPackRequired,
-            "PACK CUSTOMER CHIPS",
+            "PACK TABLE FLOAT",
             allowTaskRequestWhenIdle: false);
         cashDeskInteraction = cashier.AddComponent<CasinoCashDeskInteraction>();
         cashDeskInteraction.Configure(attention, station, packMinigame);
