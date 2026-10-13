@@ -6,5 +6,8 @@ public enum TableAttentionReason
     ChipRefillRequired,
     PitBossApproval,
     CustomerComplaint,
-    DealerBreakRequired
+    DealerBreakRequired,
+    TableUnstaffed,
+    DealerExhausted,
+    StaffRotationRequired
 }

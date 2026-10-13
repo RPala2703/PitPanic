@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -35,6 +36,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private bool serviceActive;
     private bool penaltyRecorded;
     private bool headingToExit;
+    [SerializeField, Min(1)] private int minimumBetPence = 1000;
+    [SerializeField, Min(1)] private int maximumBetPence = 5000;
 
     public event Action<CasinoCustomerAI> Seated;
     public event Action<CasinoCustomerAI> LeavingSeat;
@@ -176,6 +179,43 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public bool WantsAnotherCard(int handTotal)
     {
         return handTotal < customerHitThreshold;
+    }
+
+    public int ChooseBetPence(IReadOnlyList<int> availableStakesPence)
+    {
+        if (!TryChooseBetPence(availableStakesPence, out int betPence))
+        {
+            throw new InvalidOperationException($"{name} has no available blackjack stake within their configured betting limits.");
+        }
+
+        return betPence;
+    }
+
+    public bool TryChooseBetPence(IReadOnlyList<int> availableStakesPence, out int betPence)
+    {
+        if (availableStakesPence == null)
+        {
+            throw new ArgumentNullException(nameof(availableStakesPence));
+        }
+
+        List<int> eligibleStakes = new List<int>();
+        for (int i = 0; i < availableStakesPence.Count; i++)
+        {
+            int stake = availableStakesPence[i];
+            if (stake >= minimumBetPence && stake <= maximumBetPence)
+            {
+                eligibleStakes.Add(stake);
+            }
+        }
+
+        if (eligibleStakes.Count == 0)
+        {
+            betPence = 0;
+            return false;
+        }
+
+        betPence = eligibleStakes[UnityEngine.Random.Range(0, eligibleStakes.Count)];
+        return true;
     }
 
     public void CompleteVisit()

@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 public sealed class CasinoPlayerController : MonoBehaviour
 {
     [SerializeField, Min(0f)] private float moveSpeed = 5f;
-    [SerializeField] private Vector2 floorHalfExtents = new Vector2(11.2f, 8.2f);
+    [SerializeField] private Vector2 floorHalfExtents = new Vector2(15f, 10f);
 
     private CharacterController characterController;
     private bool movementEnabled = true;

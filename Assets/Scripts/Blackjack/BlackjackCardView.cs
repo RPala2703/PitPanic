@@ -5,6 +5,7 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class BlackjackCardView : MonoBehaviour
 {
+    private static readonly string[] SuitSymbols = { "♠", "♥", "♦", "♣" };
     private Image background;
     private Text rankText;
     private Text suitText;
@@ -20,8 +21,8 @@ public sealed class BlackjackCardView : MonoBehaviour
         background = gameObject.AddComponent<Image>();
         background.color = Color.white;
 
-        rankText = CreateText("Rank", new Vector2(-25f, 20f), new Vector2(50f, 36f), 22, TextAnchor.MiddleLeft, font);
-        suitText = CreateText("Suit", new Vector2(0f, -12f), new Vector2(56f, 48f), 30, TextAnchor.MiddleCenter, font);
+        rankText = CreateText("Rank", new Vector2(0f, 1f), new Vector2(8f, -7f), new Vector2(27f, 28f), 19, TextAnchor.UpperLeft, font);
+        suitText = CreateText("Suit", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(50f, 46f), 32, TextAnchor.MiddleCenter, font);
         RectTransform rect = GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(58f, 82f);
     }
@@ -37,7 +38,12 @@ public sealed class BlackjackCardView : MonoBehaviour
         }
 
         string rank = card.Rank == 1 ? "A" : card.Rank > 10 ? "JQK"[card.Rank - 11].ToString() : card.Rank.ToString();
-        string suit = "SHDC"[card.Suit].ToString();
+        if (card.Suit < 0 || card.Suit >= SuitSymbols.Length)
+        {
+            throw new System.ArgumentOutOfRangeException(nameof(card), "Playing card suit is outside the supported range.");
+        }
+
+        string suit = SuitSymbols[card.Suit];
         bool red = card.Suit == 1 || card.Suit == 2;
         Color ink = red ? new Color(0.72f, 0.08f, 0.08f) : new Color(0.08f, 0.10f, 0.12f);
         background.color = new Color(0.97f, 0.96f, 0.89f);
@@ -121,13 +127,14 @@ public sealed class BlackjackCardView : MonoBehaviour
         isAnimating = false;
     }
 
-    private Text CreateText(string objectName, Vector2 position, Vector2 size, int fontSize, TextAnchor alignment, Font font)
+    private Text CreateText(string objectName, Vector2 anchor, Vector2 position, Vector2 size, int fontSize, TextAnchor alignment, Font font)
     {
         GameObject textObject = new GameObject(objectName, typeof(RectTransform));
         textObject.transform.SetParent(transform, false);
         RectTransform rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = rect.anchorMin;
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = anchor;
         rect.anchoredPosition = position;
         rect.sizeDelta = size;
         Text text = textObject.AddComponent<Text>();

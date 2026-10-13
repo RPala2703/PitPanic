@@ -21,6 +21,7 @@ public sealed class BlackjackTableView : MonoBehaviour
     private BlackjackHandView dealerHand;
     private BlackjackBettingSpotView[] bettingSpots;
     private readonly List<BlackjackChipView> selectedChipViews = new List<BlackjackChipView>();
+    private BlackjackChipDenomination[] chipDenominations;
     private RectTransform selectedChipRow;
     private Button dealButton;
     private Button closeButton;
@@ -35,13 +36,20 @@ public sealed class BlackjackTableView : MonoBehaviour
     private Action onRemoveChip;
     private Action onConfirmPayout;
 
-    public void Configure(Action dealAction, Action closeAction, Action<int> addChipAction, Action removeChipAction, Action confirmPayoutAction)
+    public void Configure(
+        Action dealAction,
+        Action closeAction,
+        Action<int> addChipAction,
+        Action removeChipAction,
+        Action confirmPayoutAction,
+        BlackjackChipDenomination[] denominations)
     {
         onDeal = dealAction;
         onClose = closeAction;
         onAddChip = addChipAction;
         onRemoveChip = removeChipAction;
         onConfirmPayout = confirmPayoutAction;
+        chipDenominations = denominations;
         EnsureInputEventSystem();
         Build();
     }
@@ -76,6 +84,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         int accuracyScore,
         int penaltyCount,
         bool awaitingCustomerCard,
+        bool dealerAutomated,
         string message)
     {
         if (board == null) return;
@@ -111,17 +120,19 @@ public sealed class BlackjackTableView : MonoBehaviour
                        state == BlackjackTableState.InitialDeal ||
                        state == BlackjackTableState.CustomerTurns ||
                        state == BlackjackTableState.DealerTurn;
-        dealButton.gameObject.SetActive(canDeal);
-        dealButton.GetComponentInChildren<Text>().text = state == BlackjackTableState.WaitingForCustomers
-            ? "START ROUND  •  SPACE"
-            : state == BlackjackTableState.TakingBets
-                ? "DEAL OPENING CARDS  •  SPACE"
-                : "DEAL CARD  •  SPACE";
+        dealButton.gameObject.SetActive(canDeal && !dealerAutomated);
+        dealButton.GetComponentInChildren<Text>().text = dealerAutomated
+            ? "DEALER WORKING"
+            : state == BlackjackTableState.WaitingForCustomers
+                ? "START ROUND"
+                : state == BlackjackTableState.TakingBets
+                    ? "DEAL OPENING CARDS"
+                    : "DEAL CARD";
 
         bool isPayout = state == BlackjackTableState.Settlement && payoutIndex >= 0;
-        foreach (Button denominationButton in denominationButtons) denominationButton.gameObject.SetActive(isPayout);
-        removeChipButton.gameObject.SetActive(isPayout && selectedPayoutChips.Count > 0);
-        confirmPayoutButton.gameObject.SetActive(isPayout);
+        foreach (Button denominationButton in denominationButtons) denominationButton.gameObject.SetActive(isPayout && !dealerAutomated);
+        removeChipButton.gameObject.SetActive(isPayout && selectedPayoutChips.Count > 0 && !dealerAutomated);
+        confirmPayoutButton.gameObject.SetActive(isPayout && !dealerAutomated);
         closeButton.gameObject.SetActive(true);
 
         RenderSelectedChips(selectedPayoutChips);
@@ -180,7 +191,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         {
             GameObject spotObject = CreateRectObject($"Betting Spot {i + 1}", felt.transform, new Vector2(xPositions[i], -42f), new Vector2(300f, 218f));
             bettingSpots[i] = spotObject.AddComponent<BlackjackBettingSpotView>();
-            bettingSpots[i].Configure(i + 1, font, canvas, shoePosition);
+            bettingSpots[i].Configure(i + 1, font, canvas, shoePosition, chipDenominations);
         }
 
         messageText = CreateText("Round Prompt", felt.transform, "", new Vector2(0f, -176f), new Vector2(840f, 34f), 17, new Color(1f, 0.86f, 0.47f), TextAnchor.MiddleCenter);
@@ -189,15 +200,22 @@ public sealed class BlackjackTableView : MonoBehaviour
         selectedChipRow = CreateRectObject("Payout Chips", felt.transform, new Vector2(330f, 155f), new Vector2(220f, 35f)).GetComponent<RectTransform>();
         dealButton = CreateButton("Deal Button", felt.transform, "START ROUND  •  SPACE", new Vector2(367f, -238f), new Vector2(250f, 42f), new Color(0.78f, 0.55f, 0.16f), () => onDeal?.Invoke());
         closeButton = CreateButton("Close Button", felt.transform, "ESC  •  CLOSE", new Vector2(-423f, 245f), new Vector2(130f, 36f), new Color(0.20f, 0.25f, 0.23f), () => onClose?.Invoke());
-        denominationButtons = new Button[3];
-        int[] denominations = { 500, 1000, 2500 };
-        float[] chipX = { -180f, -90f, 0f };
-        for (int i = 0; i < denominations.Length; i++)
+        denominationButtons = new Button[chipDenominations.Length];
+        float chipStartX = -((chipDenominations.Length + 1) * 45f);
+        for (int i = 0; i < chipDenominations.Length; i++)
         {
-            int denomination = denominations[i];
-            Color color = BlackjackChipView.GetChipColor(denomination);
-            string label = denomination == 500 ? "£5 CHIP" : denomination == 1000 ? "£10 CHIP" : "£25 CHIP";
-            denominationButtons[i] = CreateButton($"Chip {label}", felt.transform, label, new Vector2(chipX[i], -238f), new Vector2(82f, 38f), color, () => onAddChip?.Invoke(denomination));
+            BlackjackChipDenomination chip = chipDenominations[i];
+            int denominationValue = chip.ValuePence;
+            string label = $"{chip.Label} CHIP";
+            float positionX = chipStartX + i * 90f;
+            denominationButtons[i] = CreateButton(
+                $"Chip {label}",
+                felt.transform,
+                label,
+                new Vector2(positionX, -238f),
+                new Vector2(82f, 38f),
+                chip.Color,
+                () => onAddChip?.Invoke(denominationValue));
         }
 
         removeChipButton = CreateButton("Remove Chip", felt.transform, "REMOVE", new Vector2(91f, -238f), new Vector2(82f, 38f), new Color(0.25f, 0.29f, 0.28f), () => onRemoveChip?.Invoke());
@@ -230,11 +248,11 @@ public sealed class BlackjackTableView : MonoBehaviour
             {
                 GameObject chipObject = CreateRectObject("Selected Payout Chip", selectedChipRow, Vector2.zero, new Vector2(30f, 30f));
                 selectedChipViews.Add(chipObject.AddComponent<BlackjackChipView>());
-                selectedChipViews[i].Configure(chips[i], font, new Vector2(30f, 30f));
+                selectedChipViews[i].Configure(FindChipDenomination(chips[i]), font, new Vector2(30f, 30f));
             }
             else
             {
-                selectedChipViews[i].SetValue(chips[i]);
+                selectedChipViews[i].SetValue(chips[i], chipDenominations);
             }
 
             RectTransform rect = selectedChipViews[i].GetComponent<RectTransform>();
@@ -267,6 +285,19 @@ public sealed class BlackjackTableView : MonoBehaviour
         }
 
         return null;
+    }
+
+    private BlackjackChipDenomination FindChipDenomination(int valuePence)
+    {
+        for (int i = 0; i < chipDenominations.Length; i++)
+        {
+            if (chipDenominations[i].ValuePence == valuePence)
+            {
+                return chipDenominations[i];
+            }
+        }
+
+        throw new InvalidOperationException($"No blackjack chip denomination is configured for {valuePence} pence.");
     }
 
     private Button CreateButton(string objectName, Transform parent, string label, Vector2 position, Vector2 size, Color color, Action action)

@@ -67,21 +67,18 @@ public sealed class BlackjackTableRound
     public bool DealerHasNatural => dealerCards.Count == 2 && DealerTotal == 21;
     public bool IsSettled { get; private set; }
 
-    public BlackjackTableRound(int betPence, BlackjackShoe shoe = null)
+    public BlackjackTableRound(BlackjackShoe shoe = null)
+    {
+        Shoe = shoe ?? new BlackjackShoe();
+    }
+
+    public BlackjackHand AddCustomer(CasinoCustomerAI customer, CasinoSeat seat, int betPence)
     {
         if (betPence <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(betPence));
         }
 
-        Shoe = shoe ?? new BlackjackShoe();
-        BetPence = betPence;
-    }
-
-    public int BetPence { get; }
-
-    public BlackjackHand AddCustomer(CasinoCustomerAI customer, CasinoSeat seat)
-    {
         if (cardsDealt)
         {
             throw new InvalidOperationException("Customers joining after the deal starts must wait for the next round.");
@@ -102,7 +99,7 @@ public sealed class BlackjackTableRound
             throw new InvalidOperationException("A seat cannot participate in the same round more than once.");
         }
 
-        BlackjackHand hand = new BlackjackHand(customer, seat, BetPence);
+        BlackjackHand hand = new BlackjackHand(customer, seat, betPence);
         customerHands.Add(hand);
         return hand;
     }
