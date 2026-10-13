@@ -256,9 +256,14 @@ public static class PitPanicPrototypeGenerator
         UnityEngine.Object.DestroyImmediate(dealerPoint);
         UnityEngine.Object.DestroyImmediate(stationObject);
         int[] expectedFlickTargets = { 0, 1, 2, -1, 0, 1, 2, -1, -2 };
-        if (FlickCardMinigame.RemainingOpeningCards(3) != 4)
+        if (FlickCardMinigame.RemainingOpeningCards(3) != 4 ||
+            FlickCardMinigame.RemainingOpeningCards(3, 4) != 4 ||
+            FlickCardMinigame.RemainingOpeningCards(3, 5) != 3 ||
+            FlickCardMinigame.RemainingOpeningCards(3, 8) != 0 ||
+            CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Flick) ||
+            !CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Pack))
         {
-            throw new System.InvalidOperationException("FLICK! opening-deal recipient sequence is incorrect.");
+            throw new System.InvalidOperationException("FLICK! retry state or remaining-card counts are incorrect.");
         }
 
         for (int dealStep = 0; dealStep < expectedFlickTargets.Length; dealStep++)
@@ -294,6 +299,8 @@ public static class PitPanicPrototypeGenerator
         }
 
         AssertCardViewLayout(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        AssertHiddenHandRendering(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        AssertFlickMouseProjection();
         AssertInteractionZoneReachability();
         if (!BlackjackRules.IsSoft17(new[] { new BlackjackCard(1, 0), new BlackjackCard(6, 1) }) ||
             !BlackjackRules.IsSoft17(new[] { new BlackjackCard(1, 0), new BlackjackCard(1, 1), new BlackjackCard(5, 2) }) ||
@@ -968,6 +975,84 @@ public static class PitPanicPrototypeGenerator
 
         UnityEngine.Object.DestroyImmediate(cardObject);
         UnityEngine.Object.DestroyImmediate(canvasObject);
+    }
+
+    private static void AssertHiddenHandRendering(Font font)
+    {
+        GameObject canvasObject = new GameObject("Hidden Hand Rule Test Canvas", typeof(RectTransform), typeof(Canvas));
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        GameObject board = new GameObject("Hidden Hand Rule Test Board", typeof(RectTransform));
+        board.transform.SetParent(canvasObject.transform, false);
+        GameObject handObject = new GameObject("Hidden Hand Rule Test", typeof(RectTransform));
+        handObject.transform.SetParent(board.transform, false);
+        BlackjackHandView hand = handObject.AddComponent<BlackjackHandView>();
+        GameObject shoeObject = new GameObject("Hidden Hand Rule Test Shoe", typeof(RectTransform));
+        shoeObject.transform.SetParent(canvasObject.transform, false);
+        hand.Configure(font, canvas, shoeObject.GetComponent<RectTransform>());
+        board.SetActive(false);
+
+        BlackjackCard[] cards = { new BlackjackCard(10, 0) };
+        hand.Render(cards, -1, true, BlackjackHandStatus.Playing, true);
+        BlackjackCardView[] cardViews = board.GetComponentsInChildren<BlackjackCardView>(true);
+        if (cardViews.Length != 1 || cardViews[0].IsAnimating ||
+            cardViews[0].GetComponent<CanvasGroup>() != null)
+        {
+            throw new System.InvalidOperationException("Rendering a hidden blackjack hand started a card animation.");
+        }
+
+        board.SetActive(true);
+        hand.Render(cards, -1, true, BlackjackHandStatus.Playing, true);
+        if (board.GetComponentsInChildren<BlackjackCardView>(true).Length != 1 ||
+            cardViews[0].IsAnimating || cardViews[0].GetComponent<RectTransform>().localScale != Vector3.one)
+        {
+            throw new System.InvalidOperationException("A blackjack card did not remain correctly visible when its hand UI opened.");
+        }
+
+        UnityEngine.Object.DestroyImmediate(canvasObject);
+    }
+
+    private static void AssertFlickMouseProjection()
+    {
+        GameObject tableObject = new GameObject("FLICK Projection Rule Test Table");
+        GameObject cameraObject = new GameObject("FLICK Projection Rule Test Camera");
+        Camera camera = cameraObject.AddComponent<Camera>();
+        camera.orthographic = true;
+        Vector3 shoeCenter = tableObject.transform.TransformPoint(new Vector3(0f, 1.53f, 0.96f));
+        camera.transform.position = shoeCenter + new Vector3(0f, 8f, -8f);
+        camera.transform.LookAt(shoeCenter);
+
+        Vector3 screenPosition = camera.WorldToScreenPoint(shoeCenter);
+        if (!FlickCardMinigame.TryProjectScreenPoint(
+                camera,
+                tableObject.transform,
+                new Vector2(screenPosition.x, screenPosition.y),
+                out Vector3 projectedPosition) ||
+            Vector3.Distance(projectedPosition, shoeCenter) > 0.01f)
+        {
+            throw new System.InvalidOperationException("FLICK mouse projection does not land on the card-shoe surface.");
+        }
+
+        if (!FlickCardMinigame.IsPointerWithinShoe(
+                new Vector3(0.24f, 1.53f, 1.30f),
+                new Vector3(0f, 1.53f, 0.96f),
+                0.55f,
+                0.68f) ||
+            FlickCardMinigame.IsPointerWithinShoe(
+                new Vector3(0.56f, 1.53f, 0.96f),
+                new Vector3(0f, 1.53f, 0.96f),
+                0.55f,
+                0.68f) ||
+            FlickCardMinigame.IsPointerWithinShoe(
+                new Vector3(0f, 1.53f, 1.65f),
+                new Vector3(0f, 1.53f, 0.96f),
+                0.55f,
+                0.68f))
+        {
+            throw new System.InvalidOperationException("FLICK shoe hit bounds do not include the visible shoe while rejecting distant clicks.");
+        }
+
+        UnityEngine.Object.DestroyImmediate(cameraObject);
+        UnityEngine.Object.DestroyImmediate(tableObject);
     }
 
     private static void AssertInteractionZoneReachability()

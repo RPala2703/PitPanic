@@ -23,6 +23,8 @@ public sealed class BlackjackHandView : MonoBehaviour
 
     public void Render(IReadOnlyList<BlackjackCard> cards, int hiddenCardIndex, bool revealAll, BlackjackHandStatus status, bool showStatus)
     {
+        bool canAnimateCards = isActiveAndEnabled && gameObject.activeInHierarchy &&
+                               cardRow != null && cardRow.gameObject.activeInHierarchy;
         while (cardViews.Count > cards.Count)
         {
             int lastIndex = cardViews.Count - 1;
@@ -46,7 +48,7 @@ public sealed class BlackjackHandView : MonoBehaviour
             RectTransform cardRect = cardViews[i].GetComponent<RectTransform>();
             cardRect.anchoredPosition = new Vector2((i - (cards.Count - 1) * 0.5f) * 48f, 0f);
             cardViews[i].SetCard(cards[i], revealAll || i != hiddenCardIndex);
-            if (created)
+            if (created && canAnimateCards)
             {
                 cardViews[i].AnimateFrom(shoe, i);
             }

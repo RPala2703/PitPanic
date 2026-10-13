@@ -18,6 +18,9 @@ public sealed class CasinoMinigameStation : MonoBehaviour
     public CasinoMinigameType MinigameType => minigameType;
     public event Action<CasinoMinigameResult> TaskSucceeded;
     public event Action TaskAbandoned;
+    public static bool ShouldResolveTaskOnAbandon(CasinoMinigameType type) =>
+        type != CasinoMinigameType.Flick;
+
     public bool IsConfigured => player != null && interactionZone != null &&
                                 interactionZone.IsConfigured && attention != null &&
                                 minigame != null;
@@ -119,7 +122,11 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     private void OnMinigameAbandoned()
     {
-        ResolveTask();
+        if (ShouldResolveTaskOnAbandon(minigameType))
+        {
+            ResolveTask();
+        }
+
         TaskAbandoned?.Invoke();
     }
 
