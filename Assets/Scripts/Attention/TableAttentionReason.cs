@@ -9,5 +9,6 @@ public enum TableAttentionReason
     DealerBreakRequired,
     TableUnstaffed,
     DealerExhausted,
-    StaffRotationRequired
+    StaffRotationRequired,
+    DealerReadyForAssignment
 }

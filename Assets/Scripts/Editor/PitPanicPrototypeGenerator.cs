@@ -118,16 +118,23 @@ public static class PitPanicPrototypeGenerator
         firstTableSeats.CopyTo(seats, 0);
         secondTableSeats.CopyTo(seats, firstTableSeats.Length);
         (Transform entrance, Transform exit) = CreateCasinoEntrances(trimMaterial, accentMaterial);
-        CreateCustomerSpawner(entrance, exit, seats, customerMaterials);
         CasinoDealerStation rouletteStation = CreateRouletteTable(new Vector3(0f, 0f, 6.4f), woodMaterial, feltMaterial, trimMaterial, accentMaterial);
         Transform[] breakPositions = CreateBreakRoom(woodMaterial, feltMaterial, trimMaterial);
-        CreateCashierStation(new Vector3(0f, 0f, -8.1f), woodMaterial, accentMaterial);
+        Transform cashierWaypoint = CreateCashierStation(new Vector3(0f, 0f, -8.1f), woodMaterial, accentMaterial);
         PitDeskInteraction pitDesk = CreatePitDesk(new Vector3(12f, 0f, -4f), woodMaterial, trimMaterial, playerController);
+        Transform[] pitDeskPositions = CreatePitDeskWaitingPositions(new Vector3(12f, 0f, -4f), trimMaterial);
         DealerAssignmentManager dealerManager = CreateDealerManager(
             new[] { firstBlackjackStation, secondBlackjackStation, rouletteStation },
             breakPositions,
+            pitDeskPositions,
+            pitDesk.GetComponent<CasinoTableAttention>(),
             dealerMaterials);
-        pitDesk.Configure(playerController, pitDesk.GetComponent<TableInteractionZone>(), dealerManager);
+        pitDesk.Configure(
+            playerController,
+            pitDesk.GetComponent<TableInteractionZone>(),
+            dealerManager,
+            pitDesk.GetComponent<CasinoTableAttention>());
+        CreateCustomerSpawner(entrance, exit, cashierWaypoint, seats, customerMaterials);
         NavMeshSurface navigationSurface = CreateNavigationSurface();
         CreateCamera();
         SaveNavigationData(navigationSurface);
@@ -172,9 +179,20 @@ public static class PitPanicPrototypeGenerator
         AssertChipComposition("£50 uses two £25 chips", new[] { 2500, 2500 }, 5000, chipDenominations);
         if (AIDealer.CalculateEnergyAfterWork(100f, 5f, 10f) != 50f ||
             AIDealer.CalculateEnergyAfterRest(50f, 5f, 10f) != 100f ||
-            AIDealer.CalculateEnergyAfterRest(95f, 5f, 10f) != 100f)
+            AIDealer.CalculateEnergyAfterRest(95f, 5f, 10f) != 100f ||
+            !AIDealer.CanBeAssignedFromState(DealerDutyState.ReadyAtPitDesk) ||
+            AIDealer.CanBeAssignedFromState(DealerDutyState.Resting) ||
+            AIDealer.CanBeAssignedFromState(DealerDutyState.TravelingToPitDesk) ||
+            AIDealer.CanBeAssignedFromState(DealerDutyState.Working) ||
+            CasinoCustomerAI.RoundsAfterCompletedHand(3) != 2 ||
+            CasinoCustomerAI.RoundsAfterCompletedHand(1) != 0 ||
+            CasinoCustomerAI.RoundsAfterCompletedHand(0) != 0 ||
+            CasinoDealerStation.CanReplaceDealer(false, true, false) ||
+            !CasinoDealerStation.CanReplaceDealer(false, true, true) ||
+            CasinoDealerStation.CanReplaceDealer(true, true, true) ||
+            !CasinoDealerStation.CanReplaceDealer(false, false, false))
         {
-            throw new System.InvalidOperationException("Dealer work energy or break-room energy recovery is incorrect.");
+            throw new System.InvalidOperationException("Dealer availability, rotation eligibility, visit-round decrement, or energy recovery is incorrect.");
         }
 
         GameObject stationObject = new GameObject("Dealer Station Reservation Test");
@@ -185,6 +203,13 @@ public static class PitPanicPrototypeGenerator
         GameObject currentDealerObject = new GameObject("Current Dealer Handover Test");
         AIDealer currentDealer = currentDealerObject.AddComponent<AIDealer>();
         reservationStation.SetInitialDealer(currentDealer);
+        if (currentDealer.IsAvailable || reservationStation.CanAcceptReplacement ||
+            reservationStation.BeginReplacement(null))
+        {
+            throw new System.InvalidOperationException("A healthy working dealer was incorrectly made available for replacement.");
+        }
+
+        currentDealer.RequestBreak();
         GameObject firstReplacementObject = new GameObject("First Dealer Replacement Test");
         AIDealer firstReplacement = firstReplacementObject.AddComponent<AIDealer>();
         GameObject secondReplacementObject = new GameObject("Second Dealer Replacement Test");
@@ -199,6 +224,10 @@ public static class PitPanicPrototypeGenerator
         if (reservationStation.AssignedDealer != currentDealer)
         {
             throw new System.InvalidOperationException("A dealer station released its current dealer before replacement arrived.");
+        }
+        if (currentDealer.State != DealerDutyState.ReplacementRequested || !currentDealer.IsAtStation)
+        {
+            throw new System.InvalidOperationException("The outgoing dealer stopped working before replacement arrival.");
         }
 
         AIDealer replacedDealer = reservationStation.CompleteReplacement(firstReplacement);
@@ -530,7 +559,148 @@ public static class PitPanicPrototypeGenerator
             }
         }
 
+        ValidateCasinoWorldPlacements(camera, blackjackTables, stations, seats, indicators, dealerManager);
+
         Debug.Log("Prototype scene validation passed: camera, two blackjack tables, six seats, roulette, four dealers, pit desk, attention indicators, references, and NavMesh paths are present.");
+    }
+
+    private static void ValidateCasinoWorldPlacements(
+        Camera camera,
+        BlackjackTableInteraction[] tables,
+        CasinoDealerStation[] stations,
+        CasinoSeat[] seats,
+        CasinoAttentionIndicator[] indicators,
+        DealerAssignmentManager manager)
+    {
+        foreach (BlackjackTableInteraction table in tables)
+        {
+            BoxCollider tabletop = table.GetComponentInChildren<BoxCollider>();
+            if (tabletop == null)
+            {
+                throw new System.InvalidOperationException($"{table.name} has no physical tabletop collider.");
+            }
+
+            Vector3 tableCenter = tabletop.bounds.center;
+            if (Mathf.Abs(table.transform.position.x - tableCenter.x) > 0.5f ||
+                Vector3.Distance(table.transform.position, tableCenter) > 3f)
+            {
+                throw new System.InvalidOperationException($"{table.name} root and world-space geometry do not share a consistent origin.");
+            }
+
+            CasinoAttentionIndicator indicator = table.GetComponentInChildren<CasinoAttentionIndicator>(true);
+            if (indicator == null ||
+                Vector3.Distance(indicator.transform.position, table.transform.position + Vector3.up * 5.1f) > 0.1f)
+            {
+                throw new System.InvalidOperationException($"{table.name} attention icon is not positioned above its own table.");
+            }
+
+            CameraFacingCanvas facing = table.GetComponentInChildren<CameraFacingCanvas>(true);
+            if (table.GetComponentInChildren<Text>(true) == null || facing == null)
+            {
+                throw new System.InvalidOperationException($"{table.name} label does not have a camera-facing text component.");
+            }
+        }
+
+        foreach (CasinoSeat seat in seats)
+        {
+            BlackjackTableInteraction owner = seat.GetComponentInParent<BlackjackTableInteraction>();
+            if (owner == null)
+            {
+                throw new System.InvalidOperationException($"{seat.name} is not parented to its blackjack table.");
+            }
+
+            if (!NavMesh.SamplePosition(seat.Position, out NavMeshHit approach, 0.5f, NavMesh.AllAreas) ||
+                Vector3.Distance(approach.position, seat.Position) > 0.25f)
+            {
+                throw new System.InvalidOperationException($"{seat.name} approach point is not on the walkable NavMesh.");
+            }
+
+            if (Mathf.Abs(seat.Position.x - owner.transform.position.x) > 2.2f ||
+                Mathf.Abs(seat.Position.z - owner.transform.position.z) > 3.5f ||
+                Vector3.Distance(seat.Position, owner.transform.position) > 3.6f)
+            {
+                throw new System.InvalidOperationException($"{seat.name} is not located beside its owning table.");
+            }
+
+            Vector3 approachToBet = seat.Position - seat.BettingPosition.position;
+            Vector3 seatedToBet = seat.Position + seat.SeatedVisualOffset - seat.BettingPosition.position;
+            approachToBet.y = 0f;
+            seatedToBet.y = 0f;
+            if (approachToBet.magnitude > 2.6f || seatedToBet.magnitude > 2f)
+            {
+                throw new System.InvalidOperationException($"{seat.name} seated pose is not aligned with its matching betting spot.");
+            }
+        }
+
+        foreach (CasinoDealerStation station in stations)
+        {
+            if (!NavMesh.SamplePosition(station.DealerPosition.position, out NavMeshHit dealerStand, 0.5f, NavMesh.AllAreas) ||
+                Vector3.Distance(dealerStand.position, station.DealerPosition.position) > 0.25f)
+            {
+                throw new System.InvalidOperationException($"{station.StationName} dealer position is not directly on the NavMesh.");
+            }
+        }
+
+        foreach (Transform position in manager.PitDeskPositions)
+        {
+            if (position == null ||
+                !NavMesh.SamplePosition(position.position, out NavMeshHit waitingPoint, 0.5f, NavMesh.AllAreas) ||
+                Vector3.Distance(waitingPoint.position, position.position) > 0.25f)
+            {
+                throw new System.InvalidOperationException("A dealer waiting position beside the pit desk is unreachable.");
+            }
+
+            foreach (CasinoDealerStation station in stations)
+            {
+                NavMeshPath assignmentPath = new NavMeshPath();
+                if (!NavMesh.CalculatePath(waitingPoint.position, station.DealerPosition.position, NavMesh.AllAreas, assignmentPath) ||
+                    assignmentPath.status != NavMeshPathStatus.PathComplete)
+                {
+                    throw new System.InvalidOperationException($"No dealer assignment route exists from {position.name} to {station.StationName}.");
+                }
+            }
+        }
+
+        foreach (Transform breakPosition in manager.BreakPositions)
+        {
+            bool hasPitDeskRoute = false;
+            foreach (Transform waitingPosition in manager.PitDeskPositions)
+            {
+                NavMeshPath returnPath = new NavMeshPath();
+                if (NavMesh.CalculatePath(breakPosition.position, waitingPosition.position, NavMesh.AllAreas, returnPath) &&
+                    returnPath.status == NavMeshPathStatus.PathComplete)
+                {
+                    hasPitDeskRoute = true;
+                    break;
+                }
+            }
+
+            if (!hasPitDeskRoute)
+            {
+                throw new System.InvalidOperationException($"No dealer return route exists from {breakPosition.name} to the pit desk.");
+            }
+        }
+
+        GameObject pitDesk = GameObject.Find("Pit Desk");
+        CasinoAttentionIndicator deskIndicator = pitDesk != null
+            ? pitDesk.GetComponentInChildren<CasinoAttentionIndicator>(true)
+            : null;
+        if (deskIndicator == null ||
+            Vector3.Distance(deskIndicator.transform.position, pitDesk.transform.position + new Vector3(0f, 3.5f, 0f)) > 0.1f)
+        {
+            throw new System.InvalidOperationException("The pit desk attention indicator is misplaced.");
+        }
+
+        for (int i = 0; i < indicators.Length; i++)
+        {
+            for (int j = i + 1; j < indicators.Length; j++)
+            {
+                if (indicators[i].Attention == indicators[j].Attention)
+                {
+                    throw new System.InvalidOperationException("Two casino indicators are attached to the same attention state.");
+                }
+            }
+        }
     }
 
     private static void ValidateNavMeshRoute(Vector3 position, Transform entrance, string targetName)
@@ -758,6 +928,7 @@ public static class PitPanicPrototypeGenerator
         out CasinoDealerStation dealerStation)
     {
         GameObject table = new GameObject(tableName);
+        table.transform.position = center;
         NavMeshModifier navMeshModifier = table.AddComponent<NavMeshModifier>();
         navMeshModifier.overrideArea = true;
         navMeshModifier.area = 1;
@@ -801,7 +972,7 @@ public static class PitPanicPrototypeGenerator
         }
 
         CasinoTableAttention attention = table.AddComponent<CasinoTableAttention>();
-        CreateAttentionIndicator(table.transform, attention);
+        CreateAttentionIndicator(table.transform, attention, center + Vector3.up * 5.1f);
         CreateWorldLabel(table.transform, $"{tableName} Label", tableName.ToUpperInvariant(), center + new Vector3(0f, 2.2f, -1.5f));
 
         CasinoSeat[] seats = new CasinoSeat[3];
@@ -814,15 +985,17 @@ public static class PitPanicPrototypeGenerator
 
             GameObject bettingPosition = new GameObject($"Betting Position {i + 1}");
             bettingPosition.transform.SetParent(table.transform, false);
-            bettingPosition.transform.localPosition = new Vector3(seatOffsets[i], 1.47f, 0.65f);
+            bettingPosition.transform.localPosition = new Vector3(seatOffsets[i], 1.47f, -0.65f);
 
             GameObject seatObject = new GameObject($"Customer Seat {i + 1}");
             seatObject.transform.SetParent(table.transform, false);
-            seatObject.transform.localPosition = new Vector3(seatOffsets[i], 0f, -1.35f);
+            seatObject.transform.localPosition = new Vector3(seatOffsets[i], 0f, -3f);
             GameObject customerPosition = new GameObject("Customer Sitting Position");
             customerPosition.transform.SetParent(seatObject.transform, false);
+            customerPosition.transform.localPosition = new Vector3(0f, 0f, 0.62f);
+            customerPosition.transform.localRotation = Quaternion.identity;
             CasinoSeat seat = seatObject.AddComponent<CasinoSeat>();
-            seat.Configure(customerPosition.transform, bettingPosition.transform);
+            seat.Configure(customerPosition.transform, bettingPosition.transform, seatObject.transform);
             seats[i] = seat;
         }
 
@@ -833,17 +1006,17 @@ public static class PitPanicPrototypeGenerator
         interaction.Configure(playerController, interactionZone, attention, seats);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
-        dealerPosition.transform.localPosition = center + new Vector3(0f, 0f, 2.35f);
+        dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.35f);
         dealerStation = table.AddComponent<CasinoDealerStation>();
         dealerStation.Configure(tableName, dealerPosition.transform, attention, interaction);
         return seats;
     }
 
-    private static void CreateAttentionIndicator(Transform tableRoot, CasinoTableAttention attention)
+    private static void CreateAttentionIndicator(Transform tableRoot, CasinoTableAttention attention, Vector3 worldPosition)
     {
         GameObject indicator = new GameObject("Table Attention Indicator", typeof(RectTransform), typeof(Canvas));
         indicator.transform.SetParent(tableRoot, false);
-        indicator.transform.localPosition = new Vector3(0f, 5.1f, 0f);
+        indicator.transform.position = worldPosition;
         Canvas canvas = indicator.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.sortingOrder = 20;
@@ -878,9 +1051,9 @@ public static class PitPanicPrototypeGenerator
         GameObject labelObject = new GameObject(objectName, typeof(RectTransform), typeof(Canvas));
         labelObject.transform.SetParent(parent, false);
         labelObject.transform.position = position;
-        labelObject.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
         Canvas canvas = labelObject.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
+        labelObject.AddComponent<CameraFacingCanvas>().Configure(canvas);
         RectTransform canvasRect = labelObject.GetComponent<RectTransform>();
         canvasRect.sizeDelta = new Vector2(420f, 84f);
         labelObject.transform.localScale = Vector3.one * 0.01f;
@@ -910,6 +1083,7 @@ public static class PitPanicPrototypeGenerator
         Material accentMaterial)
     {
         GameObject table = new GameObject("Roulette Table");
+        table.transform.position = center;
         NavMeshModifier modifier = table.AddComponent<NavMeshModifier>();
         modifier.overrideArea = true;
         modifier.area = 1;
@@ -919,11 +1093,11 @@ public static class PitPanicPrototypeGenerator
         CreatePrimitive(PrimitiveType.Cylinder, "Roulette Hub", center + new Vector3(0f, 1.52f, 0f), new Vector3(0.36f, 0.11f, 0.36f), accentMaterial, table.transform);
 
         CasinoTableAttention attention = table.AddComponent<CasinoTableAttention>();
-        CreateAttentionIndicator(table.transform, attention);
+        CreateAttentionIndicator(table.transform, attention, center + Vector3.up * 4f);
         CreateWorldLabel(table.transform, "Roulette Table Label", "ROULETTE", center + new Vector3(0f, 2.2f, -1.5f));
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
-        dealerPosition.transform.localPosition = center + new Vector3(0f, 0f, 2.25f);
+        dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.25f);
         CasinoDealerStation station = table.AddComponent<CasinoDealerStation>();
         station.Configure("Roulette Table", dealerPosition.transform, attention, null);
         return station;
@@ -958,12 +1132,16 @@ public static class PitPanicPrototypeGenerator
         return positions;
     }
 
-    private static void CreateCashierStation(Vector3 center, Material woodMaterial, Material accentMaterial)
+    private static Transform CreateCashierStation(Vector3 center, Material woodMaterial, Material accentMaterial)
     {
         GameObject cashier = new GameObject("Cashier Station");
+        cashier.transform.position = center;
         CreatePrimitive(PrimitiveType.Cube, "Cashier Counter", center + new Vector3(0f, 0.65f, 0f), new Vector3(4.2f, 1.3f, 1.2f), woodMaterial, cashier.transform);
         CreatePrimitive(PrimitiveType.Cube, "Cashier Sign", center + new Vector3(0f, 1.55f, 0.7f), new Vector3(2.4f, 0.45f, 0.15f), accentMaterial, cashier.transform);
         CreateWorldLabel(cashier.transform, "Cashier Station Label", "CASHIER", center + new Vector3(0f, 1.9f, 0.65f));
+        GameObject waypoint = new GameObject("Cashier Customer Waypoint");
+        waypoint.transform.position = center + new Vector3(0f, 0f, -1.5f);
+        return waypoint.transform;
     }
 
     private static PitDeskInteraction CreatePitDesk(
@@ -973,32 +1151,59 @@ public static class PitPanicPrototypeGenerator
         CasinoPlayerController player)
     {
         GameObject desk = new GameObject("Pit Desk");
+        desk.transform.position = center;
         GameObject counter = CreatePrimitive(PrimitiveType.Cube, "Pit Boss Counter", center + new Vector3(0f, 0.65f, 0f), new Vector3(3.4f, 1.3f, 1.4f), woodMaterial, desk.transform);
         CreatePrimitive(PrimitiveType.Cube, "Pit Desk Sign", center + new Vector3(0f, 1.65f, 0.75f), new Vector3(2.5f, 0.4f, 0.14f), trimMaterial, desk.transform);
         CreateWorldLabel(desk.transform, "Pit Desk Label", "PIT BOSS", center + new Vector3(0f, 2f, 0.7f));
         CasinoTableAttention attention = desk.AddComponent<CasinoTableAttention>();
-        CreateAttentionIndicator(desk.transform, attention);
+        CreateAttentionIndicator(desk.transform, attention, center + Vector3.up * 3.5f);
         TableInteractionZone zone = desk.AddComponent<TableInteractionZone>();
         zone.Configure(counter.GetComponent<BoxCollider>(), 1.5f);
         PitDeskInteraction interaction = desk.AddComponent<PitDeskInteraction>();
-        interaction.Configure(player, zone, null);
+        interaction.Configure(player, zone, null, attention);
         return interaction;
+    }
+
+    private static Transform[] CreatePitDeskWaitingPositions(Vector3 deskCenter, Material trimMaterial)
+    {
+        Transform[] positions = new Transform[4];
+        float[] offsets = { -1.35f, -0.45f, 0.45f, 1.35f };
+        for (int i = 0; i < positions.Length; i++)
+        {
+            GameObject position = new GameObject($"Pit Desk Dealer Position {i + 1}");
+            position.transform.position = deskCenter + new Vector3(offsets[i], 0f, 1.55f);
+            position.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            positions[i] = position.transform;
+            GameObject marker = CreatePrimitive(
+                PrimitiveType.Cylinder,
+                $"Pit Desk Waiting Marker {i + 1}",
+                position.transform.position + Vector3.up * 0.025f,
+                new Vector3(0.62f, 0.025f, 0.62f),
+                trimMaterial,
+                position.transform);
+            Object.DestroyImmediate(marker.GetComponent<Collider>());
+        }
+
+        return positions;
     }
 
     private static DealerAssignmentManager CreateDealerManager(
         CasinoDealerStation[] stations,
         Transform[] breakPositions,
+        Transform[] pitDeskPositions,
+        CasinoTableAttention pitDeskAttention,
         Material[] dealerMaterials)
     {
         GameObject managerObject = new GameObject("Dealer Assignment Manager");
         DealerAssignmentManager manager = managerObject.AddComponent<DealerAssignmentManager>();
         AIDealer[] dealers = new AIDealer[4];
-        manager.Configure(dealers, stations, breakPositions);
+        manager.Configure(dealers, stations, breakPositions, pitDeskPositions, pitDeskAttention);
 
         for (int i = 0; i < dealers.Length; i++)
         {
             CasinoDealerStation station = i < stations.Length ? stations[i] : null;
-            Transform spawnPosition = station != null ? station.DealerPosition : breakPositions[3];
+            Transform initialPitPosition = station == null ? pitDeskPositions[0] : null;
+            Transform spawnPosition = station != null ? station.DealerPosition : initialPitPosition;
             GameObject dealerObject = new GameObject($"Dealer {i + 1:00}");
             dealerObject.transform.SetPositionAndRotation(spawnPosition.position, spawnPosition.rotation);
             NavMeshAgent agent = dealerObject.AddComponent<NavMeshAgent>();
@@ -1006,11 +1211,17 @@ public static class PitPanicPrototypeGenerator
             agent.height = 1.7f;
             AIDealer dealer = dealerObject.AddComponent<AIDealer>();
             CreateDealerVisual(dealerObject.transform, dealerMaterials[i], i);
-            dealer.Configure(manager, breakPositions[i], station, i < stations.Length ? 100f : 72f);
+            dealer.Configure(
+                manager,
+                breakPositions[i],
+                initialPitPosition,
+                station,
+                station != null ? 100f : 97f,
+                manager.FullRestThreshold);
             dealers[i] = dealer;
         }
 
-        manager.Configure(dealers, stations, breakPositions);
+        manager.Configure(dealers, stations, breakPositions, pitDeskPositions, pitDeskAttention);
         return manager;
     }
 
@@ -1060,11 +1271,16 @@ public static class PitPanicPrototypeGenerator
         return point.transform;
     }
 
-    private static void CreateCustomerSpawner(Transform entrance, Transform exit, CasinoSeat[] seats, Material[] customerMaterials)
+    private static void CreateCustomerSpawner(
+        Transform entrance,
+        Transform exit,
+        Transform cashierWaypoint,
+        CasinoSeat[] seats,
+        Material[] customerMaterials)
     {
         GameObject spawnerObject = new GameObject("Customer Spawner");
         CasinoCustomerSpawner spawner = spawnerObject.AddComponent<CasinoCustomerSpawner>();
-        spawner.Configure(entrance, exit, seats, customerMaterials);
+        spawner.Configure(entrance, exit, cashierWaypoint, seats, customerMaterials);
     }
 
     private static NavMeshSurface CreateNavigationSurface()

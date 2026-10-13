@@ -1,45 +1,56 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 [DisallowMultipleComponent]
 public sealed class DealerAssignmentManager : MonoBehaviour
 {
-    [SerializeField, Min(0f)] private float minimumEnergyForAssignment = 20f;
     [SerializeField, Range(0.25f, 10f)] private float simulationTimeScale = 1f;
+    [SerializeField, Range(90f, 100f)] private float fullRestThreshold = 97f;
     [SerializeField] private AIDealer[] dealers;
     [SerializeField] private CasinoDealerStation[] stations;
     [SerializeField] private Transform[] breakPositions;
+    [SerializeField] private Transform[] pitDeskPositions;
+    [SerializeField] private CasinoTableAttention pitDeskAttention;
+    private readonly HashSet<Transform> reservedBreakPositions = new HashSet<Transform>();
+    private readonly Dictionary<AIDealer, Transform> dealerBreakReservations = new Dictionary<AIDealer, Transform>();
     private float previousTimeScale = 1f;
 
     public IReadOnlyList<AIDealer> Dealers => dealers;
     public IReadOnlyList<CasinoDealerStation> Stations => stations;
     public IReadOnlyList<Transform> BreakPositions => breakPositions;
+    public IReadOnlyList<Transform> PitDeskPositions => pitDeskPositions;
+    public float FullRestThreshold => fullRestThreshold;
     public bool IsConfigured => dealers != null && dealers.Length > 0 && stations != null &&
-                                stations.Length > 0 && breakPositions != null && breakPositions.Length > 0;
-    public float SimulationTimeScale
-    {
-        get => simulationTimeScale;
-        set => simulationTimeScale = Mathf.Clamp(value, 0.25f, 10f);
-    }
+                                stations.Length > 0 && breakPositions != null && breakPositions.Length > 0 &&
+                                pitDeskPositions != null && pitDeskPositions.Length > 0 && pitDeskAttention != null;
 
-    public void Configure(AIDealer[] casinoDealers, CasinoDealerStation[] casinoStations, Transform[] restPositions)
+    public void Configure(
+        AIDealer[] casinoDealers,
+        CasinoDealerStation[] casinoStations,
+        Transform[] restPositions,
+        Transform[] waitingPositions,
+        CasinoTableAttention deskAttention)
     {
         dealers = casinoDealers;
         stations = casinoStations;
         breakPositions = restPositions;
+        pitDeskPositions = waitingPositions;
+        pitDeskAttention = deskAttention;
     }
 
     private void Awake()
     {
         previousTimeScale = Time.timeScale;
         simulationTimeScale = Mathf.Clamp(simulationTimeScale, 0.25f, 10f);
+        fullRestThreshold = Mathf.Clamp(fullRestThreshold, 90f, 100f);
     }
 
     private void Start()
     {
         if (!IsConfigured)
         {
-            Debug.LogError($"{nameof(DealerAssignmentManager)} on {name} needs dealers, table stations, and break-room positions.", this);
+            Debug.LogError($"{nameof(DealerAssignmentManager)} on {name} needs dealers, stations, break positions, pit-desk positions, and desk attention.", this);
             enabled = false;
             return;
         }
@@ -58,12 +69,20 @@ public sealed class DealerAssignmentManager : MonoBehaviour
                 stations[i].Attention.RequestAttention(TableAttentionReason.TableUnstaffed);
             }
         }
+
+        SyncPitDeskAttention();
     }
 
     private void Update()
     {
         Time.timeScale = simulationTimeScale;
-        RotateTiredDealers();
+        foreach (AIDealer dealer in dealers)
+        {
+            if (dealer != null && dealer.IsResting && dealer.Energy >= fullRestThreshold)
+            {
+                SendRestedDealerToPitDesk(dealer);
+            }
+        }
     }
 
     private void OnDisable()
@@ -71,43 +90,116 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         Time.timeScale = previousTimeScale;
     }
 
-    public bool TryAssignDealer(AIDealer dealer, CasinoDealerStation station)
+    public bool CanAssignDealer(AIDealer dealer, CasinoDealerStation station, out string reason)
     {
-        if (!Contains(dealer) || !Contains(station) || !dealer.IsAvailable ||
-            dealer.Energy < minimumEnergyForAssignment || station.PendingReplacement != null)
+        if (!Contains(dealer))
+        {
+            reason = "Dealer is not managed by this casino.";
+            return false;
+        }
+
+        if (!dealer.IsReadyAtPitDesk)
+        {
+            reason = $"{dealer.DealerId} must be physically ready at the pit desk.";
+            return false;
+        }
+
+        if (!Contains(station))
+        {
+            reason = "Choose a configured casino table.";
+            return false;
+        }
+
+        if (!station.CanAcceptReplacement)
+        {
+            reason = station.PendingReplacement != null
+                ? "A dealer is already walking to this table."
+                : "This table's dealer does not need a break.";
+            return false;
+        }
+
+        if (!HasCompletePath(dealer.transform.position, station.DealerPosition.position))
+        {
+            reason = $"No safe NavMesh route to {station.StationName}.";
+            return false;
+        }
+
+        if (station.AssignedDealer != null && !TryFindBreakPosition(out _))
+        {
+            reason = "All dealer break-room positions are occupied.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    public bool TryAssignDealer(AIDealer dealer, CasinoDealerStation station, out string reason)
+    {
+        if (!CanAssignDealer(dealer, station, out reason))
         {
             return false;
+        }
+
+        AIDealer outgoingDealer = station.AssignedDealer;
+        Transform outgoingBreakPosition = null;
+        if (outgoingDealer != null)
+        {
+            if (!TryFindBreakPosition(out outgoingBreakPosition) ||
+                !HasCompletePath(station.DealerPosition.position, outgoingBreakPosition.position))
+            {
+                reason = "The outgoing dealer has no safe route to an available break position.";
+                return false;
+            }
+
+            reservedBreakPositions.Add(outgoingBreakPosition);
+            dealerBreakReservations[outgoingDealer] = outgoingBreakPosition;
         }
 
         if (!station.BeginReplacement(dealer))
         {
+            ReleaseBreakReservation(outgoingDealer);
+            reason = "The table became unavailable before the assignment started.";
             return false;
         }
 
-        if (dealer.BeginAssignment(station))
+        if (!dealer.BeginAssignment(station))
         {
-            return true;
+            station.CancelReplacement(dealer);
+            ReleaseBreakReservation(outgoingDealer);
+            reason = "The dealer could not begin the NavMesh route.";
+            return false;
         }
 
-        station.CancelReplacement(dealer);
-        return false;
+        SyncPitDeskAttention();
+        reason = string.Empty;
+        return true;
     }
 
-    public bool SendDealerToBreak(AIDealer dealer)
+    public bool SendRestedDealerToPitDesk(AIDealer dealer)
     {
-        if (!Contains(dealer) || dealer.AssignedStation == null)
+        if (!Contains(dealer) || !dealer.IsResting || dealer.Energy < fullRestThreshold ||
+            !TryFindPitDeskPosition(dealer, dealer.transform.position, out Transform position))
         {
             return false;
         }
 
-        CasinoDealerStation station = dealer.AssignedStation;
-        AIDealer replacement = FindRestedReplacement(dealer);
-        if (replacement == null)
+        if (!dealer.ReturnToPitDesk(position))
         {
             return false;
         }
 
-        return TryAssignDealer(replacement, station);
+        SyncPitDeskAttention();
+        return true;
+    }
+
+    public void NotifyDealerReady(AIDealer dealer)
+    {
+        if (Contains(dealer) && dealer.IsReadyAtPitDesk)
+        {
+            ReleaseBreakReservation(dealer);
+            SyncPitDeskAttention();
+        }
     }
 
     public void NotifyDealerArrived(AIDealer dealer, CasinoDealerStation station)
@@ -117,37 +209,239 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             return;
         }
 
-        AIDealer outgoingDealer = station.CompleteReplacement(dealer);
-        if (outgoingDealer != null)
+        AIDealer outgoingDealer = station.AssignedDealer;
+        if (outgoingDealer != null &&
+            (!dealerBreakReservations.TryGetValue(outgoingDealer, out Transform restPosition) ||
+             !HasCompletePath(outgoingDealer.transform.position, restPosition.position)))
         {
-            Transform restPosition = GetBreakPosition(outgoingDealer);
-            if (restPosition != null)
-            {
-                outgoingDealer.SetBreakPosition(restPosition);
-                outgoingDealer.GoToBreakRoom();
-            }
+            station.CancelReplacement(dealer);
+            ReleaseBreakReservation(outgoingDealer);
+            ReturnFailedAssigneeToPitDesk(dealer);
+            SyncPitDeskAttention();
+            return;
         }
+
+        outgoingDealer = station.CompleteReplacement(dealer);
+        if (outgoingDealer != null &&
+            (!dealerBreakReservations.TryGetValue(outgoingDealer, out Transform assignedBreak) || assignedBreak == null ||
+             !HasCompletePath(outgoingDealer.transform.position, assignedBreak.position) ||
+             !outgoingDealer.GoToBreakRoom(assignedBreak)))
+        {
+            RouteDealerToBreak(outgoingDealer);
+        }
+
+        SyncPitDeskAttention();
     }
 
-    public void NotifyDealerCouldNotReach(AIDealer dealer, CasinoDealerStation station)
+    public void NotifyDealerPathFailed(AIDealer dealer)
     {
-        if (dealer == null || station == null || !station.CancelReplacement(dealer))
+        if (!Contains(dealer))
         {
             return;
         }
 
-        dealer.GoToBreakRoom();
-    }
-
-    public Transform GetBreakPosition(AIDealer dealer)
-    {
-        if (breakPositions == null || breakPositions.Length == 0)
+        if (dealer.State == DealerDutyState.TravelingToTable)
         {
-            return null;
+            CasinoDealerStation station = GetPendingStation(dealer);
+            AIDealer outgoingDealer = station != null ? station.AssignedDealer : null;
+            station?.CancelReplacement(dealer);
+            ReleaseBreakReservation(outgoingDealer);
+            ReturnFailedAssigneeToPitDesk(dealer);
+        }
+        else if (dealer.State == DealerDutyState.TravelingToPitDesk)
+        {
+            Debug.LogError($"{dealer.name} could not reach the pit desk and will retry after its path is restored.", dealer);
+            dealer.MarkResting();
+        }
+        else if (dealer.State == DealerDutyState.TravelingToBreak)
+        {
+            ReleaseBreakReservation(dealer);
+            RouteDealerToBreak(dealer);
+        }
+        else
+        {
+            Debug.LogError($"{dealer.name} could not reach its reserved break-room position.", dealer);
         }
 
-        int index = Mathf.Abs(dealer.GetInstanceID()) % breakPositions.Length;
-        return breakPositions[index];
+        SyncPitDeskAttention();
+    }
+
+    private void RouteDealerToBreak(AIDealer dealer)
+    {
+        ReleaseBreakReservation(dealer);
+        if (TryFindReachableBreakPosition(dealer.transform.position, out Transform alternateBreakPosition) &&
+            TryStartBreakRoute(dealer, alternateBreakPosition))
+        {
+            Debug.LogWarning($"{dealer.name} is taking an alternate route to the break room.", dealer);
+            return;
+        }
+
+        if (TryFindPitDeskPosition(dealer, dealer.transform.position, out Transform deskPosition) &&
+            dealer.ReturnToPitDesk(deskPosition, true))
+        {
+            Debug.LogWarning($"{dealer.name} could not reach a break position and will recover at the pit desk.", dealer);
+            return;
+        }
+
+        Debug.LogError($"{dealer.name} has no safe route to an alternate break position or the pit desk.", dealer);
+        dealer.MarkResting();
+    }
+
+    private bool TryStartBreakRoute(AIDealer dealer, Transform position)
+    {
+        if (position == null || !HasCompletePath(dealer.transform.position, position.position))
+        {
+            return false;
+        }
+
+        reservedBreakPositions.Add(position);
+        dealerBreakReservations[dealer] = position;
+        if (dealer.GoToBreakRoom(position))
+        {
+            return true;
+        }
+
+        ReleaseBreakReservation(dealer);
+        return false;
+    }
+
+    private void ReturnFailedAssigneeToPitDesk(AIDealer dealer)
+    {
+        if (TryFindPitDeskPosition(dealer, dealer.transform.position, out Transform position) &&
+            dealer.ReturnToPitDesk(position))
+        {
+            return;
+        }
+
+        Debug.LogError($"{dealer.name} has no safe route back to a pit-desk position.", dealer);
+    }
+
+    private CasinoDealerStation GetPendingStation(AIDealer dealer)
+    {
+        foreach (CasinoDealerStation station in stations)
+        {
+            if (station != null && station.PendingReplacement == dealer)
+            {
+                return station;
+            }
+        }
+
+        return null;
+    }
+
+    private bool TryFindPitDeskPosition(AIDealer dealer, Vector3 start, out Transform availablePosition)
+    {
+        foreach (Transform position in pitDeskPositions)
+        {
+            if (position == null)
+            {
+                continue;
+            }
+
+            bool occupied = false;
+            foreach (AIDealer other in dealers)
+            {
+                if (other != null && other != dealer && other.ReservedPitPosition == position)
+                {
+                    occupied = true;
+                    break;
+                }
+            }
+
+            if (!occupied && HasCompletePath(start, position.position))
+            {
+                availablePosition = position;
+                return true;
+            }
+        }
+
+        availablePosition = null;
+        return false;
+    }
+
+    private bool TryFindReachableBreakPosition(Vector3 start, out Transform availablePosition)
+    {
+        foreach (Transform position in breakPositions)
+        {
+            if (position != null && !reservedBreakPositions.Contains(position) &&
+                HasCompletePath(start, position.position))
+            {
+                availablePosition = position;
+                return true;
+            }
+        }
+
+        availablePosition = null;
+        return false;
+    }
+
+    private bool TryFindBreakPosition(out Transform availablePosition)
+    {
+        foreach (Transform position in breakPositions)
+        {
+            if (position != null && !reservedBreakPositions.Contains(position))
+            {
+                availablePosition = position;
+                return true;
+            }
+        }
+
+        availablePosition = null;
+        return false;
+    }
+
+    private void ReleaseBreakReservation(AIDealer dealer)
+    {
+        if (dealer != null && dealerBreakReservations.TryGetValue(dealer, out Transform position))
+        {
+            dealerBreakReservations.Remove(dealer);
+            reservedBreakPositions.Remove(position);
+        }
+    }
+
+    private static bool HasCompletePath(Vector3 start, Vector3 destination)
+    {
+        if (!NavMesh.SamplePosition(start, out NavMeshHit startHit, 0.75f, NavMesh.AllAreas) ||
+            Vector3.Distance(startHit.position, start) > 0.5f ||
+            !NavMesh.SamplePosition(destination, out NavMeshHit destinationHit, 0.75f, NavMesh.AllAreas) ||
+            Vector3.Distance(destinationHit.position, destination) > 0.5f)
+        {
+            return false;
+        }
+
+        NavMeshPath path = new NavMeshPath();
+        return NavMesh.CalculatePath(startHit.position, destinationHit.position, NavMesh.AllAreas, path) &&
+               path.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private void SyncPitDeskAttention()
+    {
+        if (pitDeskAttention == null || dealers == null)
+        {
+            return;
+        }
+
+        int readyCount = 0;
+        foreach (AIDealer dealer in dealers)
+        {
+            if (dealer != null && dealer.IsReadyAtPitDesk)
+            {
+                readyCount++;
+            }
+        }
+
+        int pendingCount = pitDeskAttention.GetPendingCount(TableAttentionReason.DealerReadyForAssignment);
+        while (pendingCount < readyCount)
+        {
+            pitDeskAttention.RequestAttention(TableAttentionReason.DealerReadyForAssignment);
+            pendingCount++;
+        }
+
+        while (pendingCount > readyCount)
+        {
+            pitDeskAttention.ResolveAttention(TableAttentionReason.DealerReadyForAssignment);
+            pendingCount--;
+        }
     }
 
     private bool Contains(AIDealer dealer)
@@ -157,57 +451,12 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             return false;
         }
 
-        for (int i = 0; i < dealers.Length; i++)
+        foreach (AIDealer item in dealers)
         {
-            if (dealers[i] == dealer) return true;
+            if (item == dealer) return true;
         }
 
         return false;
-    }
-
-    private void RotateTiredDealers()
-    {
-        if (dealers == null || stations == null)
-        {
-            return;
-        }
-
-        foreach (CasinoDealerStation station in stations)
-        {
-            AIDealer assigned = station != null ? station.AssignedDealer : null;
-            if (assigned == null || assigned.Energy > assigned.TiredThreshold ||
-                station.PendingReplacement != null)
-            {
-                continue;
-            }
-
-            AIDealer replacement = FindRestedReplacement(assigned);
-            if (replacement != null)
-            {
-                TryAssignDealer(replacement, station);
-            }
-        }
-    }
-
-    private AIDealer FindRestedReplacement(AIDealer outgoingDealer)
-    {
-        AIDealer replacement = null;
-        if (dealers == null)
-        {
-            return replacement;
-        }
-
-        foreach (AIDealer candidate in dealers)
-        {
-            if (candidate != outgoingDealer && candidate != null && candidate.IsAvailable &&
-                candidate.Energy >= minimumEnergyForAssignment &&
-                (replacement == null || candidate.Energy > replacement.Energy))
-            {
-                replacement = candidate;
-            }
-        }
-
-        return replacement;
     }
 
     private bool Contains(CasinoDealerStation station)
@@ -217,9 +466,9 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             return false;
         }
 
-        for (int i = 0; i < stations.Length; i++)
+        foreach (CasinoDealerStation item in stations)
         {
-            if (stations[i] == station) return true;
+            if (item == station) return true;
         }
 
         return false;
