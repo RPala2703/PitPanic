@@ -12961,7 +12961,7 @@ MonoBehaviour:
   station: {fileID: 1740740581}
   minigameType: 4
   attentionReason: 12
-  promptText: SPIN! AND SWEEP THE ROULETTE TABLE
+  promptText: SPIN! SWEEP! PAY THE ROULETTE WINNERS
   requestWhenIdle: 0
 --- !u!114 &1740740581
 MonoBehaviour:
@@ -12993,11 +12993,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f0cbf7add557a4194a995f196a62b178, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RouletteTableMinigame
-  chipsToSweep: 3
   spinSeconds: 2.4
   player: {fileID: 577435169}
   tableRoot: {fileID: 1740740578}
   wheel: {fileID: 719149711}
+  roundController: {fileID: 2058695849}
 --- !u!114 &1740740583
 MonoBehaviour:
   m_ObjectHideFlags: 0

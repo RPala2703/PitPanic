@@ -15,6 +15,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
 
     private readonly int[] chipCounts = new int[4];
     private readonly HashSet<string> receivedOrderIds = new HashSet<string>();
+    private bool refillRequested;
 
     public string DestinationId => destinationId;
     public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName;
@@ -120,6 +121,11 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
 
     public bool NeedsRefill()
     {
+        if (refillRequested)
+        {
+            return true;
+        }
+
         for (int i = 0; i < chipCounts.Length; i++)
         {
             if (refillOrderCounts[i] > 0 && chipCounts[i] <= refillThresholdCounts[i])
@@ -146,6 +152,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
         }
 
         receivedOrderIds.Add(order.Id);
+        refillRequested = false;
         attention.ResolveAttention(TableAttentionReason.FloatRefillRequired);
         return true;
     }
@@ -165,12 +172,14 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
         }
 
         receivedOrderIds.Add(order.Id);
+        refillRequested = false;
         attention.ResolveAttention(TableAttentionReason.FloatRefillRequired);
         return true;
     }
 
     public void RequestAttention()
     {
+        refillRequested = true;
         if (attention != null)
         {
             attention.RequestAttentionOnce(TableAttentionReason.FloatRefillRequired);

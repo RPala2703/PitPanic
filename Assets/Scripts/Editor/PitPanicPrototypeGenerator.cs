@@ -370,7 +370,7 @@ public static class PitPanicPrototypeGenerator
             RouletteTableMinigame.GetPocketColorName(32) != "RED" ||
             RouletteTableMinigame.CanCompleteSweep(2, 3) ||
             !RouletteTableMinigame.CanCompleteSweep(3, 3) ||
-            RouletteTableMinigame.CanCompleteSweep(1, 0) ||
+            !RouletteTableMinigame.CanCompleteSweep(0, 0) ||
             !RouletteAssistanceScheduler.CanRequestTask(true, true, false, false, false, true) ||
             RouletteAssistanceScheduler.CanRequestTask(false, true, false, false, false, true) ||
             RouletteAssistanceScheduler.CanRequestTask(true, false, false, false, false, true) ||
@@ -384,6 +384,7 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Roulette spin mapping, task eligibility, duplicate prevention, or cooldown is invalid.");
         }
 
+        AssertRouletteBettingLayout();
         RouletteBet redBet = new RouletteBet(RouletteBetType.Red, -1, 500);
         RouletteBet blackBet = new RouletteBet(RouletteBetType.Black, -1, 1000);
         RouletteBet oddBet = new RouletteBet(RouletteBetType.Odd, -1, 2500);
@@ -414,6 +415,7 @@ public static class PitPanicPrototypeGenerator
         {
             throw new System.InvalidOperationException("European roulette bets, payouts, zero behaviour, or settlement idempotency are invalid.");
         }
+        AssertRouletteSweepAndPayoutRules();
 
         CasinoCustomerGame[] weightedGames =
         {
@@ -802,6 +804,9 @@ public static class PitPanicPrototypeGenerator
 
         Camera camera = Object.FindFirstObjectByType<Camera>();
         EventSystem eventSystem = Object.FindFirstObjectByType<EventSystem>();
+        InputSystemUIInputModule uiInputModule = eventSystem != null
+            ? eventSystem.GetComponent<InputSystemUIInputModule>()
+            : null;
         CasinoPlayerController player = Object.FindFirstObjectByType<CasinoPlayerController>();
         BlackjackTableInteraction[] blackjackTables = Object.FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None);
         CasinoDealerStation[] stations = Object.FindObjectsByType<CasinoDealerStation>(FindObjectsSortMode.None);
@@ -827,10 +832,12 @@ public static class PitPanicPrototypeGenerator
         AIDealer[] dealers = Object.FindObjectsByType<AIDealer>(FindObjectsSortMode.None);
         cashDesk?.InitializeRuntime();
         if (camera == null || !camera.orthographic || eventSystem == null ||
-            eventSystem.GetComponent<InputSystemUIInputModule>() == null ||
+            uiInputModule == null || uiInputModule.actionsAsset == null ||
+            uiInputModule.point == null || uiInputModule.point.action == null ||
+            uiInputModule.leftClick == null || uiInputModule.leftClick.action == null ||
             eventSystem.GetComponent<StandaloneInputModule>() != null)
         {
-            throw new System.InvalidOperationException("Generated scene needs its orthographic camera and a new Input System UI EventSystem.");
+            throw new System.InvalidOperationException("Generated scene needs its orthographic camera and a fully configured new Input System UI EventSystem.");
         }
 
         if (player == null || player.GetComponent<CasinoPlayerInteractionRouter>() == null ||
@@ -1389,6 +1396,160 @@ public static class PitPanicPrototypeGenerator
         }
 
         return first && second && third;
+    }
+
+    private static void AssertRouletteBettingLayout()
+    {
+        System.Collections.Generic.HashSet<Vector2Int> cells = new System.Collections.Generic.HashSet<Vector2Int>();
+        for (int number = 1; number <= 36; number++)
+        {
+            if (!RouletteBettingLayout.TryGetNumberCell(number, out int column, out int row) ||
+                column < 0 || column >= RouletteBettingLayout.ColumnCount ||
+                row < 0 || row >= RouletteBettingLayout.RowCount ||
+                !cells.Add(new Vector2Int(column, row)))
+            {
+                throw new System.InvalidOperationException($"Roulette number {number} has an invalid or duplicate grid cell.");
+            }
+
+            Vector2 uiPosition = RouletteBettingLayout.GetNumberCellPosition(
+                number, new Vector2(-48f, 73f), 46f, 14f);
+            Vector2 popupPosition = RouletteBettingLayout.GetNumberCellPosition(
+                number, new Vector2(-120f, 130f), 49f, 24f);
+            if (!Mathf.Approximately(uiPosition.x - (-48f), column * 46f) ||
+                !Mathf.Approximately(uiPosition.y - 73f, -row * 14f) ||
+                !Mathf.Approximately(popupPosition.x - (-120f), column * 49f) ||
+                !Mathf.Approximately(popupPosition.y - 130f, -row * 24f))
+            {
+                throw new System.InvalidOperationException("Roulette inspection and minigame layouts do not use the same 3-column mapping.");
+            }
+        }
+
+        if (cells.Count != 36 ||
+            !RouletteBettingLayout.TryGetNumberCell(1, out int oneColumn, out int oneRow) ||
+            !RouletteBettingLayout.TryGetNumberCell(2, out int twoColumn, out int twoRow) ||
+            !RouletteBettingLayout.TryGetNumberCell(3, out int threeColumn, out int threeRow) ||
+            !RouletteBettingLayout.TryGetNumberCell(4, out int fourColumn, out int fourRow) ||
+            !RouletteBettingLayout.TryGetNumberCell(34, out int thirtyFourColumn, out int thirtyFourRow) ||
+            !RouletteBettingLayout.TryGetNumberCell(35, out int thirtyFiveColumn, out int thirtyFiveRow) ||
+            !RouletteBettingLayout.TryGetNumberCell(36, out int thirtySixColumn, out int thirtySixRow) ||
+            oneColumn != 0 || twoColumn != 1 || threeColumn != 2 ||
+            oneRow != 0 || twoRow != 0 || threeRow != 0 ||
+            fourColumn != 0 || fourRow != 1 ||
+            thirtyFourColumn != 0 || thirtyFiveColumn != 1 || thirtySixColumn != 2 ||
+            thirtyFourRow != 11 || thirtyFiveRow != 11 || thirtySixRow != 11)
+        {
+            throw new System.InvalidOperationException("Roulette numbers must appear in twelve rows of three, with 1–3 first and 34–36 last.");
+        }
+
+        for (int number = 1; number <= 36; number++)
+        {
+            string expectedColor = EuropeanRouletteRules.IsRed(number) ? "RED" : "BLACK";
+            if (RouletteTableMinigame.GetPocketColorName(number) != expectedColor)
+            {
+                throw new System.InvalidOperationException($"Roulette grid colour for {number} does not match European roulette.");
+            }
+        }
+
+        Vector2[] outsidePositions =
+        {
+            RouletteBettingLayout.GetOutsideBetPosition(RouletteBetType.Red, Vector2.zero, 70f),
+            RouletteBettingLayout.GetOutsideBetPosition(RouletteBetType.Black, Vector2.zero, 70f),
+            RouletteBettingLayout.GetOutsideBetPosition(RouletteBetType.Odd, Vector2.zero, 70f),
+            RouletteBettingLayout.GetOutsideBetPosition(RouletteBetType.Even, Vector2.zero, 70f)
+        };
+        if (new System.Collections.Generic.HashSet<Vector2>(outsidePositions).Count != 4 ||
+            RouletteBettingLayout.TryGetNumberCell(0, out _, out _) ||
+            RouletteBettingLayout.IsOutsideBet(RouletteBetType.StraightUp))
+        {
+            throw new System.InvalidOperationException("Roulette zero and outside bets must use distinct betting areas.");
+        }
+    }
+
+    private static void AssertRouletteSweepAndPayoutRules()
+    {
+        RouletteBet[] bets =
+        {
+            new RouletteBet(RouletteBetType.StraightUp, 7, 500),
+            new RouletteBet(RouletteBetType.Red, -1, 500),
+            new RouletteBet(RouletteBetType.Odd, -1, 500),
+            new RouletteBet(RouletteBetType.StraightUp, 8, 500),
+            new RouletteBet(RouletteBetType.Black, -1, 500),
+            new RouletteBet(RouletteBetType.Even, -1, 500)
+        };
+        bool[] expectedCanSweepOnSeven = { false, false, false, true, true, true };
+        for (int i = 0; i < bets.Length; i++)
+        {
+            if (RouletteTableMinigame.CanCollectBet(bets[i], 7) != expectedCanSweepOnSeven[i])
+            {
+                throw new System.InvalidOperationException($"SWEEP! incorrectly classified {RouletteRoundController.GetBetLabel(bets[i])} for winning number 7.");
+            }
+        }
+        if (RouletteTableMinigame.CountLosingBets(bets, 7) != 3 ||
+            RouletteTableMinigame.CountWinningBets(bets, 7) != 3)
+        {
+            throw new System.InvalidOperationException("SWEEP! counts must include only actual losing bets.");
+        }
+
+        RouletteBet[] zeroBets =
+        {
+            new RouletteBet(RouletteBetType.StraightUp, 0, 500),
+            new RouletteBet(RouletteBetType.Red, -1, 500),
+            new RouletteBet(RouletteBetType.Black, -1, 500),
+            new RouletteBet(RouletteBetType.Odd, -1, 500),
+            new RouletteBet(RouletteBetType.Even, -1, 500)
+        };
+        for (int i = 0; i < zeroBets.Length; i++)
+        {
+            bool expected = i != 0;
+            if (RouletteTableMinigame.CanCollectBet(zeroBets[i], 0) != expected)
+            {
+                throw new System.InvalidOperationException("SWEEP! did not protect straight-up zero and reject all losing outside bets.");
+            }
+        }
+        if (RouletteTableMinigame.CountLosingBets(zeroBets, 0) != 4 ||
+            RouletteTableMinigame.CountWinningBets(zeroBets, 0) != 1)
+        {
+            throw new System.InvalidOperationException("A zero result must lose on all outside bets and win straight-up zero.");
+        }
+
+        RouletteBet straightWin = new RouletteBet(RouletteBetType.StraightUp, 7, 500);
+        RouletteBet redWin = new RouletteBet(RouletteBetType.Red, -1, 500);
+        RouletteBet blackWin = new RouletteBet(RouletteBetType.Black, -1, 2500);
+        RouletteBet oddWin = new RouletteBet(RouletteBetType.Odd, -1, 1000);
+        AssertRouletteGrossReturn(straightWin, 7, 18000);
+        AssertRouletteGrossReturn(redWin, 7, 1000);
+        AssertRouletteGrossReturn(blackWin, 2, 5000);
+        AssertRouletteGrossReturn(oddWin, 7, 2000);
+
+        int[] payout = RouletteTableMinigame.GetPayoutComposition(18000);
+        if (payout.Length != 4 || payout[0] * 500 + payout[1] * 250 +
+            payout[2] * 2500 + payout[3] * 10000 != 18000 ||
+            !RouletteRoundController.CanRecordAssistancePayout(true, false, 18000, 18000) ||
+            RouletteRoundController.CanRecordAssistancePayout(true, true, 18000, 18000) ||
+            RouletteRoundController.CanRecordAssistancePayout(true, false, 18000, 10000) ||
+            RouletteRoundController.CanRecordAssistancePayout(false, false, 18000, 18000) ||
+            !RouletteRoundController.PayoutChipsMatchAmount(payout, 18000) ||
+            RouletteRoundController.PayoutChipsMatchAmount(payout, 18001) ||
+            RouletteRoundController.PayoutChipsMatchAmount(new[] { -1, 0, 0, 0 }, 18000) ||
+            !RouletteTableMinigame.CanCompleteSweep(0, 0) ||
+            !RouletteTableMinigame.CanCompleteSweep(2, 2) ||
+            RouletteTableMinigame.CanConfirmPayout(1000, 999) ||
+            !RouletteTableMinigame.CanConfirmPayout(1000, 1000) ||
+            !RouletteRoundController.CanSetAssistanceWinningNumber(true, 4, 4, 7, 7) ||
+            RouletteRoundController.CanSetAssistanceWinningNumber(true, 4, 4, 7, 8))
+        {
+            throw new System.InvalidOperationException("Roulette payout composition, one-time payment, round retry, or stage completion is invalid.");
+        }
+    }
+
+    private static void AssertRouletteGrossReturn(RouletteBet bet, int winningNumber, long expectedPence)
+    {
+        if (!EuropeanRouletteRules.TryGetGrossReturnPence(bet, winningNumber, out long actual) ||
+            actual != expectedPence)
+        {
+            throw new System.InvalidOperationException(
+                $"Expected roulette payout {expectedPence}p for {RouletteRoundController.GetBetLabel(bet)}, received {actual}p.");
+        }
     }
 
     private static void AssertTotal(string testName, int expected, params BlackjackCard[] cards)
@@ -2050,7 +2211,7 @@ public static class PitPanicPrototypeGenerator
             minigameStation,
             CasinoMinigameType.Spin,
             TableAttentionReason.RouletteSpinRequired,
-            "SPIN! AND SWEEP THE ROULETTE TABLE",
+            "SPIN! SWEEP! PAY THE ROULETTE WINNERS",
             allowTaskRequestWhenIdle: false);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
@@ -2104,6 +2265,7 @@ public static class PitPanicPrototypeGenerator
             minigame,
             wheel.transform,
             chipContainer);
+        minigame.ConfigureRoundController(rounds);
         table.AddComponent<RouletteInspectionView>().Configure(player, interactionZone, rounds);
         table.AddComponent<RouletteAssistanceScheduler>().Configure(
             station,
