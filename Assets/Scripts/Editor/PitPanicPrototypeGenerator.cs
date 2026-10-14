@@ -2239,6 +2239,7 @@ public static class PitPanicPrototypeGenerator
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.35f);
+        dealerPosition.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
         dealerStation = table.AddComponent<CasinoDealerStation>();
         dealerStation.Configure(tableName, dealerPosition.transform, attention, interaction);
         CasinoCustomerGame gameType = destinationId == "BJ1"
@@ -2394,6 +2395,7 @@ public static class PitPanicPrototypeGenerator
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.25f);
+        dealerPosition.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
         CasinoDealerStation station = table.AddComponent<CasinoDealerStation>();
         station.Configure("Roulette Table", dealerPosition.transform, attention, null);
         customerSeats = new CasinoSeat[4];
