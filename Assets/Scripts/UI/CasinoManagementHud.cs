@@ -74,9 +74,9 @@ public sealed class CasinoManagementHud : MonoBehaviour
             new Vector2(430f, 238f),
             new Color(0.025f, 0.075f, 0.075f, 0.94f));
         RectTransform panelRect = panel.GetComponent<RectTransform>();
-        panelRect.anchorMin = panelRect.anchorMax = new Vector2(0f, 1f);
-        panelRect.pivot = new Vector2(0f, 1f);
-        panelRect.anchoredPosition = new Vector2(24f, -24f);
+        panelRect.anchorMin = panelRect.anchorMax = new Vector2(1f, 1f);
+        panelRect.pivot = new Vector2(1f, 1f);
+        panelRect.anchoredPosition = new Vector2(-24f, -24f);
         Outline panelOutline = panel.AddComponent<Outline>();
         panelOutline.effectColor = new Color(0.72f, 0.52f, 0.22f, 0.9f);
         panelOutline.effectDistance = new Vector2(2f, -2f);
