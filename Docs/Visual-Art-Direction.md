@@ -20,7 +20,7 @@ For gameplay-value clarity, the blue cash-desk float chip is £10; blackjack and
 ## Prefab and regeneration policy
 
 - `Assets/Prefabs/Characters` contains reusable animal character prefabs.
-- `Assets/Prefabs/Casino` contains reusable station-art prefabs.
+- `Assets/Prefabs/Casino` contains reusable station-art prefabs, including rounded custom-mesh table shells and a segmented 37-pocket roulette wheel.
 - `Assets/Materials/PitPanic/Art` and `Assets/Art/Textures` contain reusable art materials and procedural prototype textures.
 - `Assets/Scenes/PitPanicPrototype.unity` contains gameplay roots, colliders, navigation, interaction zones, and references. Render-only prefab children are grouped under `VisualRoot`.
 - The scene generator creates only *missing* starter prefabs. It must not replace existing prefab assets; artists can replace or edit those assets without changing gameplay code.
@@ -28,7 +28,7 @@ For gameplay-value clarity, the blue cash-desk float chip is £10; blackjack and
 
 ## Current asset status
 
-The project currently has no licensed animal meshes, authored animation clips, custom font, or original audio recordings. The generated animal prefabs and casino props are an intentionally cohesive greybox art pass built from Unity mesh primitives and project-authored materials; they are not presented as final bespoke character art. Each species has a distinct silhouette and face for prototype readability.
+The project currently has no licensed animal meshes, authored animation clips, custom font, or original audio recordings. The generated animal prefabs and casino props are an intentionally cohesive greybox art pass built from reusable custom meshes, mesh primitives, and project-authored materials; they are not presented as final bespoke character art. Each species has a distinct silhouette and face for prototype readability. The latest presentation pass uses a restrained burgundy carpet, lighter neutral fill lighting, brass-backed station signs, a compact task/staffing HUD, and shared minigame panels with activity-specific accent colours.
 
 ### Bespoke asset manifest
 

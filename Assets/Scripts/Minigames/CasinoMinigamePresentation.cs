@@ -6,7 +6,9 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
 {
     private static CasinoMinigamePresentation activePresentation;
     private CanvasGroup canvasGroup;
+    private RectTransform presentationRect;
     private float targetAlpha;
+    private float targetScale;
     private bool closeWhenHidden;
 
     public static bool IsOpen => activePresentation != null && !activePresentation.closeWhenHidden;
@@ -42,25 +44,36 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         presentation.canvasGroup.interactable = true;
         presentation.canvasGroup.alpha = 0f;
         presentation.targetAlpha = 1f;
+        presentation.presentationRect = root.transform as RectTransform;
+        presentation.presentationRect.localScale = Vector3.one * 0.96f;
+        presentation.targetScale = 1f;
         activePresentation = presentation;
 
+        (Color accent, Color boardColor, Color gameColor) = GetTheme(title);
         GameObject dimmer = CreateImage("Casino Dimmer", root.transform, Vector2.zero,
             new Vector2(2000f, 1200f), new Color(0.015f, 0.025f, 0.025f, 0.78f), true);
         Stretch(dimmer.GetComponent<RectTransform>());
 
         GameObject board = CreateImage("Minigame Board", root.transform, Vector2.zero,
-            new Vector2(1510f, 820f), new Color(0.035f, 0.12f, 0.105f, 0.99f), false);
+            new Vector2(1510f, 820f), boardColor, false);
         Outline border = board.AddComponent<Outline>();
-        border.effectColor = new Color(0.83f, 0.62f, 0.24f, 0.95f);
-        border.effectDistance = new Vector2(3f, -3f);
+        border.effectColor = accent;
+        border.effectDistance = new Vector2(4f, -4f);
+        CreateImage("Minigame Header Accent", board.transform, new Vector2(0f, 399f),
+            new Vector2(1440f, 5f), accent);
+        CreateImage("Minigame Footer Accent", board.transform, new Vector2(0f, -398f),
+            new Vector2(1440f, 2f), new Color(accent.r, accent.g, accent.b, 0.62f));
         CreateText(board.transform, "Minigame Eyebrow", "PIT PANIC  •  LIVE CASINO SERVICE",
-            new Vector2(0f, 381f), new Vector2(760f, 25f), 14, new Color(1f, 0.8f, 0.37f));
+            new Vector2(0f, 381f), new Vector2(760f, 25f), 14, accent);
         CreateText(board.transform, "Minigame Title", title,
             new Vector2(0f, 340f), new Vector2(1350f, 48f), 30, Color.white);
         CreateText(board.transform, "Minigame Instructions", instructions,
             new Vector2(0f, 292f), new Vector2(1390f, 38f), 18, new Color(0.88f, 0.96f, 0.92f));
         GameObject area = CreateImage("Minigame Game Area", board.transform, new Vector2(0f, -38f),
-            new Vector2(1430f, 620f), new Color(0.055f, 0.22f, 0.16f, 1f), false);
+            new Vector2(1430f, 620f), gameColor, false);
+        Outline gameAreaOutline = area.AddComponent<Outline>();
+        gameAreaOutline.effectColor = new Color(accent.r, accent.g, accent.b, 0.55f);
+        gameAreaOutline.effectDistance = new Vector2(1f, -1f);
         presentation.GameArea = area.transform;
         return presentation;
     }
@@ -73,6 +86,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         }
 
         targetAlpha = 0f;
+        targetScale = 0.96f;
         closeWhenHidden = true;
         if (canvasGroup != null)
         {
@@ -102,6 +116,12 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         }
 
         canvasGroup.alpha = Mathf.MoveTowards(canvasGroup.alpha, targetAlpha, Time.unscaledDeltaTime * 7f);
+        if (presentationRect != null)
+        {
+            float scale = Mathf.MoveTowards(presentationRect.localScale.x, targetScale, Time.unscaledDeltaTime * 0.32f);
+            presentationRect.localScale = Vector3.one * scale;
+        }
+
         if (closeWhenHidden && canvasGroup.alpha <= 0f)
         {
             Destroy(gameObject);
@@ -173,5 +193,29 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         rect.anchorMax = Vector2.one;
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
+    }
+
+    private static (Color accent, Color board, Color game) GetTheme(string title)
+    {
+        if (title.Contains("FLICK"))
+        {
+            return (new Color(0.36f, 0.88f, 0.91f), new Color(0.025f, 0.085f, 0.105f, 0.99f),
+                new Color(0.035f, 0.18f, 0.20f, 1f));
+        }
+
+        if (title.Contains("SPIN") || title.Contains("SWEEP") || title.Contains("PAY"))
+        {
+            return (new Color(1f, 0.63f, 0.29f), new Color(0.12f, 0.055f, 0.075f, 0.99f),
+                new Color(0.22f, 0.09f, 0.12f, 1f));
+        }
+
+        if (title.Contains("PACK"))
+        {
+            return (new Color(0.55f, 0.91f, 0.62f), new Color(0.035f, 0.10f, 0.075f, 0.99f),
+                new Color(0.05f, 0.19f, 0.13f, 1f));
+        }
+
+        return (new Color(0.83f, 0.64f, 0.30f), new Color(0.035f, 0.12f, 0.105f, 0.99f),
+            new Color(0.055f, 0.22f, 0.16f, 1f));
     }
 }

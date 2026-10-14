@@ -156,6 +156,12 @@ public static class PitPanicPrototypeGenerator
         NavMeshSurface navigationSurface = CreateNavigationSurface();
         CreateCamera();
         CreateInputEventSystem();
+        CasinoManagementHud managementHud = new GameObject("Casino Management HUD")
+            .AddComponent<CasinoManagementHud>();
+        managementHud.Configure(
+            Object.FindObjectsByType<CasinoTableAttention>(FindObjectsSortMode.None),
+            dealerManager,
+            playerController.GetComponent<CasinoPlayerFloatCarrier>());
         SaveNavigationData(navigationSurface);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -825,6 +831,8 @@ public static class PitPanicPrototypeGenerator
         RouletteRoundController rouletteRounds = Object.FindFirstObjectByType<RouletteRoundController>();
         RouletteInspectionView rouletteInspection = Object.FindFirstObjectByType<RouletteInspectionView>();
         AIDealer[] dealers = Object.FindObjectsByType<AIDealer>(FindObjectsSortMode.None);
+        CasinoManagementHud managementHud = Object.FindFirstObjectByType<CasinoManagementHud>();
+        ValidateCasinoArtMeshes(blackjackTables, rouletteMinigame);
         cashDesk?.InitializeRuntime();
         if (camera == null || !camera.orthographic || eventSystem == null ||
             uiInputModule == null || uiInputModule.actionsAsset == null ||
@@ -833,6 +841,12 @@ public static class PitPanicPrototypeGenerator
             eventSystem.GetComponent<StandaloneInputModule>() != null)
         {
             throw new System.InvalidOperationException("Generated scene needs its orthographic camera and a fully configured new Input System UI EventSystem.");
+        }
+
+        if (managementHud == null || !managementHud.IsConfigured || camera.orthographicSize > 11f ||
+            !ValidateManagementHudResolutions())
+        {
+            throw new System.InvalidOperationException("Generated scene is missing its compact management HUD or composed overhead camera framing.");
         }
 
         if (player == null || player.GetComponent<CasinoPlayerInteractionRouter>() == null ||
@@ -1360,6 +1374,87 @@ public static class PitPanicPrototypeGenerator
                 }
             }
         }
+    }
+
+    private static void ValidateCasinoArtMeshes(
+        IReadOnlyList<BlackjackTableInteraction> tables,
+        RouletteTableMinigame rouletteMinigame)
+    {
+        foreach (BlackjackTableInteraction table in tables)
+        {
+            MeshFilter[] meshes = table.GetComponentsInChildren<MeshFilter>(true);
+            bool hasSmoothTableShell = false;
+            foreach (MeshFilter meshFilter in meshes)
+            {
+                Mesh mesh = meshFilter.sharedMesh;
+                if (mesh == null)
+                {
+                    continue;
+                }
+
+                hasSmoothTableShell |= mesh.name.Contains("Smooth Table Shell") && mesh.vertexCount >= 321;
+            }
+
+            if (!hasSmoothTableShell)
+            {
+                throw new System.InvalidOperationException($"{table.name} is missing its smooth custom-mesh casino table shell.");
+            }
+        }
+
+        bool hasRoulettePockets = false;
+        bool hasRouletteTableShell = false;
+        if (rouletteMinigame != null)
+        {
+            foreach (MeshFilter meshFilter in rouletteMinigame.GetComponentsInChildren<MeshFilter>(true))
+            {
+                Mesh mesh = meshFilter.sharedMesh;
+                hasRouletteTableShell |= mesh != null && mesh.name.Contains("Smooth Table Shell") &&
+                                         mesh.vertexCount >= 321;
+                hasRoulettePockets |= mesh != null && mesh.name == "37 Pocket European Roulette Ring" &&
+                                      mesh.vertexCount == 148 && mesh.subMeshCount == 3;
+            }
+        }
+
+        Transform rouletteWheel = rouletteMinigame != null
+            ? FindDeepChild(rouletteMinigame.transform, "Roulette Wheel Visual")
+            : null;
+        if (rouletteWheel == null || !hasRoulettePockets || !hasRouletteTableShell)
+        {
+            throw new System.InvalidOperationException("The roulette table needs the segmented 37-pocket wheel mesh.");
+        }
+    }
+
+    private static bool ValidateManagementHudResolutions()
+    {
+        CanvasScaler scaler = null;
+        foreach (Canvas candidate in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+        {
+            if (candidate.name == "Casino Management HUD")
+            {
+                scaler = candidate.GetComponent<CanvasScaler>();
+                break;
+            }
+        }
+
+        if (scaler == null || scaler.uiScaleMode != CanvasScaler.ScaleMode.ScaleWithScreenSize ||
+            scaler.referenceResolution != new Vector2(1600f, 900f))
+        {
+            return false;
+        }
+
+        Vector2[] resolutions = { new Vector2(1280f, 720f), new Vector2(1920f, 1080f) };
+        foreach (Vector2 resolution in resolutions)
+        {
+            float scale = Mathf.Min(resolution.x / scaler.referenceResolution.x,
+                resolution.y / scaler.referenceResolution.y);
+            if (scale <= 0f || (430f + 28f) * scale >= resolution.x ||
+                (238f + 28f) * scale >= resolution.y)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void ValidateNavMeshRoute(Vector3 position, Transform entrance, string targetName)
@@ -1987,9 +2082,9 @@ public static class PitPanicPrototypeGenerator
             new Vector3(0.42f, 0.10f, 0.42f), brass, pendant.transform);
         Light light = bulb.AddComponent<Light>();
         light.type = LightType.Point;
-        light.color = new Color(1f, 0.68f, 0.39f);
-        light.intensity = 2.1f;
-        light.range = 7f;
+        light.color = new Color(1f, 0.82f, 0.64f);
+        light.intensity = 0.55f;
+        light.range = 4.5f;
         light.shadows = LightShadows.None;
     }
 
@@ -2011,7 +2106,7 @@ public static class PitPanicPrototypeGenerator
         navMeshModifier.area = 1;
 
         InstantiateArtVisual(
-            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableArt"), table.transform);
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableHeroArt"), table.transform);
         GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
         interactionBounds.transform.SetParent(table.transform, false);
         BoxCollider tableFootprint = interactionBounds.AddComponent<BoxCollider>();
@@ -2127,8 +2222,14 @@ public static class PitPanicPrototypeGenerator
         canvas.renderMode = RenderMode.WorldSpace;
         labelObject.AddComponent<CameraFacingCanvas>().Configure(canvas);
         RectTransform canvasRect = labelObject.GetComponent<RectTransform>();
-        canvasRect.sizeDelta = new Vector2(420f, 84f);
-        labelObject.transform.localScale = Vector3.one * 0.01f;
+        canvasRect.sizeDelta = new Vector2(400f, 76f);
+        labelObject.transform.localScale = Vector3.one * 0.009f;
+        Image signBackground = labelObject.AddComponent<Image>();
+        signBackground.color = new Color(0.035f, 0.11f, 0.095f, 0.96f);
+        signBackground.raycastTarget = false;
+        Outline signBorder = labelObject.AddComponent<Outline>();
+        signBorder.effectColor = new Color(0.78f, 0.57f, 0.24f, 0.95f);
+        signBorder.effectDistance = new Vector2(3f, -3f);
 
         GameObject textObject = new GameObject("Label Text", typeof(RectTransform));
         textObject.transform.SetParent(labelObject.transform, false);
@@ -2140,11 +2241,14 @@ public static class PitPanicPrototypeGenerator
         Text text = textObject.AddComponent<Text>();
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.text = value;
-        text.fontSize = 44;
+        text.fontSize = 34;
         text.fontStyle = FontStyle.Bold;
-        text.color = new Color(1f, 0.88f, 0.60f);
+        text.color = new Color(1f, 0.91f, 0.69f);
         text.alignment = TextAnchor.MiddleCenter;
         text.raycastTarget = false;
+        Outline textOutline = textObject.AddComponent<Outline>();
+        textOutline.effectColor = new Color(0.01f, 0.025f, 0.02f, 0.82f);
+        textOutline.effectDistance = new Vector2(1.4f, -1.4f);
     }
 
     private static void CreateInputEventSystem()
@@ -2171,7 +2275,7 @@ public static class PitPanicPrototypeGenerator
         modifier.overrideArea = true;
         modifier.area = 1;
         Transform rouletteVisuals = InstantiateArtVisual(
-            PitPanicArtPrefabLibrary.GetCasinoPrefab("RouletteTableArt"), table.transform);
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("RouletteTableHeroArt"), table.transform);
         Transform wheel = FindDeepChild(rouletteVisuals, "Roulette Wheel Visual");
         if (wheel == null)
         {
@@ -2540,7 +2644,7 @@ public static class PitPanicPrototypeGenerator
         cameraObject.tag = "MainCamera";
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.orthographic = true;
-        camera.orthographicSize = 11f;
+        camera.orthographicSize = 10.5f;
         camera.nearClipPlane = 0.3f;
         camera.farClipPlane = 100f;
         camera.backgroundColor = new Color(0.055f, 0.075f, 0.09f);
@@ -2555,19 +2659,19 @@ public static class PitPanicPrototypeGenerator
         GameObject sunObject = new GameObject("Casino Key Light");
         Light sun = sunObject.AddComponent<Light>();
         sun.type = LightType.Directional;
-        sun.color = new Color(1f, 0.82f, 0.62f);
-        sun.intensity = 1.5f;
+        sun.color = new Color(1f, 0.94f, 0.84f);
+        sun.intensity = 1.15f;
         sun.shadows = LightShadows.Soft;
         sunObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-        for (int x = -1; x <= 1; x++)
+        for (int x = -1; x <= 1; x += 2)
         {
-            GameObject lightObject = new GameObject("Warm Ceiling Light");
+            GameObject lightObject = new GameObject("Cool Casino Fill Light");
             Light light = lightObject.AddComponent<Light>();
             light.type = LightType.Point;
-            light.color = new Color(1f, 0.68f, 0.36f);
-            light.intensity = 7f;
-            light.range = 10f;
+            light.color = new Color(0.88f, 0.94f, 1f);
+            light.intensity = 1.5f;
+            light.range = 11f;
             light.shadows = LightShadows.None;
             lightObject.transform.position = new Vector3(x * 7f, 6f, 0f);
         }
