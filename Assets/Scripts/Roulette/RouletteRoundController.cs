@@ -14,13 +14,21 @@ public enum RouletteRoundPhase
 
 public sealed class RouletteCustomerBet
 {
+    public long RoundId { get; }
+    public int BetId { get; }
     public CasinoCustomerAI Customer { get; }
     public RouletteBet Bet { get; }
     public long GrossReturnPence { get; internal set; }
     public bool IsSettled { get; internal set; }
+    public bool IsWinning { get; internal set; }
+    public bool IsPaid { get; internal set; }
+    public long PaidOutPence { get; internal set; }
+    public bool IsSwept { get; internal set; }
 
-    public RouletteCustomerBet(CasinoCustomerAI customer, RouletteBet bet)
+    public RouletteCustomerBet(long roundId, int betId, CasinoCustomerAI customer, RouletteBet bet)
     {
+        RoundId = roundId;
+        BetId = betId;
         Customer = customer;
         Bet = bet;
     }
@@ -43,6 +51,7 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     private readonly List<RouletteCustomerBet> currentBets = new List<RouletteCustomerBet>();
     private readonly List<RouletteCustomerBet> previousBets = new List<RouletteCustomerBet>();
+    private readonly List<RouletteCustomerBet> assistanceBets = new List<RouletteCustomerBet>();
     private readonly Queue<int> recentResults = new Queue<int>(5);
     private readonly List<GameObject> tableChips = new List<GameObject>();
     private readonly HashSet<CasinoCustomerAI> activeCustomers = new HashSet<CasinoCustomerAI>();
@@ -52,6 +61,10 @@ public sealed class RouletteRoundController : MonoBehaviour
     private float wheelExtraRotation;
     private int pendingWinningNumber = -1;
     private int latestWinningNumber = -1;
+    private int assistanceWinningNumber = -1;
+    private long nextRoundId;
+    private long activeRoundId;
+    private long assistanceRoundId;
     private bool roundSettled;
     private bool subscriptionsBound;
 
@@ -60,6 +73,9 @@ public sealed class RouletteRoundController : MonoBehaviour
     public RouletteRoundPhase Phase { get; private set; } = RouletteRoundPhase.WaitingForPlayers;
     public IReadOnlyList<RouletteCustomerBet> CurrentBets => currentBets;
     public IReadOnlyList<RouletteCustomerBet> PreviousBets => previousBets;
+    public IReadOnlyList<RouletteCustomerBet> AssistanceBets => assistanceBets;
+    public long AssistanceRoundId => assistanceRoundId;
+    public int AssistanceWinningNumber => assistanceWinningNumber;
     public IReadOnlyList<int> RecentResults => recentResults.ToArray();
     public int RoulettePositionCount => customerPositions == null ? 0 : customerPositions.Length;
     public int ValidRoulettePositionCount
@@ -151,6 +167,7 @@ public sealed class RouletteRoundController : MonoBehaviour
         assistanceMinigame = taskMinigame;
         physicalWheel = wheel;
         chipContainer = chipRoot;
+        assistanceMinigame.ConfigureRoundController(this);
         BindTaskEvents();
     }
 
@@ -164,7 +181,137 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         Phase = RouletteRoundPhase.AwaitingAssistance;
+        assistanceRoundId = activeRoundId;
+        assistanceBets.Clear();
+        assistanceBets.AddRange(currentBets);
+        assistanceWinningNumber = -1;
         return true;
+    }
+
+    public bool TrySetAssistanceWinningNumber(long roundId, int number)
+    {
+        if (!CanSetAssistanceWinningNumber(
+                Phase == RouletteRoundPhase.AwaitingAssistance,
+                assistanceRoundId,
+                roundId,
+                assistanceWinningNumber,
+                number))
+        {
+            return false;
+        }
+
+        if (assistanceWinningNumber < 0)
+        {
+            assistanceWinningNumber = number;
+        }
+
+        foreach (RouletteCustomerBet customerBet in assistanceBets)
+        {
+            customerBet.IsWinning = EuropeanRouletteRules.Wins(customerBet.Bet, assistanceWinningNumber);
+            if (!EuropeanRouletteRules.TryGetGrossReturnPence(
+                    customerBet.Bet, assistanceWinningNumber, out long grossReturn))
+            {
+                throw new InvalidOperationException("A valid roulette assistance bet could not be evaluated.");
+            }
+
+            customerBet.GrossReturnPence = grossReturn;
+        }
+
+        return true;
+    }
+
+    public static bool CanSetAssistanceWinningNumber(
+        bool awaitingAssistance,
+        long currentRoundId,
+        long requestedRoundId,
+        int existingNumber,
+        int requestedNumber) =>
+        awaitingAssistance && currentRoundId > 0 && currentRoundId == requestedRoundId &&
+        EuropeanRouletteRules.IsValidNumber(requestedNumber) &&
+        (existingNumber < 0 || existingNumber == requestedNumber);
+
+    public bool TryMarkAssistanceBetSwept(long roundId, int betId)
+    {
+        RouletteCustomerBet customerBet = FindAssistanceBet(roundId, betId);
+        if (customerBet == null || customerBet.IsWinning || customerBet.IsSwept)
+        {
+            return false;
+        }
+
+        customerBet.IsSwept = true;
+        return true;
+    }
+
+    public bool TryRecordAssistancePayout(
+        long roundId,
+        int betId,
+        int amountPence,
+        int[] chipCounts)
+    {
+        RouletteCustomerBet customerBet = FindAssistanceBet(roundId, betId);
+        if (customerBet == null || !CanRecordAssistancePayout(
+                customerBet.IsWinning,
+                customerBet.IsPaid,
+                customerBet.GrossReturnPence,
+                amountPence) ||
+            chipCounts == null || chipCounts.Length != 4 ||
+            !PayoutChipsMatchAmount(chipCounts, amountPence) ||
+            floatDestination == null || !floatDestination.TryConsumeChips(chipCounts))
+        {
+            return false;
+        }
+
+        customerBet.PaidOutPence = amountPence;
+        customerBet.IsPaid = true;
+        return true;
+    }
+
+    public static bool PayoutChipsMatchAmount(int[] chipCounts, int amountPence)
+    {
+        if (chipCounts == null || chipCounts.Length != 4 || amountPence <= 0)
+        {
+            return false;
+        }
+
+        long total = 0;
+        int[] denominationValues = { 500, 250, 2500, 10000 };
+        for (int i = 0; i < chipCounts.Length; i++)
+        {
+            if (chipCounts[i] < 0)
+            {
+                return false;
+            }
+
+            total += (long)chipCounts[i] * denominationValues[i];
+        }
+
+        return total == amountPence;
+    }
+
+    public static bool CanRecordAssistancePayout(
+        bool isWinningBet,
+        bool alreadyPaid,
+        long grossReturnPence,
+        int amountPence) =>
+        isWinningBet && !alreadyPaid && grossReturnPence > 0 &&
+        grossReturnPence == amountPence;
+
+    private RouletteCustomerBet FindAssistanceBet(long roundId, int betId)
+    {
+        if (Phase != RouletteRoundPhase.AwaitingAssistance || roundId != assistanceRoundId)
+        {
+            return null;
+        }
+
+        foreach (RouletteCustomerBet customerBet in assistanceBets)
+        {
+            if (customerBet.RoundId == roundId && customerBet.BetId == betId)
+            {
+                return customerBet;
+            }
+        }
+
+        return null;
     }
 
     public bool CanAcceptAssistanceResult(int number) =>
@@ -273,12 +420,16 @@ public sealed class RouletteRoundController : MonoBehaviour
         currentBets.Clear();
         activeCustomers.Clear();
         activeCustomers.UnionWith(participants);
+        activeRoundId = ++nextRoundId;
+        assistanceRoundId = 0;
+        assistanceWinningNumber = -1;
         roundSettled = false;
         pendingWinningNumber = -1;
-        foreach (CasinoCustomerAI customer in participants)
+        for (int i = 0; i < participants.Count; i++)
         {
+            CasinoCustomerAI customer = participants[i];
             RouletteBet bet = CreateCustomerBet();
-            RouletteCustomerBet customerBet = new RouletteCustomerBet(customer, bet);
+            RouletteCustomerBet customerBet = new RouletteCustomerBet(activeRoundId, i, customer, bet);
             currentBets.Add(customerBet);
             CreateVisibleBetChips(customerBet);
         }
@@ -410,6 +561,7 @@ public sealed class RouletteRoundController : MonoBehaviour
             }
 
             customerBet.GrossReturnPence = grossReturn;
+            customerBet.IsWinning = EuropeanRouletteRules.Wins(customerBet.Bet, winningNumber);
             customerBet.IsSettled = true;
         }
 
@@ -431,6 +583,9 @@ public sealed class RouletteRoundController : MonoBehaviour
 
         activeCustomers.Clear();
         currentBets.Clear();
+        assistanceBets.Clear();
+        assistanceRoundId = 0;
+        assistanceWinningNumber = -1;
         Phase = RouletteRoundPhase.ClearingTable;
         phaseTimer = clearingSeconds;
     }

@@ -25,6 +25,10 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private Text inventoryText;
     private Text assistanceText;
     private Button closeButton;
+    private Transform bettingMarkerRoot;
+    private readonly Dictionary<int, RectTransform> numberCells = new Dictionary<int, RectTransform>();
+    private readonly Dictionary<RouletteBetType, RectTransform> outsideBetCells = new Dictionary<RouletteBetType, RectTransform>();
+    private string lastBetSignature;
     private bool panelOpen;
     private float nextRefreshTime;
     private CursorLockMode savedCursorLockMode;
@@ -188,10 +192,11 @@ public sealed class RouletteInspectionView : MonoBehaviour
             new Vector2(0f, -175f), new Vector2(550f, 36f), 20, Color.white);
 
         GameObject layoutPanel = CreatePanel(board.transform, "Layout Panel",
-            new Vector2(-375f, -252f), new Vector2(650f, 190f));
+            new Vector2(-375f, -245f), new Vector2(650f, 260f));
         CreateText(layoutPanel.transform, "Layout Title", "BETTING LAYOUT",
-            new Vector2(0f, 74f), new Vector2(510f, 28f), 17, new Color(1f, 0.86f, 0.42f));
+            new Vector2(0f, 108f), new Vector2(510f, 26f), 16, new Color(1f, 0.86f, 0.42f));
         CreateBettingLayout(layoutPanel.transform);
+        bettingMarkerRoot = layoutPanel.transform;
 
         GameObject detailsPanel = CreatePanel(board.transform, "Dealer and Round Details",
             new Vector2(340f, 196f), new Vector2(680f, 222f));
@@ -249,7 +254,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
             ? "CUSTOMERS  •  None currently playing"
             : $"CUSTOMERS  •  {string.Join(", ", customerNames)}";
         assistanceText.text = roundController.HasPendingAssistance
-            ? "ASSISTANCE  •  SPIN! / SWEEP! TASK PENDING"
+            ? "ASSISTANCE  •  SPIN! / SWEEP! / PAY! TASK PENDING"
             : "ASSISTANCE  •  No pit boss task pending";
 
         IReadOnlyList<RouletteCustomerBet> bets = roundController.CurrentBets.Count > 0
@@ -262,6 +267,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         else
         {
             List<string> lines = new List<string>();
+            long totalReturns = 0;
+            long totalPaid = 0;
             foreach (RouletteCustomerBet customerBet in bets)
             {
                 string customer = customerBet.Customer != null ? customerBet.Customer.name : "Customer";
@@ -274,11 +281,24 @@ public sealed class RouletteInspectionView : MonoBehaviour
                         : "  →  LOST";
                 }
 
+                if (customerBet.IsWinning)
+                {
+                    totalReturns += customerBet.GrossReturnPence;
+                }
+
+                if (customerBet.IsPaid)
+                {
+                    line += "  •  PAID";
+                    totalPaid += customerBet.PaidOutPence;
+                }
+
                 lines.Add(line);
             }
 
+            lines.Add($"WIN RETURNS  •  {RouletteRoundController.FormatPounds(totalReturns)}  •  PAID {RouletteRoundController.FormatPounds(totalPaid)}");
             betsText.text = string.Join("\n", lines);
         }
+        RenderBetMarkers(bets);
 
         int winningNumber = roundController.LatestWinningNumber;
         resultText.text = winningNumber < 0
@@ -334,18 +354,21 @@ public sealed class RouletteInspectionView : MonoBehaviour
         }
     }
 
-    private static void CreateBettingLayout(Transform parent)
+    private void CreateBettingLayout(Transform parent)
     {
+        const float zeroX = -125f;
+        Vector2 firstCell = new Vector2(-48f, 73f);
+        const float columnSpacing = 46f;
+        const float rowSpacing = 14f;
         for (int number = 0; number <= 36; number++)
         {
-            int column = number == 0 ? 0 : (number - 1) % 12;
-            int row = number == 0 ? 0 : (number - 1) / 12;
             Vector2 position = number == 0
-                ? new Vector2(-273f, -25f)
-                : new Vector2(-206f + column * 36f, 28f - row * 37f);
+                ? new Vector2(zeroX, -6f)
+                : RouletteBettingLayout.GetNumberCellPosition(
+                    number, firstCell, columnSpacing, rowSpacing);
             GameObject cell = CreateObject($"Layout Number {number}", parent);
             SetRect(cell, new Vector2(0.5f, 0.5f), position,
-                number == 0 ? new Vector2(40f, 124f) : new Vector2(34f, 32f));
+                number == 0 ? new Vector2(28f, 196f) : new Vector2(40f, 13f));
             Image image = cell.AddComponent<Image>();
             image.color = number == 0
                 ? new Color(0.12f, 0.52f, 0.27f)
@@ -353,7 +376,88 @@ public sealed class RouletteInspectionView : MonoBehaviour
                     ? new Color(0.68f, 0.12f, 0.12f)
                     : new Color(0.04f, 0.05f, 0.055f);
             CreateText(cell.transform, "Number", number.ToString(), Vector2.zero,
-                new Vector2(34f, 30f), 10, Color.white);
+                new Vector2(number == 0 ? 26f : 38f, 13f), 9, Color.white);
+            numberCells[number] = cell.GetComponent<RectTransform>();
+        }
+
+        RouletteBetType[] types =
+        {
+            RouletteBetType.Red,
+            RouletteBetType.Black,
+            RouletteBetType.Odd,
+            RouletteBetType.Even
+        };
+        string[] labels = { "RED", "BLACK", "ODD", "EVEN" };
+        Vector2 outsideStart = new Vector2(-102f, -112f);
+        for (int i = 0; i < types.Length; i++)
+        {
+            Vector2 position = RouletteBettingLayout.GetOutsideBetPosition(
+                types[i], outsideStart, 70f);
+            GameObject area = CreateObject($"Outside Bet {labels[i]}", parent);
+            SetRect(area, new Vector2(0.5f, 0.5f), position, new Vector2(66f, 24f));
+            Image image = area.AddComponent<Image>();
+            image.color = types[i] == RouletteBetType.Red
+                ? new Color(0.68f, 0.12f, 0.12f)
+                : types[i] == RouletteBetType.Black
+                    ? new Color(0.04f, 0.05f, 0.055f)
+                    : new Color(0.11f, 0.37f, 0.24f);
+            CreateText(area.transform, "Outside Bet Label", labels[i], Vector2.zero,
+                new Vector2(64f, 22f), 10, Color.white);
+            outsideBetCells[types[i]] = area.GetComponent<RectTransform>();
+        }
+    }
+
+    private void RenderBetMarkers(IReadOnlyList<RouletteCustomerBet> bets)
+    {
+        if (bettingMarkerRoot == null || bets == null)
+        {
+            return;
+        }
+
+        System.Text.StringBuilder signatureBuilder = new System.Text.StringBuilder();
+        foreach (RouletteCustomerBet bet in bets)
+        {
+            signatureBuilder.Append(bet.RoundId).Append(':').Append(bet.BetId).Append(':')
+                .Append((int)bet.Bet.Type).Append(':').Append(bet.Bet.Number).Append(':')
+                .Append(bet.Bet.StakePence).Append(':').Append(bet.IsWinning).Append(':')
+                .Append(bet.IsPaid).Append('|');
+        }
+
+        string signature = signatureBuilder.ToString();
+        if (signature == lastBetSignature)
+        {
+            return;
+        }
+
+        lastBetSignature = signature;
+        for (int i = bettingMarkerRoot.childCount - 1; i >= 0; i--)
+        {
+            Transform child = bettingMarkerRoot.GetChild(i);
+            if (child.name.StartsWith("Current Bet Marker "))
+            {
+                Destroy(child.gameObject);
+            }
+        }
+
+        foreach (RouletteCustomerBet bet in bets)
+        {
+            RectTransform cell = bet.Bet.Type == RouletteBetType.StraightUp
+                ? numberCells[bet.Bet.Number]
+                : outsideBetCells[bet.Bet.Type];
+            GameObject marker = CreateObject($"Current Bet Marker {bet.BetId}", bettingMarkerRoot);
+            Vector2 offset = bet.Bet.Type == RouletteBetType.StraightUp
+                ? new Vector2(14f, 0f)
+                : new Vector2(-22f, 0f);
+            SetRect(marker, new Vector2(0.5f, 0.5f),
+                cell.anchoredPosition + offset, new Vector2(24f, 16f));
+            Image image = marker.AddComponent<Image>();
+            image.color = bet.IsWinning
+                ? new Color(0.93f, 0.72f, 0.16f)
+                : new Color(0.21f, 0.22f, 0.22f);
+            image.raycastTarget = false;
+            CreateText(marker.transform, "Bet Marker Amount",
+                RouletteRoundController.FormatPounds(bet.Bet.StakePence),
+                Vector2.zero, new Vector2(24f, 14f), 7, Color.white);
         }
     }
 
