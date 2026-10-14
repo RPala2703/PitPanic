@@ -119,9 +119,6 @@ public static class PitPanicPrototypeGenerator
             playerController,
             out CasinoDealerStation secondBlackjackStation,
             out CasinoFloatRefillDestination secondFloatDestination);
-        CasinoSeat[] seats = new CasinoSeat[firstTableSeats.Length + secondTableSeats.Length];
-        firstTableSeats.CopyTo(seats, 0);
-        secondTableSeats.CopyTo(seats, firstTableSeats.Length);
         (Transform entrance, Transform exit) = CreateCasinoEntrances(trimMaterial, accentMaterial);
         CasinoDealerStation rouletteStation = CreateRouletteTable(
             new Vector3(0f, 0f, 6.4f),
@@ -130,7 +127,12 @@ public static class PitPanicPrototypeGenerator
             trimMaterial,
             accentMaterial,
             playerController,
-            out CasinoFloatRefillDestination rouletteFloatDestination);
+            out CasinoFloatRefillDestination rouletteFloatDestination,
+            out CasinoSeat[] rouletteSeats);
+        CasinoSeat[] seats = new CasinoSeat[firstTableSeats.Length + secondTableSeats.Length + rouletteSeats.Length];
+        firstTableSeats.CopyTo(seats, 0);
+        secondTableSeats.CopyTo(seats, firstTableSeats.Length);
+        rouletteSeats.CopyTo(seats, firstTableSeats.Length + secondTableSeats.Length);
         Transform[] breakPositions = CreateBreakRoom(woodMaterial, feltMaterial, trimMaterial);
         Transform cashierWaypoint = CreateCashierStation(
             new Vector3(0f, 0f, -8.1f),
@@ -184,7 +186,7 @@ public static class PitPanicPrototypeGenerator
         RouletteAssistanceScheduler scheduler = Object.FindFirstObjectByType<RouletteAssistanceScheduler>();
         if (scheduler == null || !scheduler.ForceTaskForDevelopment())
         {
-            Debug.LogWarning("Roulette assistance cannot be forced until its dealer is active and no other minigame is running.");
+            Debug.LogWarning("Roulette assistance can be forced only during an accepting-bets round with an active dealer and no other minigame.");
         }
     }
 
@@ -380,6 +382,60 @@ public static class PitPanicPrototypeGenerator
             RouletteAssistanceScheduler.GetNextCheckDelay(90f, 60f) != 90f)
         {
             throw new System.InvalidOperationException("Roulette spin mapping, task eligibility, duplicate prevention, or cooldown is invalid.");
+        }
+
+        RouletteBet redBet = new RouletteBet(RouletteBetType.Red, -1, 500);
+        RouletteBet blackBet = new RouletteBet(RouletteBetType.Black, -1, 1000);
+        RouletteBet oddBet = new RouletteBet(RouletteBetType.Odd, -1, 2500);
+        RouletteBet evenBet = new RouletteBet(RouletteBetType.Even, -1, 1500);
+        RouletteBet straightBet = new RouletteBet(RouletteBetType.StraightUp, 17, 500);
+        if (!EuropeanRouletteRules.Wins(redBet, 1) ||
+            !EuropeanRouletteRules.Wins(blackBet, 2) ||
+            !EuropeanRouletteRules.Wins(oddBet, 9) ||
+            !EuropeanRouletteRules.Wins(evenBet, 10) ||
+            !EuropeanRouletteRules.Wins(straightBet, 17) ||
+            EuropeanRouletteRules.Wins(redBet, 0) ||
+            EuropeanRouletteRules.Wins(blackBet, 0) ||
+            EuropeanRouletteRules.Wins(oddBet, 0) ||
+            EuropeanRouletteRules.Wins(evenBet, 0) ||
+            EuropeanRouletteRules.Wins(straightBet, 16) ||
+            !EuropeanRouletteRules.TryGetGrossReturnPence(straightBet, 17, out long straightReturn) ||
+            straightReturn != 18000 ||
+            !EuropeanRouletteRules.TryGetGrossReturnPence(redBet, 1, out long redReturn) ||
+            redReturn != 1000 ||
+            !EuropeanRouletteRules.TryGetGrossReturnPence(redBet, 0, out long redLoss) ||
+            redLoss != 0 ||
+            EuropeanRouletteRules.TryGetGrossReturnPence(
+                new RouletteBet(RouletteBetType.StraightUp, 37, 500), 0, out _) ||
+            EuropeanRouletteRules.TryGetGrossReturnPence(redBet, 37, out _) ||
+            RouletteRoundController.CanSettleRound(true, 1, 17) ||
+            RouletteRoundController.CanSettleRound(false, 0, 17) ||
+            !RouletteRoundController.CanSettleRound(false, 1, 17))
+        {
+            throw new System.InvalidOperationException("European roulette bets, payouts, zero behaviour, or settlement idempotency are invalid.");
+        }
+
+        CasinoCustomerGame[] weightedGames =
+        {
+            CasinoCustomerGame.Blackjack1,
+            CasinoCustomerGame.Blackjack2,
+            CasinoCustomerGame.Roulette
+        };
+        float[] equalWeights = { 1f, 1f, 1f };
+        if (!CasinoCustomerSpawner.TryChooseWeightedGame(weightedGames, equalWeights, 0.1f, out CasinoCustomerGame firstChoice) ||
+            firstChoice != CasinoCustomerGame.Blackjack1 ||
+            !CasinoCustomerSpawner.TryChooseWeightedGame(weightedGames, equalWeights, 0.5f, out CasinoCustomerGame secondChoice) ||
+            secondChoice != CasinoCustomerGame.Blackjack2 ||
+            !CasinoCustomerSpawner.TryChooseWeightedGame(weightedGames, equalWeights, 1f, out CasinoCustomerGame finalChoice) ||
+            finalChoice != CasinoCustomerGame.Roulette ||
+            CasinoCustomerSpawner.TryChooseWeightedGame(weightedGames, new[] { 0f, 0f, 0f }, 0.5f, out _) ||
+            !RouletteAssistanceScheduler.ShouldRequestTaskAtEligibleRound(25f, 20f, true, 5, 5, 0f, 0f) ||
+            RouletteAssistanceScheduler.ShouldRequestTaskAtEligibleRound(19f, 20f, true, 5, 5, 0f, 1f) ||
+            RouletteAssistanceScheduler.ShouldRequestTaskAtEligibleRound(25f, 20f, false, 5, 5, 0f, 1f) ||
+            RouletteAssistanceScheduler.ShouldRequestTaskAtEligibleRound(25f, 20f, true, 2, 5, 0.9f, 0.35f) ||
+            !RouletteAssistanceScheduler.ShouldRequestTaskAtEligibleRound(25f, 20f, true, 2, 5, 0.2f, 0.35f))
+        {
+            throw new System.InvalidOperationException("Weighted customer game choice or round-based assistance scheduling is invalid.");
         }
 
         int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 250, 2500, 10000 });
@@ -766,6 +822,8 @@ public static class PitPanicPrototypeGenerator
         CasinoCustomerSpawner spawner = Object.FindFirstObjectByType<CasinoCustomerSpawner>();
         NavMeshSurface navigation = Object.FindFirstObjectByType<NavMeshSurface>();
         CasinoSeat[] seats = Object.FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None);
+        RouletteRoundController rouletteRounds = Object.FindFirstObjectByType<RouletteRoundController>();
+        RouletteInspectionView rouletteInspection = Object.FindFirstObjectByType<RouletteInspectionView>();
         AIDealer[] dealers = Object.FindObjectsByType<AIDealer>(FindObjectsSortMode.None);
         cashDesk?.InitializeRuntime();
         if (camera == null || !camera.orthographic || eventSystem == null ||
@@ -776,7 +834,7 @@ public static class PitPanicPrototypeGenerator
         }
 
         if (player == null || player.GetComponent<CasinoPlayerInteractionRouter>() == null ||
-            blackjackTables.Length != 2 || seats.Length != 6 ||
+            blackjackTables.Length != 2 || seats.Length != 10 ||
             stations.Length != 3 || dealers.Length != 4 || dealerManager == null ||
             !dealerManager.IsConfigured || pitDesk == null || !pitDesk.IsConfigured ||
             dealerManager.PitDeskPositions.Count != dealers.Length ||
@@ -786,11 +844,18 @@ public static class PitPanicPrototypeGenerator
             !rouletteScheduler.IsConfigured || rouletteTaskStation == null ||
             roulettePrompt == null || roulettePrompt.AllowsTaskRequestWhenIdle ||
             rouletteTaskStation.IsTaskPending || rouletteTaskStation.IsMinigameRunning ||
+            rouletteRounds == null || !rouletteRounds.IsConfigured ||
+            rouletteInspection == null || !rouletteInspection.IsConfigured ||
+            rouletteRounds.RoulettePositionCount != 4 || rouletteRounds.ValidRoulettePositionCount != 4 ||
+            spawner == null || !spawner.IsConfigured ||
+            spawner.Blackjack1SelectionWeight <= 0f ||
+            spawner.Blackjack2SelectionWeight <= 0f ||
+            spawner.RouletteSelectionWeight <= 0f ||
             packMinigame == null || !packMinigame.IsConfigured ||
             stationPrompts.Length != 2 ||
             GameObject.Find("Dealer Interaction Position") != null)
         {
-            throw new System.InvalidOperationException("Generated scene is missing the player, two blackjack tables, six seats, three staffed stations, four dealers, or configured pit desk.");
+            throw new System.InvalidOperationException("Generated scene is missing customers' roulette positions, roulette rounds or inspection, two blackjack tables, three staffed stations, four dealers, or configured pit desk.");
         }
 
         CasinoFloatRefillDestination[] floatDestinations =
@@ -829,6 +894,21 @@ public static class PitPanicPrototypeGenerator
         foreach (BlackjackTableInteraction table in blackjackTables)
         {
             ValidateBlackjackEconomy(table);
+        }
+
+        int rouletteSeatCount = 0;
+        foreach (CasinoSeat seat in seats)
+        {
+            if (seat != null && seat.GameType == CasinoCustomerGame.Roulette)
+            {
+                rouletteSeatCount++;
+                ValidateNavMeshRoute(seat.Position, spawner.Entrance, seat.name);
+            }
+        }
+
+        if (rouletteSeatCount != 4)
+        {
+            throw new System.InvalidOperationException("The roulette table needs four independently reservable customer positions.");
         }
 
         int reserveDealers = 0;
@@ -957,9 +1037,13 @@ public static class PitPanicPrototypeGenerator
 
         foreach (CasinoSeat seat in seats)
         {
-            if (seat.BettingPosition == null || Mathf.Abs(seat.Position.x - seat.BettingPosition.position.x) > 0.05f)
+            bool missingBetPosition = seat.BettingPosition == null;
+            bool blackjackPositionMisaligned = seat.BettingPosition != null &&
+                seat.GameType != CasinoCustomerGame.Roulette &&
+                Mathf.Abs(seat.Position.x - seat.BettingPosition.position.x) > 0.05f;
+            if (missingBetPosition || blackjackPositionMisaligned)
             {
-                throw new System.InvalidOperationException($"{seat.name} is not aligned with its visible blackjack betting spot.");
+                throw new System.InvalidOperationException($"{seat.name} is missing or misaligned with its visible betting position.");
             }
         }
 
@@ -1087,7 +1171,7 @@ public static class PitPanicPrototypeGenerator
 
         ValidateCasinoWorldPlacements(camera, blackjackTables, stations, seats, indicators, dealerManager);
 
-        Debug.Log("Prototype scene validation passed: camera, two blackjack tables, six seats, roulette, four dealers, pit desk, attention indicators, references, and NavMesh paths are present.");
+        Debug.Log("Prototype scene validation passed: camera, blackjack and roulette customer seats, live roulette wiring, four dealers, pit desk, attention indicators, references, and NavMesh paths are present.");
     }
 
     private static void ValidateCasinoWorldPlacements(
@@ -1147,10 +1231,14 @@ public static class PitPanicPrototypeGenerator
 
         foreach (CasinoSeat seat in seats)
         {
-            BlackjackTableInteraction owner = seat.GetComponentInParent<BlackjackTableInteraction>();
-            if (owner == null)
+            CasinoDealerStation seatStation = seat.DealerStation;
+            BlackjackTableInteraction owner = seatStation != null ? seatStation.BlackjackTable : null;
+            bool isRoulettePosition = seat.GameType == CasinoCustomerGame.Roulette;
+            if (seatStation == null || (!isRoulettePosition &&
+                (owner == null || seat.GetComponentInParent<BlackjackTableInteraction>() != owner)) ||
+                (isRoulettePosition && owner != null))
             {
-                throw new System.InvalidOperationException($"{seat.name} is not parented to its blackjack table.");
+                throw new System.InvalidOperationException($"{seat.name} is not associated with the correct casino table.");
             }
 
             if (!NavMesh.SamplePosition(seat.Position, out NavMeshHit approach, 0.5f, NavMesh.AllAreas) ||
@@ -1159,9 +1247,13 @@ public static class PitPanicPrototypeGenerator
                 throw new System.InvalidOperationException($"{seat.name} approach point is not on the walkable NavMesh.");
             }
 
-            if (Mathf.Abs(seat.Position.x - owner.transform.position.x) > 2.2f ||
-                Mathf.Abs(seat.Position.z - owner.transform.position.z) > 3.5f ||
-                Vector3.Distance(seat.Position, owner.transform.position) > 3.6f)
+            Transform ownerTransform = seatStation.transform;
+            float maxXDistance = isRoulettePosition ? 3.3f : 2.2f;
+            float maxZDistance = isRoulettePosition ? 2.3f : 3.5f;
+            float maxDistance = isRoulettePosition ? 4f : 3.6f;
+            if (Mathf.Abs(seat.Position.x - ownerTransform.position.x) > maxXDistance ||
+                Mathf.Abs(seat.Position.z - ownerTransform.position.z) > maxZDistance ||
+                Vector3.Distance(seat.Position, ownerTransform.position) > maxDistance)
             {
                 throw new System.InvalidOperationException($"{seat.name} is not located beside its owning table.");
             }
@@ -1827,6 +1919,14 @@ public static class PitPanicPrototypeGenerator
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.35f);
         dealerStation = table.AddComponent<CasinoDealerStation>();
         dealerStation.Configure(tableName, dealerPosition.transform, attention, interaction);
+        CasinoCustomerGame gameType = destinationId == "BJ1"
+            ? CasinoCustomerGame.Blackjack1
+            : CasinoCustomerGame.Blackjack2;
+        foreach (CasinoSeat seat in seats)
+        {
+            seat.ConfigureGame(gameType, dealerStation);
+        }
+
         return seats;
     }
 
@@ -1908,7 +2008,8 @@ public static class PitPanicPrototypeGenerator
         Material trimMaterial,
         Material accentMaterial,
         CasinoPlayerController player,
-        out CasinoFloatRefillDestination floatDestination)
+        out CasinoFloatRefillDestination floatDestination,
+        out CasinoSeat[] customerSeats)
     {
         GameObject table = new GameObject("Roulette Table");
         table.transform.position = center;
@@ -1956,11 +2057,59 @@ public static class PitPanicPrototypeGenerator
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.25f);
         CasinoDealerStation station = table.AddComponent<CasinoDealerStation>();
         station.Configure("Roulette Table", dealerPosition.transform, attention, null);
+        customerSeats = new CasinoSeat[4];
+        Vector3[] customerOffsets =
+        {
+            new Vector3(-2.75f, 0f, -1.85f),
+            new Vector3(2.75f, 0f, -1.85f),
+            new Vector3(-2.75f, 0f, 1.85f),
+            new Vector3(2.75f, 0f, 1.85f)
+        };
+        for (int i = 0; i < customerSeats.Length; i++)
+        {
+            Vector3 offset = customerOffsets[i];
+            Vector3 betPosition = new Vector3(Mathf.Sign(offset.x) * 1.65f, 1.24f, Mathf.Sign(offset.z) * 0.78f);
+            CreatePrimitive(
+                PrimitiveType.Cylinder,
+                $"Roulette Betting Spot {i + 1}",
+                center + betPosition,
+                new Vector3(0.55f, 0.025f, 0.55f),
+                trimMaterial,
+                table.transform);
+
+            GameObject bettingPoint = new GameObject($"Roulette Betting Position {i + 1}");
+            bettingPoint.transform.SetParent(table.transform, false);
+            bettingPoint.transform.localPosition = betPosition + new Vector3(0f, 0.06f, 0f);
+
+            GameObject seatObject = new GameObject($"Roulette Customer Position {i + 1}");
+            seatObject.transform.SetParent(table.transform, false);
+            seatObject.transform.localPosition = offset;
+            GameObject facing = new GameObject("Customer Facing Position");
+            facing.transform.SetParent(seatObject.transform, false);
+            facing.transform.localRotation = Quaternion.LookRotation(-new Vector3(offset.x, 0f, offset.z));
+            CasinoSeat seat = seatObject.AddComponent<CasinoSeat>();
+            seat.Configure(facing.transform, bettingPoint.transform, seatObject.transform);
+            seat.ConfigureGame(CasinoCustomerGame.Roulette, station);
+            customerSeats[i] = seat;
+        }
+
+        Transform chipContainer = new GameObject("Roulette Bet Chips").transform;
+        chipContainer.SetParent(table.transform, false);
+        RouletteRoundController rounds = table.AddComponent<RouletteRoundController>();
+        rounds.Configure(
+            station,
+            customerSeats,
+            floatDestination,
+            minigameStation,
+            minigame,
+            wheel.transform,
+            chipContainer);
+        table.AddComponent<RouletteInspectionView>().Configure(player, interactionZone, rounds);
         table.AddComponent<RouletteAssistanceScheduler>().Configure(
             station,
             minigameStation,
             minigame,
-            wheel.transform);
+            rounds);
         return station;
     }
 

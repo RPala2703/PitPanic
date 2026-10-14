@@ -6,40 +6,35 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
     [SerializeField] private CasinoDealerStation rouletteDealerStation;
     [SerializeField] private CasinoMinigameStation minigameStation;
     [SerializeField] private RouletteTableMinigame minigame;
-    [SerializeField] private Transform physicalWheel;
-    [SerializeField, Min(1f)] private float firstTaskMinSeconds = 25f;
-    [SerializeField, Min(1f)] private float firstTaskMaxSeconds = 50f;
-    [SerializeField, Min(1f)] private float checkIntervalMinSeconds = 40f;
-    [SerializeField, Min(1f)] private float checkIntervalMaxSeconds = 90f;
-    [SerializeField, Range(0f, 1f)] private float taskChancePerCheck = 0.35f;
-    [SerializeField, Min(0f)] private float completionCooldownSeconds = 60f;
-    [SerializeField, Min(1f)] private float normalSpinMinSeconds = 6f;
-    [SerializeField, Min(1f)] private float normalSpinMaxSeconds = 13f;
+    [SerializeField] private RouletteRoundController roundController;
+    [SerializeField, Min(0f)] private float firstTaskMinActiveSeconds = 20f;
+    [SerializeField, Min(0f)] private float firstTaskMaxActiveSeconds = 40f;
+    [SerializeField, Range(0f, 1f)] private float taskChancePerEligibleRound = 0.35f;
+    [SerializeField, Min(1)] private int guaranteedWithinEligibleRounds = 5;
+    [SerializeField, Min(0f)] private float completionCooldownSeconds = 45f;
 
-    private float nextTaskCheckTime;
-    private float nextNormalSpinTime;
-    private float normalSpinElapsed;
-    private float normalSpinDuration;
-    private float normalSpinStartAngle;
-    private float normalSpinEndAngle;
-    private bool normalSpinRunning;
+    private float activePlaySeconds;
+    private float firstTaskDelaySeconds;
+    private float nextAllowedTaskTime;
+    private int eligibleRoundsSinceTask;
     private bool subscribed;
 
     public bool IsConfigured => rouletteDealerStation != null && rouletteDealerStation.IsConfigured &&
                                 minigameStation != null && minigameStation.IsConfigured &&
-                                minigame != null && minigame.IsConfigured && physicalWheel != null;
+                                minigame != null && minigame.IsConfigured &&
+                                roundController != null && roundController.IsConfigured;
 
     public void Configure(
         CasinoDealerStation dealerStation,
         CasinoMinigameStation station,
         RouletteTableMinigame rouletteMinigame,
-        Transform wheel)
+        RouletteRoundController rounds)
     {
         rouletteDealerStation = dealerStation;
         minigameStation = station;
         minigame = rouletteMinigame;
-        physicalWheel = wheel;
-        BindStationEvents();
+        roundController = rounds;
+        BindEvents();
     }
 
     public static bool CanRequestTask(
@@ -59,61 +54,94 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
         return Mathf.Max(0f, randomInterval, cooldown);
     }
 
-    private void OnEnable()
+    public static bool ShouldRequestTaskAtEligibleRound(
+        float activePlaySeconds,
+        float firstTaskDelaySeconds,
+        bool cooldownElapsed,
+        int eligibleRoundCount,
+        int guaranteedWithinEligibleRounds,
+        float randomRoll,
+        float chance)
     {
-        BindStationEvents();
+        if (activePlaySeconds < firstTaskDelaySeconds || !cooldownElapsed)
+        {
+            return false;
+        }
+
+        return eligibleRoundCount >= Mathf.Max(1, guaranteedWithinEligibleRounds) ||
+               randomRoll < Mathf.Clamp01(chance);
     }
 
     private void Start()
     {
         if (!IsConfigured)
         {
-            Debug.LogError($"{nameof(RouletteAssistanceScheduler)} on {name} needs its dealer station, roulette task station, minigame, and physical wheel.", this);
+            Debug.LogError($"{nameof(RouletteAssistanceScheduler)} on {name} needs its dealer station, task station, minigame, and round controller.", this);
             enabled = false;
             return;
         }
 
-        nextTaskCheckTime = Time.time + Random.Range(firstTaskMinSeconds, Mathf.Max(firstTaskMinSeconds, firstTaskMaxSeconds));
-        nextNormalSpinTime = Time.time + Random.Range(normalSpinMinSeconds, Mathf.Max(normalSpinMinSeconds, normalSpinMaxSeconds));
-        BindStationEvents();
+        firstTaskDelaySeconds = Random.Range(
+            firstTaskMinActiveSeconds, Mathf.Max(firstTaskMinActiveSeconds, firstTaskMaxActiveSeconds));
+        BindEvents();
     }
 
     private void Update()
     {
-        UpdateNormalDealerActivity();
-        if (Time.time < nextTaskCheckTime)
+        if (roundController != null && roundController.HasActiveCustomersAndDealer)
         {
-            return;
-        }
-
-        nextTaskCheckTime = Time.time + Random.Range(
-            checkIntervalMinSeconds, Mathf.Max(checkIntervalMinSeconds, checkIntervalMaxSeconds));
-        if (CanRequestAssistance() && Random.value < taskChancePerCheck)
-        {
-            minigameStation.RequestMinigame(
-                CasinoMinigameType.Spin,
-                TableAttentionReason.RouletteSpinRequired);
+            activePlaySeconds += Time.deltaTime;
         }
     }
 
     private void OnDisable()
     {
-        if (subscribed && minigameStation != null)
-        {
-            minigameStation.TaskSucceeded -= OnTaskSucceeded;
-            subscribed = false;
-        }
+        UnbindEvents();
     }
 
-    private void BindStationEvents()
+    private void OnEnable()
     {
-        if (!isActiveAndEnabled || minigameStation == null || subscribed)
+        BindEvents();
+    }
+
+    private void BindEvents()
+    {
+        if (!Application.isPlaying || !isActiveAndEnabled || subscribed)
         {
             return;
         }
 
-        minigameStation.TaskSucceeded += OnTaskSucceeded;
-        subscribed = true;
+        if (minigameStation != null)
+        {
+            minigameStation.TaskSucceeded += OnTaskSucceeded;
+        }
+
+        if (roundController != null)
+        {
+            roundController.AssistanceOpportunity += OnAssistanceOpportunity;
+        }
+
+        subscribed = minigameStation != null || roundController != null;
+    }
+
+    private void UnbindEvents()
+    {
+        if (!subscribed)
+        {
+            return;
+        }
+
+        if (minigameStation != null)
+        {
+            minigameStation.TaskSucceeded -= OnTaskSucceeded;
+        }
+
+        if (roundController != null)
+        {
+            roundController.AssistanceOpportunity -= OnAssistanceOpportunity;
+        }
+
+        subscribed = false;
     }
 
     private void OnTaskSucceeded(CasinoMinigameResult result)
@@ -123,9 +151,43 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
             return;
         }
 
-        float interval = Random.Range(
-            checkIntervalMinSeconds, Mathf.Max(checkIntervalMinSeconds, checkIntervalMaxSeconds));
-        nextTaskCheckTime = Time.time + GetNextCheckDelay(interval, completionCooldownSeconds);
+        activePlaySeconds = 0f;
+        eligibleRoundsSinceTask = 0;
+        nextAllowedTaskTime = Time.time + completionCooldownSeconds;
+        firstTaskDelaySeconds = Random.Range(
+            firstTaskMinActiveSeconds, Mathf.Max(firstTaskMinActiveSeconds, firstTaskMaxActiveSeconds));
+    }
+
+    private void OnAssistanceOpportunity(RouletteRoundController rounds)
+    {
+        if (rounds != roundController || !CanRequestAssistance() ||
+            activePlaySeconds < firstTaskDelaySeconds || Time.time < nextAllowedTaskTime)
+        {
+            return;
+        }
+
+        eligibleRoundsSinceTask++;
+        if (!ShouldRequestTaskAtEligibleRound(
+                activePlaySeconds,
+                firstTaskDelaySeconds,
+                Time.time >= nextAllowedTaskTime,
+                eligibleRoundsSinceTask,
+                guaranteedWithinEligibleRounds,
+                Random.value,
+                taskChancePerEligibleRound))
+        {
+            return;
+        }
+
+        if (minigameStation.RequestMinigame(
+                CasinoMinigameType.Spin,
+                TableAttentionReason.RouletteSpinRequired))
+        {
+            if (!roundController.TryPauseForAssistance())
+            {
+                minigameStation.ResolveTaskAfterFatalFailure();
+            }
+        }
     }
 
     private bool CanRequestAssistance()
@@ -133,66 +195,23 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
         AIDealer dealer = rouletteDealerStation != null ? rouletteDealerStation.AssignedDealer : null;
         bool dealerActive = dealer != null && dealer.isActiveAndEnabled &&
                             dealer.AssignedStation == rouletteDealerStation && dealer.IsAtStation;
-        bool rouletteRunning = minigameStation != null && minigameStation.IsMinigameRunning;
-        bool anotherMinigameRunning = CasinoMinigamePresentation.IsOpen;
-        bool tableSafe = dealerActive && rouletteDealerStation.PendingReplacement == null &&
-                         minigame != null && !minigame.IsRunning;
         return CanRequestTask(
             IsConfigured,
             dealerActive,
             minigameStation != null && minigameStation.IsTaskPending,
-            rouletteRunning,
-            anotherMinigameRunning,
-            tableSafe);
-    }
-
-    private void UpdateNormalDealerActivity()
-    {
-        AIDealer dealer = rouletteDealerStation != null ? rouletteDealerStation.AssignedDealer : null;
-        bool dealerOperating = dealer != null && dealer.isActiveAndEnabled &&
-                               dealer.AssignedStation == rouletteDealerStation && dealer.IsAtStation;
-        if (!dealerOperating || minigameStation == null ||
-            minigameStation.IsTaskPending || minigameStation.IsMinigameRunning ||
-            CasinoMinigamePresentation.IsOpen || physicalWheel == null)
-        {
-            return;
-        }
-
-        if (!normalSpinRunning)
-        {
-            if (Time.time < nextNormalSpinTime)
-            {
-                return;
-            }
-
-            normalSpinRunning = true;
-            normalSpinElapsed = 0f;
-            normalSpinDuration = Random.Range(1.2f, 2.2f);
-            normalSpinStartAngle = physicalWheel.localEulerAngles.y;
-            normalSpinEndAngle = normalSpinStartAngle + Random.Range(900f, 1500f);
-        }
-
-        normalSpinElapsed = Mathf.Min(normalSpinDuration, normalSpinElapsed + Time.deltaTime);
-        float progress = normalSpinElapsed / normalSpinDuration;
-        float eased = 1f - Mathf.Pow(1f - progress, 3f);
-        Vector3 angles = physicalWheel.localEulerAngles;
-        angles.y = Mathf.Lerp(normalSpinStartAngle, normalSpinEndAngle, eased);
-        physicalWheel.localEulerAngles = angles;
-        if (normalSpinElapsed >= normalSpinDuration)
-        {
-            normalSpinRunning = false;
-            nextNormalSpinTime = Time.time + Random.Range(
-                normalSpinMinSeconds, Mathf.Max(normalSpinMinSeconds, normalSpinMaxSeconds));
-        }
+            minigameStation != null && minigameStation.IsMinigameRunning,
+            CasinoMinigamePresentation.IsOpen,
+            roundController != null && roundController.Phase == RouletteRoundPhase.AcceptingBets &&
+            roundController.ParticipantCount > 0 &&
+            rouletteDealerStation.PendingReplacement == null);
     }
 
 #if UNITY_EDITOR
     public bool ForceTaskForDevelopment()
     {
         return CanRequestAssistance() &&
-               minigameStation.RequestMinigame(
-                   CasinoMinigameType.Spin,
-                   TableAttentionReason.RouletteSpinRequired);
+               minigameStation.RequestMinigame(CasinoMinigameType.Spin, TableAttentionReason.RouletteSpinRequired) &&
+               roundController.TryPauseForAssistance();
     }
 #endif
 }
