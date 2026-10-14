@@ -184,21 +184,59 @@ public static class PitPanicPrototypeGenerator
         AssertTotal("ace softens after bust", 15, new BlackjackCard(1, 0), new BlackjackCard(9, 1), new BlackjackCard(5, 2));
         AssertTotal("multiple aces", 21, new BlackjackCard(1, 0), new BlackjackCard(1, 1), new BlackjackCard(9, 2));
         AssertOutcome("player natural", BlackjackOutcome.Blackjack, 21, 18, true, false);
+        AssertOutcome("non-natural twenty one beats dealer twenty", BlackjackOutcome.Win, 21, 20, false, false);
+        AssertOutcome("non-natural twenty one loses to dealer natural", BlackjackOutcome.Lose, 21, 21, false, true);
         AssertOutcome("natural push", BlackjackOutcome.Push, 21, 21, true, true);
         AssertOutcome("player bust", BlackjackOutcome.Lose, 22, 18, false, false);
         AssertOutcome("dealer bust", BlackjackOutcome.Win, 20, 22, false, false);
         AssertOutcome("equal totals", BlackjackOutcome.Push, 19, 19, false, false);
-        AssertPayout("natural blackjack return at a £10 bet", 2500, BlackjackOutcome.Blackjack, 1000);
-        AssertPayout("ordinary win at a £30 bet", 6000, BlackjackOutcome.Win, 3000);
-        AssertPayout("ordinary win return", 4000, BlackjackOutcome.Win, 2000);
-        AssertPayout("push returns stake", 2000, BlackjackOutcome.Push, 2000);
-        AssertPayout("loss returns nothing", 0, BlackjackOutcome.Lose, 2000);
+        for (int betPence = 500; betPence <= 5000; betPence += 500)
+        {
+            AssertPayout($"natural 3:2 gross return at {betPence}p", betPence + betPence * 3 / 2,
+                BlackjackOutcome.Blackjack, betPence);
+            AssertPayout($"ordinary win gross return at {betPence}p", betPence * 2,
+                BlackjackOutcome.Win, betPence);
+            AssertPayout($"push returns stake at {betPence}p", betPence,
+                BlackjackOutcome.Push, betPence);
+            AssertPayout($"loss returns nothing at {betPence}p", 0,
+                BlackjackOutcome.Lose, betPence);
+        }
+
         BlackjackChipDenomination[] chipDenominations = BlackjackChipDenomination.CreateDefaults();
+        int[] expectedDenominationValues = { 500, 250, 2500, 10000 };
+        string[] expectedDenominationLabels = { "£5", "£2.50", "£25", "£100" };
+        if (chipDenominations.Length != expectedDenominationValues.Length)
+        {
+            throw new System.InvalidOperationException("The casino must use exactly four chip denominations.");
+        }
+
+        for (int i = 0; i < chipDenominations.Length; i++)
+        {
+            if (chipDenominations[i].ValuePence != expectedDenominationValues[i] ||
+                chipDenominations[i].Label != expectedDenominationLabels[i])
+            {
+                throw new System.InvalidOperationException("Casino chip denominations must be red £5, blue £2.50, green £25, and black £100.");
+            }
+        }
+
         AssertChipComposition("£10 uses two £5 chips", new[] { 500, 500 }, 1000, chipDenominations);
+        AssertChipComposition("£12.50 uses minimum exact chips", new[] { 500, 500, 250 }, 1250, chipDenominations);
         AssertChipComposition("£20 uses four £5 chips", new[] { 500, 500, 500, 500 }, 2000, chipDenominations);
         AssertChipComposition("£30 uses £25 and £5 chips", new[] { 2500, 500 }, 3000, chipDenominations);
-        AssertChipComposition("£40 uses £25, £10, and £5 chips", new[] { 2500, 1000, 500 }, 4000, chipDenominations);
+        AssertChipComposition("£37.50 uses minimum exact chips", new[] { 2500, 500, 500, 250 }, 3750, chipDenominations);
+        AssertChipComposition("£40 uses minimum exact chips", new[] { 2500, 500, 500, 500 }, 4000, chipDenominations);
         AssertChipComposition("£50 uses two £25 chips", new[] { 2500, 2500 }, 5000, chipDenominations);
+        AssertChipComposition(
+            "custom denominations use the minimum chip count",
+            new[] { 3, 3 },
+            6,
+            new[]
+            {
+                new BlackjackChipDenomination("four", 4, Color.white),
+                new BlackjackChipDenomination("three", 3, Color.white),
+                new BlackjackChipDenomination("one", 1, Color.white)
+            });
+        AssertCustomerBetChoices();
         if (AIDealer.CalculateEnergyAfterWork(100f, 5f, 10f) != 50f ||
             AIDealer.CalculateEnergyAfterRest(50f, 5f, 10f) != 100f ||
             AIDealer.CalculateEnergyAfterRest(95f, 5f, 10f) != 100f ||
@@ -303,17 +341,80 @@ public static class PitPanicPrototypeGenerator
         if (!RouletteTableMinigame.TryGetWinningNumber(0f, out int firstPocket) || firstPocket != 0 ||
             !RouletteTableMinigame.TryGetWinningNumber(0.99f, out int lastPocket) || lastPocket != 36 ||
             RouletteTableMinigame.TryGetWinningNumber(1f, out _) ||
-            RouletteTableMinigame.TryGetWinningNumber(float.NaN, out _))
+            RouletteTableMinigame.TryGetWinningNumber(float.NaN, out _) ||
+            RouletteTableMinigame.CanCompleteSweep(2, 3) ||
+            !RouletteTableMinigame.CanCompleteSweep(3, 3) ||
+            RouletteTableMinigame.CanCompleteSweep(1, 0))
         {
             throw new System.InvalidOperationException("Roulette spin result mapping is invalid.");
         }
 
-        int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 1000, 2500 });
-        if (packedChips.Length != 3 || packedChips[0] != 2500 ||
-            packedChips[1] != 1000 || packedChips[2] != 500 ||
-            CashDeskPackMinigame.GetExactChipComposition(5000, new[] { 500, 1000, 2500 }).Length != 2)
+        int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 250, 2500, 10000 });
+        if (packedChips.Length != 4 || packedChips[0] != 2500 ||
+            packedChips[1] != 500 || packedChips[2] != 500 || packedChips[3] != 500 ||
+            CashDeskPackMinigame.GetExactChipComposition(5000, new[] { 500, 250, 2500, 10000 }).Length != 2)
         {
             throw new System.InvalidOperationException("Cash desk chip packing does not match the pence total exactly.");
+        }
+
+        int[] denominationDisplaySequence = { 1, 0, 2, 1, 0 };
+        string sequenceDisplay = CashDeskPackMinigame.BuildPackingSequenceDisplay(denominationDisplaySequence, 3);
+        if (sequenceDisplay != "BLUE £2.50 • RED £5.00 • GREEN £25.00\nBLUE £2.50 • RED £5.00")
+        {
+            throw new System.InvalidOperationException("Cash desk sequence labels must show chip names, exact pence values, and fit deterministic rows.");
+        }
+
+        for (int resolutionIndex = 0; resolutionIndex < 3; resolutionIndex++)
+        {
+            Vector2 resolution = resolutionIndex == 0
+                ? new Vector2(1280f, 720f)
+                : resolutionIndex == 1
+                    ? new Vector2(1920f, 1080f)
+                    : new Vector2(2560f, 1440f);
+            float scale = Mathf.Min(resolution.x / 1600f, resolution.y / 900f);
+            float horizontalMargin = (resolution.x - 1520f * scale) * 0.5f;
+            if (scale <= 0f || horizontalMargin < 0f)
+            {
+                throw new System.InvalidOperationException($"Cash desk layout exceeds the screen at {resolution.x:0}x{resolution.y:0}.");
+            }
+        }
+
+        int[] expectedPackingCounts = { 10, 5, 4, 0 };
+        int[] packingSequence = CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127);
+        int[] sequencedCounts = new int[4];
+        foreach (int denominationIndex in packingSequence)
+        {
+            if (denominationIndex < 0 || denominationIndex >= sequencedCounts.Length)
+            {
+                throw new System.InvalidOperationException("Cash desk packing sequence contains an invalid denomination.");
+            }
+
+            sequencedCounts[denominationIndex]++;
+        }
+
+        bool sequenceCountsMatch = true;
+        for (int i = 0; i < expectedPackingCounts.Length; i++)
+        {
+            sequenceCountsMatch &= sequencedCounts[i] == expectedPackingCounts[i];
+        }
+
+        int nextPackingIndex;
+        bool wrongChipAdvanced = CashDeskPackMinigame.TryAdvancePackingSequence(packingSequence, 0, 3, out nextPackingIndex);
+        bool rightChipAdvanced = CashDeskPackMinigame.TryAdvancePackingSequence(packingSequence, 0, packingSequence[0], out int advancedPackingIndex);
+        bool completedSequenceAdvanced = CashDeskPackMinigame.TryAdvancePackingSequence(
+            packingSequence,
+            packingSequence.Length,
+            0,
+            out int completedPackingIndex);
+        if (packingSequence.Length != 19 ||
+            !sequenceCountsMatch ||
+            CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127).Length != packingSequence.Length ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(19) <= CashDeskPackMinigame.GetSequenceTimeLimit(10) ||
+            wrongChipAdvanced || nextPackingIndex != 0 ||
+            !rightChipAdvanced || advancedPackingIndex != 1 ||
+            completedSequenceAdvanced || completedPackingIndex != packingSequence.Length)
+        {
+            throw new System.InvalidOperationException("Cash desk packing sequence does not preserve exact order quantities or scale its timer.");
         }
 
         GameObject floatDestinationObject = new GameObject("Float Delivery Rule Test");
@@ -329,7 +430,7 @@ public static class PitPanicPrototypeGenerator
         int[] incorrectFloatCounts = { 10, 5, 3, 0 };
         floatDestination.RequestAttention();
         if (!floatDestination.NeedsRefill() ||
-            floatOrder.TotalPence != 20000 || floatOrder.TotalChips != 19 ||
+            floatOrder.TotalPence != 16250 || floatOrder.TotalChips != 19 ||
             !floatOrder.HasExactContents(correctFloatCounts) ||
             floatOrder.HasExactContents(incorrectFloatCounts) ||
             !floatDestination.Receive(floatOrder, correctFloatCounts) ||
@@ -473,9 +574,9 @@ public static class PitPanicPrototypeGenerator
         }
 
         BlackjackTableRound sharedRound = new BlackjackTableRound(new BlackjackShoe(scriptedShoeCards));
-        BlackjackHand naturalHand = sharedRound.AddCustomer(null, null, 1000);
-        BlackjackHand pushHand = sharedRound.AddCustomer(null, null, 3000);
-        BlackjackHand bustHand = sharedRound.AddCustomer(null, null, 5000);
+        BlackjackHand naturalHand = sharedRound.AddCustomer(null, null, 500);
+        BlackjackHand pushHand = sharedRound.AddCustomer(null, null, 1500);
+        BlackjackHand bustHand = sharedRound.AddCustomer(null, null, 2500);
 
         sharedRound.DealTo(naturalHand);
         sharedRound.DealTo(pushHand);
@@ -490,15 +591,15 @@ public static class PitPanicPrototypeGenerator
 
         if (naturalHand.Total != 21 || !naturalHand.IsNatural || pushHand.Total != 18 ||
             bustHand.Total != 23 || sharedRound.DealerTotal != 18 || sharedRound.Shoe.RemainingCards != 0 ||
-            naturalHand.BetPence != 1000 || pushHand.BetPence != 3000 || bustHand.BetPence != 5000)
+            naturalHand.BetPence != 500 || pushHand.BetPence != 1500 || bustHand.BetPence != 2500)
         {
             throw new System.InvalidOperationException("Multiple customer hands did not use the expected shared shoe and deal order.");
         }
 
         sharedRound.Settle();
         if (naturalHand.Outcome != BlackjackOutcome.Blackjack || pushHand.Outcome != BlackjackOutcome.Push ||
-            bustHand.Outcome != BlackjackOutcome.Lose || naturalHand.PayoutPence != 2500 ||
-            pushHand.PayoutPence != 3000 || bustHand.PayoutPence != 0 ||
+            bustHand.Outcome != BlackjackOutcome.Lose || naturalHand.PayoutPence != 1250 ||
+            pushHand.PayoutPence != 1500 || bustHand.PayoutPence != 0 ||
             bustHand.Status != BlackjackHandStatus.Bust)
         {
             throw new System.InvalidOperationException("Three different customer outcomes were not settled correctly in one round.");
@@ -586,6 +687,11 @@ public static class PitPanicPrototypeGenerator
             ValidateNavMeshRoute(station.DealerPosition.position, null, station.name);
         }
 
+        foreach (BlackjackTableInteraction table in blackjackTables)
+        {
+            ValidateBlackjackEconomy(table);
+        }
+
         int reserveDealers = 0;
         foreach (AIDealer dealer in dealers)
         {
@@ -623,7 +729,7 @@ public static class PitPanicPrototypeGenerator
 
         cashDesk.RefreshFloatRequests();
         IReadOnlyList<CasinoFloatRefillOrder> requestedFloats = cashDesk.GetRequestedOrders();
-        if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence != 20000 ||
+        if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence != 16250 ||
             !requestedFloats[0].HasExactContents(new[] { 10, 5, 4, 0 }))
         {
             throw new System.InvalidOperationException("Low table floats did not create distinct, exact-value delivery requests.");
@@ -665,6 +771,12 @@ public static class PitPanicPrototypeGenerator
                 throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or FLICK! system.");
             }
 
+            string expectedTableLabel = blackjackTable.name == "Blackjack Table 1" ? "BLACKJACK 1" : "BLACKJACK 2";
+            if (blackjackTable.TableDisplayName != expectedTableLabel)
+            {
+                throw new System.InvalidOperationException($"{blackjackTable.name} does not have its distinct blackjack table identifier.");
+            }
+
             string[] requiredLabelNames =
             {
                 "Blackjack Table 1 Label",
@@ -674,16 +786,28 @@ public static class PitPanicPrototypeGenerator
                 "Cashier Station Label",
                 "Break Room Label"
             };
-            foreach (string labelName in requiredLabelNames)
+            string[] requiredLabelValues =
             {
+                "BLACKJACK 1",
+                "BLACKJACK 2",
+                "ROULETTE",
+                "PIT BOSS",
+                "CASHIER",
+                "DEALER BREAK ROOM"
+            };
+            for (int labelIndex = 0; labelIndex < requiredLabelNames.Length; labelIndex++)
+            {
+                string labelName = requiredLabelNames[labelIndex];
                 GameObject labelObject = GameObject.Find(labelName);
                 CameraFacingCanvas facing = labelObject != null
                     ? labelObject.GetComponent<CameraFacingCanvas>()
                     : null;
                 Canvas labelCanvas = labelObject != null ? labelObject.GetComponent<Canvas>() : null;
-                if (facing == null || labelCanvas == null)
+                Text labelText = labelObject != null ? labelObject.GetComponentInChildren<Text>(true) : null;
+                if (facing == null || labelCanvas == null || labelText == null ||
+                    labelText.text != requiredLabelValues[labelIndex])
                 {
-                    throw new System.InvalidOperationException($"{labelName} is missing its camera-facing world-space canvas.");
+                    throw new System.InvalidOperationException($"{labelName} is missing its readable camera-facing canvas or expected station text.");
                 }
 
                 facing.AlignTo(camera);
@@ -1065,6 +1189,79 @@ public static class PitPanicPrototypeGenerator
         }
     }
 
+    private static void AssertCustomerBetChoices()
+    {
+        GameObject firstCustomerObject = new GameObject("First Bet Selection Test Customer");
+        GameObject secondCustomerObject = new GameObject("Second Bet Selection Test Customer");
+        UnityEngine.Random.State savedRandomState = UnityEngine.Random.state;
+        try
+        {
+            CasinoCustomerAI firstCustomer = firstCustomerObject.AddComponent<CasinoCustomerAI>();
+            CasinoCustomerAI secondCustomer = secondCustomerObject.AddComponent<CasinoCustomerAI>();
+            int[] availableStakes = { 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000 };
+            HashSet<int> observedStakes = new HashSet<int>();
+            UnityEngine.Random.InitState(4271);
+            for (int i = 0; i < 32; i++)
+            {
+                if (!firstCustomer.TryChooseBetPence(availableStakes, out int firstBet) ||
+                    !secondCustomer.TryChooseBetPence(availableStakes, out int secondBet) ||
+                    firstBet < 500 || firstBet > 5000 || firstBet % 500 != 0 ||
+                    secondBet < 500 || secondBet > 5000 || secondBet % 500 != 0)
+                {
+                    throw new System.InvalidOperationException("Customers must independently select an available £5-increment stake between £5 and £50.");
+                }
+
+                observedStakes.Add(firstBet);
+                observedStakes.Add(secondBet);
+            }
+
+            if (observedStakes.Count < 2)
+            {
+                throw new System.InvalidOperationException("Customer stake selection did not vary across new betting rounds.");
+            }
+        }
+        finally
+        {
+            UnityEngine.Random.state = savedRandomState;
+            Object.DestroyImmediate(firstCustomerObject);
+            Object.DestroyImmediate(secondCustomerObject);
+        }
+    }
+
+    private static void ValidateBlackjackEconomy(BlackjackTableInteraction table)
+    {
+        SerializedObject serializedTable = new SerializedObject(table);
+        SerializedProperty betOptions = serializedTable.FindProperty("availableBetOptionsPence");
+        SerializedProperty denominations = serializedTable.FindProperty("chipDenominations");
+        if (betOptions == null || betOptions.arraySize != 10 ||
+            denominations == null || denominations.arraySize != 4)
+        {
+            throw new System.InvalidOperationException($"{table.name} does not have the complete serialized stake and chip configuration.");
+        }
+
+        for (int i = 0; i < betOptions.arraySize; i++)
+        {
+            if (betOptions.GetArrayElementAtIndex(i).intValue != (i + 1) * 500)
+            {
+                throw new System.InvalidOperationException($"{table.name} must offer every £5 stake from £5 to £50.");
+            }
+        }
+
+        int[] expectedValues = { 500, 250, 2500, 10000 };
+        string[] expectedLabels = { "£5", "£2.50", "£25", "£100" };
+        for (int i = 0; i < denominations.arraySize; i++)
+        {
+            SerializedProperty denomination = denominations.GetArrayElementAtIndex(i);
+            SerializedProperty value = denomination.FindPropertyRelative("valuePence");
+            SerializedProperty label = denomination.FindPropertyRelative("label");
+            if (value == null || label == null ||
+                value.intValue != expectedValues[i] || label.stringValue != expectedLabels[i])
+            {
+                throw new System.InvalidOperationException($"{table.name} has stale serialized chip denominations.");
+            }
+        }
+    }
+
     private static void AssertThrows(string testName, System.Action action)
     {
         try
@@ -1441,7 +1638,9 @@ public static class PitPanicPrototypeGenerator
 
         CasinoTableAttention attention = table.AddComponent<CasinoTableAttention>();
         CreateAttentionIndicator(table.transform, attention, center + Vector3.up * 5.1f);
-        CreateWorldLabel(table.transform, $"{tableName} Label", tableName.ToUpperInvariant(), center + new Vector3(0f, 2.2f, -1.5f));
+        string destinationId = tableName == "Blackjack Table 1" ? "BJ1" : "BJ2";
+        string tableDisplayName = destinationId == "BJ1" ? "BLACKJACK 1" : "BLACKJACK 2";
+        CreateWorldLabel(table.transform, $"{tableName} Label", tableDisplayName, center + new Vector3(0f, 2.2f, -1.5f));
 
         CasinoSeat[] seats = new CasinoSeat[3];
         float[] seatOffsets = { -1.7f, 0f, 1.7f };
@@ -1470,11 +1669,10 @@ public static class PitPanicPrototypeGenerator
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
         interactionZone.Configure(tabletop.GetComponent<BoxCollider>());
         floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
-        string destinationId = tableName == "Blackjack Table 1" ? "BJ1" : "BJ2";
         floatDestination.Configure(destinationId, tableName, interactionZone, attention);
         table.AddComponent<BlackjackTableView>();
         BlackjackTableInteraction interaction = table.AddComponent<BlackjackTableInteraction>();
-        interaction.Configure(playerController, interactionZone, attention, seats);
+        interaction.Configure(playerController, interactionZone, attention, seats, destinationId);
         CasinoMinigameStation flickStation = table.AddComponent<CasinoMinigameStation>();
         FlickCardMinigame flickMinigame = table.AddComponent<FlickCardMinigame>();
         interaction.ConfigureFlickAssistance(flickStation);

@@ -1,10 +1,13 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 public static class CasinoMinigameHud
 {
     public static Canvas Create(string canvasName, int sortingOrder)
     {
+        EnsureInputEventSystem();
         GameObject canvasObject = new GameObject(
             canvasName,
             typeof(RectTransform),
@@ -19,6 +22,28 @@ public static class CasinoMinigameHud
         scaler.referenceResolution = new Vector2(1280f, 720f);
         scaler.matchWidthOrHeight = 0.5f;
         return canvas;
+    }
+
+    private static void EnsureInputEventSystem()
+    {
+        EventSystem eventSystem = Object.FindFirstObjectByType<EventSystem>();
+        if (eventSystem == null)
+        {
+            GameObject eventSystemObject = new GameObject("EventSystem");
+            eventSystem = eventSystemObject.AddComponent<EventSystem>();
+        }
+
+        BaseInputModule inputModule = eventSystem.GetComponent<BaseInputModule>();
+        if (!(inputModule is InputSystemUIInputModule))
+        {
+            if (inputModule != null)
+            {
+                Object.Destroy(inputModule);
+            }
+
+            InputSystemUIInputModule inputSystemModule = eventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
+            inputSystemModule.AssignDefaultActions();
+        }
     }
 
     public static Text CreateText(

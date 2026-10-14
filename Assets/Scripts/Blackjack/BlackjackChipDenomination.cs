@@ -25,8 +25,9 @@ public struct BlackjackChipDenomination
         return new[]
         {
             new BlackjackChipDenomination("£5", 500, new Color(0.81f, 0.16f, 0.13f)),
-            new BlackjackChipDenomination("£10", 1000, new Color(0.16f, 0.43f, 0.78f)),
-            new BlackjackChipDenomination("£25", 2500, new Color(0.20f, 0.62f, 0.34f))
+            new BlackjackChipDenomination("£2.50", 250, new Color(0.16f, 0.43f, 0.78f)),
+            new BlackjackChipDenomination("£25", 2500, new Color(0.20f, 0.62f, 0.34f)),
+            new BlackjackChipDenomination("£100", 10000, new Color(0.08f, 0.09f, 0.11f))
         };
     }
 
@@ -56,52 +57,48 @@ public struct BlackjackChipDenomination
         }
 
         ordered.Sort((left, right) => right.valuePence.CompareTo(left.valuePence));
-        var result = new List<BlackjackChipDenomination>();
-        int firstDenomination = amountPence < ordered[0].valuePence && ordered.Count > 1
-            ? ordered.Count - 1
-            : 0;
-        if (!TryCompose(amountPence, firstDenomination, ordered, result))
+        if (amountPence == 0)
+        {
+            return new List<BlackjackChipDenomination>();
+        }
+
+        int[] minimumChipCounts = new int[checked(amountPence + 1)];
+        int[] lastDenomination = new int[minimumChipCounts.Length];
+        for (int value = 1; value < minimumChipCounts.Length; value++)
+        {
+            minimumChipCounts[value] = int.MaxValue;
+        }
+
+        for (int value = 1; value < minimumChipCounts.Length; value++)
+        {
+            for (int denominationIndex = 0; denominationIndex < ordered.Count; denominationIndex++)
+            {
+                int denominationValue = ordered[denominationIndex].valuePence;
+                if (denominationValue <= value &&
+                    minimumChipCounts[value - denominationValue] != int.MaxValue &&
+                    minimumChipCounts[value - denominationValue] + 1 < minimumChipCounts[value])
+                {
+                    minimumChipCounts[value] = minimumChipCounts[value - denominationValue] + 1;
+                    lastDenomination[value] = denominationIndex;
+                }
+            }
+        }
+
+        if (minimumChipCounts[amountPence] == int.MaxValue)
         {
             throw new InvalidOperationException($"No exact chip composition exists for {amountPence} pence.");
         }
 
+        var result = new List<BlackjackChipDenomination>(minimumChipCounts[amountPence]);
+        int remainingPence = amountPence;
+        while (remainingPence > 0)
+        {
+            BlackjackChipDenomination denomination = ordered[lastDenomination[remainingPence]];
+            result.Add(denomination);
+            remainingPence -= denomination.valuePence;
+        }
+
+        result.Sort((left, right) => right.valuePence.CompareTo(left.valuePence));
         return result;
-    }
-
-    private static bool TryCompose(
-        int remainingPence,
-        int denominationIndex,
-        IReadOnlyList<BlackjackChipDenomination> denominations,
-        List<BlackjackChipDenomination> result)
-    {
-        if (remainingPence == 0)
-        {
-            return true;
-        }
-
-        if (denominationIndex >= denominations.Count)
-        {
-            return false;
-        }
-
-        BlackjackChipDenomination denomination = denominations[denominationIndex];
-        int maximumCount = remainingPence / denomination.valuePence;
-        for (int count = maximumCount; count >= 0; count--)
-        {
-            int resultCount = result.Count;
-            for (int i = 0; i < count; i++)
-            {
-                result.Add(denomination);
-            }
-
-            if (TryCompose(remainingPence - count * denomination.valuePence, denominationIndex + 1, denominations, result))
-            {
-                return true;
-            }
-
-            result.RemoveRange(resultCount, result.Count - resultCount);
-        }
-
-        return false;
     }
 }
