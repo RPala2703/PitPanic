@@ -5469,7 +5469,7 @@ MonoBehaviour:
   displayName: Blackjack Table 1
   interactionZone: {fileID: 733309602}
   attention: {fileID: 733309601}
-  startingChipCounts: 00000000000000000000000000000000
+  startingChipCounts: 0c000000080000000400000002000000
   refillThresholdCounts: 03000000020000000100000000000000
   refillOrderCounts: 0a000000050000000400000000000000
 --- !u!114 &733309601
@@ -8120,7 +8120,7 @@ MonoBehaviour:
   displayName: Blackjack Table 2
   interactionZone: {fileID: 1084320309}
   attention: {fileID: 1084320308}
-  startingChipCounts: 00000000000000000000000000000000
+  startingChipCounts: 0c000000080000000400000002000000
   refillThresholdCounts: 03000000020000000100000000000000
   refillOrderCounts: 0a000000050000000400000000000000
 --- !u!114 &1084320308
@@ -12830,6 +12830,7 @@ GameObject:
   - component: {fileID: 1740740581}
   - component: {fileID: 1740740580}
   - component: {fileID: 1740740579}
+  - component: {fileID: 1740740584}
   m_Layer: 0
   m_Name: Roulette Table
   m_TagString: Untagged
@@ -12853,7 +12854,7 @@ MonoBehaviour:
   displayName: Roulette Table
   interactionZone: {fileID: 1740740577}
   attention: {fileID: 1740740576}
-  startingChipCounts: 00000000000000000000000000000000
+  startingChipCounts: 0c000000080000000400000002000000
   refillThresholdCounts: 03000000020000000100000000000000
   refillOrderCounts: 0a000000050000000400000000000000
 --- !u!114 &1740740576
@@ -12941,7 +12942,7 @@ MonoBehaviour:
   minigameType: 4
   attentionReason: 12
   promptText: SPIN! AND SWEEP THE ROULETTE TABLE
-  requestWhenIdle: 1
+  requestWhenIdle: 0
 --- !u!114 &1740740581
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12977,7 +12978,6 @@ MonoBehaviour:
   player: {fileID: 577435169}
   tableRoot: {fileID: 1740740578}
   wheel: {fileID: 719149711}
-  attention: {fileID: 1740740576}
 --- !u!114 &1740740583
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12998,6 +12998,30 @@ MonoBehaviour:
   m_IgnoreFromBuild: 0
   m_ApplyToChildren: 1
   m_AffectedAgents: ffffffff
+--- !u!114 &1740740584
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1740740574}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b8799e0f78c4691992123ec1470ec55, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::RouletteAssistanceScheduler
+  rouletteDealerStation: {fileID: 1740740579}
+  minigameStation: {fileID: 1740740581}
+  minigame: {fileID: 1740740582}
+  physicalWheel: {fileID: 719149711}
+  firstTaskMinSeconds: 25
+  firstTaskMaxSeconds: 50
+  checkIntervalMinSeconds: 40
+  checkIntervalMaxSeconds: 90
+  taskChancePerCheck: 0.35
+  completionCooldownSeconds: 60
+  normalSpinMinSeconds: 6
+  normalSpinMaxSeconds: 13
 --- !u!1 &1742872476
 GameObject:
   m_ObjectHideFlags: 0

@@ -30,7 +30,6 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     [SerializeField] private CasinoPlayerController player;
     [SerializeField] private Transform tableRoot;
     [SerializeField] private Transform wheel;
-    [SerializeField] private CasinoTableAttention attention;
 
     private sealed class SweepChip
     {
@@ -65,12 +64,11 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     private int winningNumber = -1;
     private int sweptCount;
     private bool isDragging;
-    private bool sweepAttentionRequested;
     private bool controlsCaptured;
     private CursorLockMode savedCursorLockMode;
     private bool savedCursorVisible;
 
-    public bool IsConfigured => player != null && tableRoot != null && wheel != null && attention != null;
+    public bool IsConfigured => player != null && tableRoot != null && wheel != null;
     public override bool CanBegin => IsConfigured && Mouse.current != null;
     protected override string PresentationTitle => "SPIN!  •  SWEEP!";
     protected override string PresentationInstructions =>
@@ -101,13 +99,11 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     public void Configure(
         CasinoPlayerController casinoPlayer,
         Transform root,
-        Transform wheelTransform,
-        CasinoTableAttention tableAttention)
+        Transform wheelTransform)
     {
         player = casinoPlayer;
         tableRoot = root;
         wheel = wheelTransform;
-        attention = tableAttention;
     }
 
     private void OnDisable()
@@ -127,7 +123,6 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         else
         {
             RestorePlayer();
-            ResolveSweepAttention();
         }
     }
 
@@ -157,7 +152,6 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         ballAngle = 90f;
         isDragging = false;
         heldChip = null;
-        sweepAttentionRequested = false;
         sweepChips.Clear();
         bettingPocketOutlines.Clear();
         layoutPocketOutlines.Clear();
@@ -206,7 +200,6 @@ public sealed class RouletteTableMinigame : CasinoMinigame
 
     protected override void OnAbandon()
     {
-        ResolveSweepAttention();
         RestorePlayer();
         ResetTemporaryInput();
         gameArea = null;
@@ -214,7 +207,6 @@ public sealed class RouletteTableMinigame : CasinoMinigame
 
     protected override void OnComplete(bool success)
     {
-        ResolveSweepAttention();
         RestorePlayer();
         ResetTemporaryInput();
         gameArea = null;
@@ -524,7 +516,6 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         stage = RouletteStage.Sweep;
         spinStageRoot.gameObject.SetActive(false);
         sweepStageRoot.gameObject.SetActive(true);
-        sweepAttentionRequested = attention.RequestAttentionOnce(TableAttentionReason.RouletteSweepRequired);
         CreateSweepChips();
         resultText.text = $"{winningNumber}\n{GetPocketColorName(winningNumber)}";
         resultText.color = winningNumber == 0
@@ -619,15 +610,6 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         if (instructionText != null)
         {
             instructionText.text = value;
-        }
-    }
-
-    private void ResolveSweepAttention()
-    {
-        if (sweepAttentionRequested && attention != null)
-        {
-            attention.ResolveAttention(TableAttentionReason.RouletteSweepRequired);
-            sweepAttentionRequested = false;
         }
     }
 

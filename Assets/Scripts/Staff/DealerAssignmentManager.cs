@@ -72,14 +72,6 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             }
         }
 
-        foreach (AIDealer dealer in dealers)
-        {
-            if (dealer != null && dealer.IsReadyAtPitDesk)
-            {
-                pendingDeskDecisions.Add(dealer);
-            }
-        }
-
         SyncPitDeskAttention();
     }
 
@@ -255,15 +247,24 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         return true;
     }
 
-    public void NotifyDealerReady(AIDealer dealer)
+    public void NotifyDealerReady(AIDealer dealer, bool requiresDecision)
     {
         if (Contains(dealer) && dealer.IsReadyAtPitDesk)
         {
             ReleaseBreakReservation(dealer);
-            pendingDeskDecisions.Add(dealer);
+            if (ShouldRequestPitDeskDecision(requiresDecision))
+            {
+                pendingDeskDecisions.Add(dealer);
+            }
+
             nextRetryTime.Remove(dealer);
             SyncPitDeskAttention();
         }
+    }
+
+    public static bool ShouldRequestPitDeskDecision(bool dealerReturnedFromReplacement)
+    {
+        return dealerReturnedFromReplacement;
     }
 
     public void NotifyDealerArrived(AIDealer dealer, CasinoDealerStation station)
@@ -286,7 +287,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
                 return;
             }
 
-            if (!outgoingDealer.ReturnToPitDesk(destination))
+            if (!outgoingDealer.ReturnToPitDesk(destination, requiresDecision: true))
             {
                 station.CancelReplacement(dealer);
                 ReleaseOutgoingReservation(outgoingDealer);
@@ -327,7 +328,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
                 alternatePosition != dealer.ReservedPitPosition &&
                 (dealer.State == DealerDutyState.ReturningFromBreak
                     ? dealer.ReturnFromBreakToPitDesk(alternatePosition)
-                    : dealer.ReturnToPitDesk(alternatePosition)))
+                    : dealer.ReturnToPitDesk(alternatePosition, dealer.RequiresPitDeskDecisionOnArrival)))
             {
                 Debug.LogWarning($"{dealer.name} is returning to an alternate pit-desk position.", dealer);
             }

@@ -16,6 +16,7 @@ public static class PitPanicPrototypeGenerator
     private const string MaterialsPath = "Assets/Materials/PitPanic";
     private const string NavigationPath = "Assets/Navigation";
     private const string NavigationDataPath = NavigationPath + "/CasinoNavMesh.asset";
+    private static readonly int[] HealthyFloatStartingChipCounts = { 12, 8, 4, 2 };
 
     [MenuItem("Pit Panic/Run Prototype Validation")]
     public static void RunPrototypeValidation()
@@ -177,6 +178,16 @@ public static class PitPanicPrototypeGenerator
         Debug.Log($"Pit Panic prototype scene saved to {ScenePath}.");
     }
 
+    [MenuItem("Pit Panic/Debug/Force Roulette Assistance Task")]
+    public static void ForceRouletteAssistanceTaskForDevelopment()
+    {
+        RouletteAssistanceScheduler scheduler = Object.FindFirstObjectByType<RouletteAssistanceScheduler>();
+        if (scheduler == null || !scheduler.ForceTaskForDevelopment())
+        {
+            Debug.LogWarning("Roulette assistance cannot be forced until its dealer is active and no other minigame is running.");
+        }
+    }
+
     [MenuItem("Pit Panic/Run Blackjack Rule Checks")]
     public static void RunBlackjackRuleChecks()
     {
@@ -316,10 +327,18 @@ public static class PitPanicPrototypeGenerator
             FlickCardMinigame.CanCompleteChallenge(5, 4, 0) ||
             !FlickCardMinigame.CanCompleteChallenge(4, 4, 0) ||
             CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Flick) ||
+            CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Spin) ||
             !CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Pack))
         {
             throw new System.InvalidOperationException("FLICK! retry state or remaining-card counts are incorrect.");
         }
+
+        if (DealerAssignmentManager.ShouldRequestPitDeskDecision(false) ||
+            !DealerAssignmentManager.ShouldRequestPitDeskDecision(true))
+        {
+            throw new System.InvalidOperationException("Only dealers returning after replacement should create a pit-desk decision task.");
+        }
+        AssertInitialPitDeskAttention();
 
         AssertFlickChallengeLifecycle();
         for (int dealStep = 0; dealStep < expectedFlickTargets.Length; dealStep++)
@@ -349,9 +368,18 @@ public static class PitPanicPrototypeGenerator
             RouletteTableMinigame.GetPocketColorName(32) != "RED" ||
             RouletteTableMinigame.CanCompleteSweep(2, 3) ||
             !RouletteTableMinigame.CanCompleteSweep(3, 3) ||
-            RouletteTableMinigame.CanCompleteSweep(1, 0))
+            RouletteTableMinigame.CanCompleteSweep(1, 0) ||
+            !RouletteAssistanceScheduler.CanRequestTask(true, true, false, false, false, true) ||
+            RouletteAssistanceScheduler.CanRequestTask(false, true, false, false, false, true) ||
+            RouletteAssistanceScheduler.CanRequestTask(true, false, false, false, false, true) ||
+            RouletteAssistanceScheduler.CanRequestTask(true, true, true, false, false, true) ||
+            RouletteAssistanceScheduler.CanRequestTask(true, true, false, true, false, true) ||
+            RouletteAssistanceScheduler.CanRequestTask(true, true, false, false, true, true) ||
+            RouletteAssistanceScheduler.CanRequestTask(true, true, false, false, false, false) ||
+            RouletteAssistanceScheduler.GetNextCheckDelay(40f, 60f) != 60f ||
+            RouletteAssistanceScheduler.GetNextCheckDelay(90f, 60f) != 90f)
         {
-            throw new System.InvalidOperationException("Roulette spin result mapping is invalid.");
+            throw new System.InvalidOperationException("Roulette spin mapping, task eligibility, duplicate prevention, or cooldown is invalid.");
         }
 
         int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 250, 2500, 10000 });
@@ -429,10 +457,22 @@ public static class PitPanicPrototypeGenerator
         floatZone.Configure(floatFootprint);
         CasinoTableAttention floatAttention = floatDestinationObject.AddComponent<CasinoTableAttention>();
         CasinoFloatRefillDestination floatDestination = floatDestinationObject.AddComponent<CasinoFloatRefillDestination>();
-        floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention);
+        floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, new int[4]);
         CasinoFloatRefillOrder floatOrder = CasinoFloatRefillOrder.CreateStandard("float-test", "TEST", floatDestination);
         int[] correctFloatCounts = { 10, 5, 4, 0 };
         int[] incorrectFloatCounts = { 10, 5, 3, 0 };
+        floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, HealthyFloatStartingChipCounts);
+        if (floatDestination.NeedsRefill() ||
+            floatDestination.GetChipCount(0) <= 3 ||
+            floatDestination.GetChipCount(1) <= 2 ||
+            floatDestination.GetChipCount(2) <= 1 ||
+            floatDestination.GetChipCount(3) <= 0 ||
+            floatAttention.HasPendingTasks)
+        {
+            throw new System.InvalidOperationException("A healthy starting float should be above every configured refill threshold without attention.");
+        }
+
+        floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, new int[4]);
         floatDestination.RequestAttention();
         if (!floatDestination.NeedsRefill() ||
             floatOrder.TotalPence != 16250 || floatOrder.TotalChips != 19 ||
@@ -475,6 +515,11 @@ public static class PitPanicPrototypeGenerator
 
         GameObject attentionObject = new GameObject("Attention Rule Test");
         CasinoTableAttention attention = attentionObject.AddComponent<CasinoTableAttention>();
+        if (attention.HasPendingTasks || attention.GetActiveReasonSummary() != "No active attention reasons.")
+        {
+            throw new System.InvalidOperationException("A new casino station should begin with no attention tasks.");
+        }
+
         int attentionEvents = 0;
         attention.AttentionChanged += _ => attentionEvents++;
         attention.RequestAttention(TableAttentionReason.CustomersWaiting);
@@ -486,7 +531,8 @@ public static class PitPanicPrototypeGenerator
         }
 
         attention.ResolveAttention(TableAttentionReason.CustomersWaiting);
-        if (!attention.HasPendingTasks || attentionEvents != 1)
+        if (!attention.HasPendingTasks || attentionEvents != 1 ||
+            attention.GetActiveReasonSummary() != "DealCards (1)")
         {
             throw new System.InvalidOperationException("Resolving one reason incorrectly hid the table attention indicator.");
         }
@@ -622,6 +668,61 @@ public static class PitPanicPrototypeGenerator
         Debug.Log("Blackjack rule checks passed.");
     }
 
+    private static void AssertInitialPitDeskAttention()
+    {
+        GameObject deskObject = new GameObject("Initial Pit Desk Attention Test");
+        CasinoTableAttention deskAttention = deskObject.AddComponent<CasinoTableAttention>();
+        GameObject stationObject = new GameObject("Initial Pit Desk Test Station");
+        GameObject stationPosition = new GameObject("Initial Pit Desk Test Station Position");
+        CasinoDealerStation station = stationObject.AddComponent<CasinoDealerStation>();
+        station.Configure(
+            "Test Station",
+            stationPosition.transform,
+            stationObject.AddComponent<CasinoTableAttention>(),
+            null);
+        GameObject breakPosition = new GameObject("Initial Pit Desk Test Break Position");
+        GameObject pitPosition = new GameObject("Initial Pit Desk Test Waiting Position");
+        GameObject managerObject = new GameObject("Initial Pit Desk Test Manager");
+        DealerAssignmentManager manager = managerObject.AddComponent<DealerAssignmentManager>();
+        GameObject dealerObject = new GameObject("Initial Pit Desk Reserve Dealer");
+        dealerObject.AddComponent<NavMeshAgent>();
+        AIDealer dealer = dealerObject.AddComponent<AIDealer>();
+        manager.Configure(
+            new[] { dealer },
+            new[] { station },
+            new[] { breakPosition.transform },
+            new[] { pitPosition.transform },
+            deskAttention);
+        dealer.Configure(manager, breakPosition.transform, pitPosition.transform, null, 97f, 97f);
+        manager.NotifyDealerReady(dealer, requiresDecision: false);
+        if (deskAttention.HasPendingTasks ||
+            deskAttention.GetPendingCount(TableAttentionReason.DealerReadyForAssignment) != 0)
+        {
+            throw new System.InvalidOperationException("An initially available reserve dealer created a pit-desk attention task.");
+        }
+
+        manager.NotifyDealerReady(dealer, requiresDecision: true);
+        if (!deskAttention.HasPendingTasks ||
+            deskAttention.GetPendingCount(TableAttentionReason.DealerReadyForAssignment) != 1)
+        {
+            throw new System.InvalidOperationException("A replacement dealer returning to the pit desk did not create a decision task.");
+        }
+
+        manager.AcknowledgeDealerAtPitDesk(dealer);
+        if (deskAttention.HasPendingTasks)
+        {
+            throw new System.InvalidOperationException("Resolving a pit-desk decision left its attention active.");
+        }
+
+        Object.DestroyImmediate(dealerObject);
+        Object.DestroyImmediate(managerObject);
+        Object.DestroyImmediate(breakPosition);
+        Object.DestroyImmediate(pitPosition);
+        Object.DestroyImmediate(stationObject);
+        Object.DestroyImmediate(stationPosition);
+        Object.DestroyImmediate(deskObject);
+    }
+
     [MenuItem("Pit Panic/Validate Prototype Scene")]
     public static void ValidatePrototypeScene()
     {
@@ -652,6 +753,13 @@ public static class PitPanicPrototypeGenerator
         PitDeskInteraction pitDesk = Object.FindFirstObjectByType<PitDeskInteraction>();
         CasinoCashDeskInteraction cashDesk = Object.FindFirstObjectByType<CasinoCashDeskInteraction>();
         RouletteTableMinigame rouletteMinigame = Object.FindFirstObjectByType<RouletteTableMinigame>();
+        RouletteAssistanceScheduler rouletteScheduler = Object.FindFirstObjectByType<RouletteAssistanceScheduler>();
+        CasinoMinigameStation rouletteTaskStation = rouletteMinigame != null
+            ? rouletteMinigame.GetComponent<CasinoMinigameStation>()
+            : null;
+        CasinoMinigameStationPrompt roulettePrompt = rouletteMinigame != null
+            ? rouletteMinigame.GetComponent<CasinoMinigameStationPrompt>()
+            : null;
         CasinoMinigameStationPrompt[] stationPrompts =
             Object.FindObjectsByType<CasinoMinigameStationPrompt>(FindObjectsSortMode.None);
         CashDeskPackMinigame packMinigame = Object.FindFirstObjectByType<CashDeskPackMinigame>();
@@ -674,11 +782,35 @@ public static class PitPanicPrototypeGenerator
             dealerManager.PitDeskPositions.Count != dealers.Length ||
             dealerManager.BreakPositions.Count < dealers.Length ||
             cashDesk == null || !cashDesk.IsConfigured || rouletteMinigame == null ||
-            !rouletteMinigame.IsConfigured || packMinigame == null || !packMinigame.IsConfigured ||
+            !rouletteMinigame.IsConfigured || rouletteScheduler == null ||
+            !rouletteScheduler.IsConfigured || rouletteTaskStation == null ||
+            roulettePrompt == null || roulettePrompt.AllowsTaskRequestWhenIdle ||
+            rouletteTaskStation.IsTaskPending || rouletteTaskStation.IsMinigameRunning ||
+            packMinigame == null || !packMinigame.IsConfigured ||
             stationPrompts.Length != 2 ||
             GameObject.Find("Dealer Interaction Position") != null)
         {
             throw new System.InvalidOperationException("Generated scene is missing the player, two blackjack tables, six seats, three staffed stations, four dealers, or configured pit desk.");
+        }
+
+        CasinoFloatRefillDestination[] floatDestinations =
+            Object.FindObjectsByType<CasinoFloatRefillDestination>(FindObjectsSortMode.None);
+        foreach (CasinoFloatRefillDestination destination in floatDestinations)
+        {
+            if (destination == null || !destination.IsConfigured || !destination.HasHealthyStartingInventory)
+            {
+                throw new System.InvalidOperationException("Every generated casino table must start with healthy chip inventory above its refill thresholds.");
+            }
+        }
+
+        CasinoTableAttention[] attentionStations =
+            Object.FindObjectsByType<CasinoTableAttention>(FindObjectsSortMode.None);
+        foreach (CasinoTableAttention attention in attentionStations)
+        {
+            if (attention.HasPendingTasks)
+            {
+                throw new System.InvalidOperationException($"{attention.name} starts with an unnecessary attention task: {attention.GetActiveReasonSummary()}");
+            }
         }
 
         HashSet<AIDealer> assignedDealers = new HashSet<AIDealer>();
@@ -717,8 +849,6 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("The three initial casino tables must each have one unique dealer and one reserve dealer.");
         }
 
-        CasinoFloatRefillDestination[] floatDestinations =
-            Object.FindObjectsByType<CasinoFloatRefillDestination>(FindObjectsSortMode.None);
         if (floatDestinations.Length != 3 || cashDesk.Destinations.Count != 3)
         {
             throw new System.InvalidOperationException("The generated casino needs float refill destinations for both blackjack tables and roulette.");
@@ -1672,7 +1802,12 @@ public static class PitPanicPrototypeGenerator
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
         interactionZone.Configure(tabletop.GetComponent<BoxCollider>());
         floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
-        floatDestination.Configure(destinationId, tableName, interactionZone, attention);
+        floatDestination.Configure(
+            destinationId,
+            tableName,
+            interactionZone,
+            attention,
+            HealthyFloatStartingChipCounts);
         table.AddComponent<BlackjackTableView>();
         BlackjackTableInteraction interaction = table.AddComponent<BlackjackTableInteraction>();
         interaction.Configure(playerController, interactionZone, attention, seats, destinationId);
@@ -1791,9 +1926,14 @@ public static class PitPanicPrototypeGenerator
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
         interactionZone.Configure(counter.GetComponent<BoxCollider>());
         floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
-        floatDestination.Configure("ROULETTE", "Roulette Table", interactionZone, attention);
+        floatDestination.Configure(
+            "ROULETTE",
+            "Roulette Table",
+            interactionZone,
+            attention,
+            HealthyFloatStartingChipCounts);
         RouletteTableMinigame minigame = table.AddComponent<RouletteTableMinigame>();
-        minigame.Configure(player, table.transform, wheel.transform, attention);
+        minigame.Configure(player, table.transform, wheel.transform);
         CasinoMinigameStation minigameStation = table.AddComponent<CasinoMinigameStation>();
         minigameStation.Configure(
             player,
@@ -1810,12 +1950,17 @@ public static class PitPanicPrototypeGenerator
             CasinoMinigameType.Spin,
             TableAttentionReason.RouletteSpinRequired,
             "SPIN! AND SWEEP THE ROULETTE TABLE",
-            allowTaskRequestWhenIdle: true);
+            allowTaskRequestWhenIdle: false);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.25f);
         CasinoDealerStation station = table.AddComponent<CasinoDealerStation>();
         station.Configure("Roulette Table", dealerPosition.transform, attention, null);
+        table.AddComponent<RouletteAssistanceScheduler>().Configure(
+            station,
+            minigameStation,
+            minigame,
+            wheel.transform);
         return station;
     }
 

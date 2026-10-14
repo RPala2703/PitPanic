@@ -16,6 +16,8 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
     private Canvas canvas;
     private Text prompt;
 
+    public bool AllowsTaskRequestWhenIdle => requestWhenIdle;
+
     public void Configure(
         CasinoPlayerController casinoPlayer,
         TableInteractionZone zone,
