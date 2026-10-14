@@ -3928,6 +3928,7 @@ GameObject:
   - component: {fileID: 577435171}
   - component: {fileID: 577435169}
   - component: {fileID: 577435170}
+  - component: {fileID: 577435173}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -3961,6 +3962,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24a337f6d153e41458cf7334a3c06b00, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CasinoPlayerFloatCarrier
+--- !u!114 &577435173
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577435168}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56072843365c34b24819a0ae256f4679, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::CasinoPlayerInteractionRouter
 --- !u!143 &577435171
 CharacterController:
   m_ObjectHideFlags: 0

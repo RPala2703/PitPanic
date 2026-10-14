@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using System;
 
 [DisallowMultipleComponent]
@@ -15,6 +14,8 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     public bool IsTaskPending { get; private set; }
     public bool IsMinigameRunning => minigame != null && minigame.IsRunning;
+    public bool IsPlayerInRange(Transform candidate) =>
+        IsConfigured && candidate != null && interactionZone.IsPlayerInRange(candidate);
     public CasinoMinigameType MinigameType => minigameType;
     public event Action<CasinoMinigameResult> TaskSucceeded;
     public event Action TaskAbandoned;
@@ -99,16 +100,6 @@ public sealed class CasinoMinigameStation : MonoBehaviour
             subscribedMinigame.Abandoned -= OnMinigameAbandoned;
             subscribedMinigame = null;
         }
-    }
-
-    private void Update()
-    {
-        if (Keyboard.current == null || !Keyboard.current.eKey.wasPressedThisFrame)
-        {
-            return;
-        }
-
-        TryBegin();
     }
 
     private void OnMinigameCompleted(CasinoMinigameResult result)

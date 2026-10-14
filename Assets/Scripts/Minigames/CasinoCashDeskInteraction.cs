@@ -177,8 +177,9 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
 
         orderStatuses[carryingOrder.Id] = CasinoFloatRefillStatus.Delivered;
         activeOrdersByDestination.Remove(carryingOrder.DestinationId);
+        string confirmation = $"FLOAT DELIVERED  •  {carryingOrder.DestinationId}";
         carryingOrder = null;
-        floatCarrier.FinishDelivery();
+        floatCarrier.FinishDelivery(confirmation);
         BeginNextPackIfReady();
         return true;
     }

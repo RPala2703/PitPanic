@@ -24,6 +24,10 @@ public sealed class PitDeskInteraction : MonoBehaviour
     public bool IsConfigured => player != null && interactionZone != null &&
                                 interactionZone.IsConfigured && attention != null && assignmentManager != null &&
                                 assignmentManager.IsConfigured;
+    public bool IsOpen => isOpen;
+    public bool IsPlayerInRange(Transform candidate) =>
+        candidate != null && interactionZone != null &&
+        interactionZone.IsPlayerInRange(candidate);
 
     public void Configure(
         CasinoPlayerController casinoPlayer,
@@ -86,13 +90,17 @@ public sealed class PitDeskInteraction : MonoBehaviour
             promptText.gameObject.SetActive(inRange);
         }
 
-        if (inRange)
+    }
+
+    public bool TryOpenFromPlayerInput()
+    {
+        if (isOpen || !IsPlayerInRange(player.transform) || CasinoMinigamePresentation.IsOpen)
         {
-            if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
-            {
-                Open();
-            }
+            return false;
         }
+
+        Open();
+        return isOpen;
     }
 
     private void BuildInterface()

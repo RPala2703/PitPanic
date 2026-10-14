@@ -342,6 +342,11 @@ public static class PitPanicPrototypeGenerator
             !RouletteTableMinigame.TryGetWinningNumber(0.99f, out int lastPocket) || lastPocket != 36 ||
             RouletteTableMinigame.TryGetWinningNumber(1f, out _) ||
             RouletteTableMinigame.TryGetWinningNumber(float.NaN, out _) ||
+            RouletteTableMinigame.GetPocketColorName(0) != "GREEN" ||
+            RouletteTableMinigame.GetPocketColorName(1) != "RED" ||
+            RouletteTableMinigame.GetPocketColorName(2) != "BLACK" ||
+            RouletteTableMinigame.GetPocketColorName(26) != "BLACK" ||
+            RouletteTableMinigame.GetPocketColorName(32) != "RED" ||
             RouletteTableMinigame.CanCompleteSweep(2, 3) ||
             !RouletteTableMinigame.CanCompleteSweep(3, 3) ||
             RouletteTableMinigame.CanCompleteSweep(1, 0))
@@ -457,7 +462,8 @@ public static class PitPanicPrototypeGenerator
         AssertCardViewLayout(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
         AssertFlickCardFaceHierarchy();
         AssertHiddenHandRendering(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
-        AssertFlickMouseProjection();
+        AssertPopupScreenSpaceHitTesting();
+        AssertInteractionPriority();
         AssertInteractionZoneReachability();
         if (!BlackjackRules.IsSoft17(new[] { new BlackjackCard(1, 0), new BlackjackCard(6, 1) }) ||
             !BlackjackRules.IsSoft17(new[] { new BlackjackCard(1, 0), new BlackjackCard(1, 1), new BlackjackCard(5, 2) }) ||
@@ -661,7 +667,8 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Generated scene needs its orthographic camera and a new Input System UI EventSystem.");
         }
 
-        if (player == null || blackjackTables.Length != 2 || seats.Length != 6 ||
+        if (player == null || player.GetComponent<CasinoPlayerInteractionRouter>() == null ||
+            blackjackTables.Length != 2 || seats.Length != 6 ||
             stations.Length != 3 || dealers.Length != 4 || dealerManager == null ||
             !dealerManager.IsConfigured || pitDesk == null || !pitDesk.IsConfigured ||
             dealerManager.PitDeskPositions.Count != dealers.Length ||
@@ -1466,48 +1473,44 @@ public static class PitPanicPrototypeGenerator
         UnityEngine.Object.DestroyImmediate(canvasObject);
     }
 
-    private static void AssertFlickMouseProjection()
+    private static void AssertPopupScreenSpaceHitTesting()
     {
-        GameObject tableObject = new GameObject("FLICK Projection Rule Test Table");
-        GameObject cameraObject = new GameObject("FLICK Projection Rule Test Camera");
-        Camera camera = cameraObject.AddComponent<Camera>();
-        camera.orthographic = true;
-        Vector3 shoeCenter = tableObject.transform.TransformPoint(new Vector3(0f, 1.53f, 0.96f));
-        camera.transform.position = shoeCenter + new Vector3(0f, 8f, -8f);
-        camera.transform.LookAt(shoeCenter);
-
-        Vector3 screenPosition = camera.WorldToScreenPoint(shoeCenter);
-        if (!FlickCardMinigame.TryProjectScreenPoint(
-                camera,
-                tableObject.transform,
-                new Vector2(screenPosition.x, screenPosition.y),
-                out Vector3 projectedPosition) ||
-            Vector3.Distance(projectedPosition, shoeCenter) > 0.01f)
+        GameObject canvasObject = new GameObject(
+            "Popup Hit Test Canvas", typeof(RectTransform), typeof(Canvas));
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        GameObject targetObject = new GameObject("Popup Hit Test Target", typeof(RectTransform));
+        targetObject.transform.SetParent(canvasObject.transform, false);
+        RectTransform target = targetObject.GetComponent<RectTransform>();
+        target.anchorMin = target.anchorMax = new Vector2(0.5f, 0.5f);
+        target.sizeDelta = new Vector2(240f, 150f);
+        Vector2 center = RectTransformUtility.WorldToScreenPoint(null, target.position);
+        if (!CasinoMinigamePresentation.ContainsScreenPoint(target, center) ||
+            CasinoMinigamePresentation.ContainsScreenPoint(target, center + new Vector2(500f, 500f)))
         {
-            throw new System.InvalidOperationException("FLICK mouse projection does not land on the card-shoe surface.");
+            throw new System.InvalidOperationException("Popup hit testing does not use the visible screen-space RectTransform bounds.");
         }
 
-        if (!FlickCardMinigame.IsPointerWithinShoe(
-                new Vector3(0.24f, 1.53f, 1.30f),
-                new Vector3(0f, 1.53f, 0.96f),
-                0.55f,
-                0.68f) ||
-            FlickCardMinigame.IsPointerWithinShoe(
-                new Vector3(0.56f, 1.53f, 0.96f),
-                new Vector3(0f, 1.53f, 0.96f),
-                0.55f,
-                0.68f) ||
-            FlickCardMinigame.IsPointerWithinShoe(
-                new Vector3(0f, 1.53f, 1.65f),
-                new Vector3(0f, 1.53f, 0.96f),
-                0.55f,
-                0.68f))
-        {
-            throw new System.InvalidOperationException("FLICK shoe hit bounds do not include the visible shoe while rejecting distant clicks.");
-        }
+        UnityEngine.Object.DestroyImmediate(canvasObject);
+    }
 
-        UnityEngine.Object.DestroyImmediate(cameraObject);
-        UnityEngine.Object.DestroyImmediate(tableObject);
+    private static void AssertInteractionPriority()
+    {
+        if (CasinoPlayerInteractionRouter.GetPriorityAction(true, true, true, true, true) !=
+                CasinoPlayerInteractionKind.FloatDelivery ||
+            CasinoPlayerInteractionRouter.GetPriorityAction(true, false, true, true, true) !=
+                CasinoPlayerInteractionKind.None ||
+            CasinoPlayerInteractionRouter.GetPriorityAction(false, false, true, true, true) !=
+                CasinoPlayerInteractionKind.PendingMinigame ||
+            CasinoPlayerInteractionRouter.GetPriorityAction(false, false, false, true, true) !=
+                CasinoPlayerInteractionKind.RequestMinigame ||
+            CasinoPlayerInteractionRouter.GetPriorityAction(false, false, false, false, true) !=
+                CasinoPlayerInteractionKind.PitDesk ||
+            CasinoPlayerInteractionRouter.GetPriorityAction(false, false, false, false, false) !=
+                CasinoPlayerInteractionKind.None)
+        {
+            throw new System.InvalidOperationException("Player interaction routing violates float/task/station priority or allows a second action.");
+        }
     }
 
     private static void AssertInteractionZoneReachability()
@@ -2069,6 +2072,10 @@ public static class PitPanicPrototypeGenerator
         controller.stepOffset = 0.3f;
         controller.slopeLimit = 45f;
         player.AddComponent<CasinoPlayerController>();
+        if (player.GetComponent<CasinoPlayerInteractionRouter>() == null)
+        {
+            player.AddComponent<CasinoPlayerInteractionRouter>();
+        }
 
         GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         visual.name = "Player Visual";

@@ -23,6 +23,7 @@ public abstract class CasinoMinigame : MonoBehaviour
     public event Action<CasinoMinigameResult> Completed;
     public event Action Abandoned;
     public bool IsRunning { get; private set; }
+    protected CasinoMinigamePresentation Presentation => presentation;
     public virtual bool CanBegin => true;
     protected virtual string PresentationTitle => GetType().Name.Replace("Minigame", string.Empty).ToUpperInvariant();
     protected virtual string PresentationInstructions => "Complete the service task. The casino remains live.";
@@ -41,8 +42,16 @@ public abstract class CasinoMinigame : MonoBehaviour
 
         elapsedSeconds = 0f;
         IsRunning = true;
-        presentation = CasinoMinigamePresentation.Open(PresentationTitle, PresentationInstructions);
-        OnBegin();
+        try
+        {
+            presentation = CasinoMinigamePresentation.Open(PresentationTitle, PresentationInstructions);
+            OnBegin();
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+            AbortAfterRuntimeError();
+        }
     }
 
     public void Abandon()
@@ -52,7 +61,15 @@ public abstract class CasinoMinigame : MonoBehaviour
             return;
         }
 
-        OnAbandon();
+        try
+        {
+            OnAbandon();
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+
         IsRunning = false;
         ClosePresentation();
         Abandoned?.Invoke();
@@ -71,8 +88,19 @@ public abstract class CasinoMinigame : MonoBehaviour
         }
 
         IsRunning = false;
-        OnComplete(success);
-        ClosePresentation();
+        try
+        {
+            OnComplete(success);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+        finally
+        {
+            ClosePresentation();
+        }
+
         Completed?.Invoke(new CasinoMinigameResult(success, Mathf.Max(0, score), elapsedSeconds));
     }
 
@@ -93,6 +121,35 @@ public abstract class CasinoMinigame : MonoBehaviour
         }
 
         elapsedSeconds += Time.deltaTime;
-        OnTick(Time.deltaTime);
+        try
+        {
+            OnTick(Time.deltaTime);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+            AbortAfterRuntimeError();
+        }
+    }
+
+    private void AbortAfterRuntimeError()
+    {
+        if (!IsRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            OnAbandon();
+        }
+        catch (System.Exception cleanupException)
+        {
+            Debug.LogException(cleanupException, this);
+        }
+
+        IsRunning = false;
+        ClosePresentation();
+        Abandoned?.Invoke();
     }
 }
