@@ -37,6 +37,7 @@ public sealed class AIDealer : MonoBehaviour
     private Vector3 originalScale;
     private bool hasRequestedExhaustion;
     private bool pathFailureReported;
+    private bool requiresPitDeskDecisionOnArrival;
 
     public string DealerId => string.IsNullOrWhiteSpace(dealerId) ? name : dealerId;
     public float Energy => energy;
@@ -66,6 +67,7 @@ public sealed class AIDealer : MonoBehaviour
     public bool IsAvailable => CanBeAssignedFromState(state);
     public bool NeedsBreak => state == DealerDutyState.NeedsBreak || state == DealerDutyState.ReplacementRequested;
     public Transform ReservedPitPosition { get; private set; }
+    public bool RequiresPitDeskDecisionOnArrival => requiresPitDeskDecisionOnArrival;
     public Transform Destination => state switch
     {
         DealerDutyState.TravelingToTable => pendingStation != null ? pendingStation.DealerPosition : null,
@@ -131,7 +133,6 @@ public sealed class AIDealer : MonoBehaviour
                 agent.isStopped = true;
             }
 
-            manager.NotifyDealerReady(this);
         }
     }
 
@@ -169,17 +170,17 @@ public sealed class AIDealer : MonoBehaviour
         return true;
     }
 
-    public bool ReturnToPitDesk(Transform position)
+    public bool ReturnToPitDesk(Transform position, bool requiresDecision = false)
     {
-        return BeginPitDeskRoute(position, returningFromBreak: false);
+        return BeginPitDeskRoute(position, returningFromBreak: false, requiresDecision: requiresDecision);
     }
 
     public bool ReturnFromBreakToPitDesk(Transform position)
     {
-        return BeginPitDeskRoute(position, returningFromBreak: true);
+        return BeginPitDeskRoute(position, returningFromBreak: true, requiresDecision: false);
     }
 
-    private bool BeginPitDeskRoute(Transform position, bool returningFromBreak)
+    private bool BeginPitDeskRoute(Transform position, bool returningFromBreak, bool requiresDecision)
     {
         if (position == null || agent == null || !agent.isOnNavMesh ||
             !agent.SetDestination(position.position))
@@ -195,6 +196,7 @@ public sealed class AIDealer : MonoBehaviour
         state = returningFromBreak
             ? DealerDutyState.ReturningFromBreak
             : DealerDutyState.TravelingToPitDesk;
+        requiresPitDeskDecisionOnArrival = requiresDecision;
         agent.isStopped = false;
         return true;
     }
@@ -386,8 +388,8 @@ public sealed class AIDealer : MonoBehaviour
                 case DealerDutyState.TravelingToPitDesk:
                 case DealerDutyState.ReturningFromBreak:
                     MarkReadyAtPitDesk();
-                    manager?.NotifyDealerReady(this);
-
+                    manager?.NotifyDealerReady(this, requiresPitDeskDecisionOnArrival);
+                    requiresPitDeskDecisionOnArrival = false;
                     break;
             }
         }

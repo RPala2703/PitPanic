@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -14,6 +15,36 @@ public sealed class CasinoTableAttention : MonoBehaviour
     {
         return pendingTasks.TryGetValue(reason, out int count) ? count : 0;
     }
+
+    public string GetActiveReasonSummary()
+    {
+        StringBuilder summary = new StringBuilder();
+        foreach (TableAttentionReason reason in Enum.GetValues(typeof(TableAttentionReason)))
+        {
+            int count = GetPendingCount(reason);
+            if (count == 0)
+            {
+                continue;
+            }
+
+            if (summary.Length > 0)
+            {
+                summary.Append(", ");
+            }
+
+            summary.Append(reason).Append(" (").Append(count).Append(')');
+        }
+
+        return summary.Length == 0 ? "No active attention reasons." : summary.ToString();
+    }
+
+#if UNITY_EDITOR
+    [ContextMenu("Debug/Log Active Attention Reasons")]
+    private void LogActiveReasonSummary()
+    {
+        Debug.Log($"{name}: {GetActiveReasonSummary()}", this);
+    }
+#endif
 
     public void RequestAttention(TableAttentionReason reason)
     {

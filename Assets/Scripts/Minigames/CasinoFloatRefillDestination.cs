@@ -9,7 +9,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
     [SerializeField] private string displayName;
     [SerializeField] private TableInteractionZone interactionZone;
     [SerializeField] private CasinoTableAttention attention;
-    [SerializeField, Min(0)] private int[] startingChipCounts = { 0, 0, 0, 0 };
+    [SerializeField, Min(0)] private int[] startingChipCounts = { 12, 8, 4, 2 };
     [SerializeField, Min(0)] private int[] refillThresholdCounts = { 3, 2, 1, 0 };
     [SerializeField, Min(0)] private int[] refillOrderCounts = { 10, 5, 4, 0 };
 
@@ -20,6 +20,28 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
     public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName;
     public TableInteractionZone InteractionZone => interactionZone;
     public CasinoTableAttention Attention => attention;
+    public bool HasHealthyStartingInventory
+    {
+        get
+        {
+            if (startingChipCounts == null || refillThresholdCounts == null ||
+                refillOrderCounts == null || startingChipCounts.Length != 4 ||
+                refillThresholdCounts.Length != 4 || refillOrderCounts.Length != 4)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < startingChipCounts.Length; i++)
+            {
+                if (refillOrderCounts[i] > 0 && startingChipCounts[i] <= refillThresholdCounts[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
     public bool IsConfigured => !string.IsNullOrWhiteSpace(destinationId) &&
                                 interactionZone != null && interactionZone.IsConfigured &&
                                 attention != null && startingChipCounts != null &&
