@@ -5566,17 +5566,20 @@ MonoBehaviour:
   - {fileID: 1319449678}
   - {fileID: 1500480152}
   - {fileID: 1970096256}
-  availableBetOptionsPence: e8030000d0070000b80b0000a00f000088130000
+  availableBetOptionsPence: f4010000e8030000dc050000d0070000c4090000b80b0000ac0d0000a00f00009411000088130000
   chipDenominations:
   - label: "\xA35"
     valuePence: 500
     color: {r: 0.81, g: 0.16, b: 0.13, a: 1}
-  - label: "\xA310"
-    valuePence: 1000
+  - label: "\xA32.50"
+    valuePence: 250
     color: {r: 0.16, g: 0.43, b: 0.78, a: 1}
   - label: "\xA325"
     valuePence: 2500
     color: {r: 0.2, g: 0.62, b: 0.34, a: 1}
+  - label: "\xA3100"
+    valuePence: 10000
+    color: {r: 0.08, g: 0.09, b: 0.11, a: 1}
   dealerActionInterval: 0.8
   flickAssistanceChance: 0.18
   flickStation: {fileID: 733309606}
@@ -8214,17 +8217,20 @@ MonoBehaviour:
   - {fileID: 2075843446}
   - {fileID: 117314142}
   - {fileID: 1548676910}
-  availableBetOptionsPence: e8030000d0070000b80b0000a00f000088130000
+  availableBetOptionsPence: f4010000e8030000dc050000d0070000c4090000b80b0000ac0d0000a00f00009411000088130000
   chipDenominations:
   - label: "\xA35"
     valuePence: 500
     color: {r: 0.81, g: 0.16, b: 0.13, a: 1}
-  - label: "\xA310"
-    valuePence: 1000
+  - label: "\xA32.50"
+    valuePence: 250
     color: {r: 0.16, g: 0.43, b: 0.78, a: 1}
   - label: "\xA325"
     valuePence: 2500
     color: {r: 0.2, g: 0.62, b: 0.34, a: 1}
+  - label: "\xA3100"
+    valuePence: 10000
+    color: {r: 0.08, g: 0.09, b: 0.11, a: 1}
   dealerActionInterval: 0.8
   flickAssistanceChance: 0.18
   flickStation: {fileID: 1084320313}

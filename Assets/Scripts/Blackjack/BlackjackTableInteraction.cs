@@ -9,7 +9,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     [SerializeField] private TableInteractionZone interactionZone;
     [SerializeField] private CasinoTableAttention attention;
     [SerializeField] private CasinoSeat[] seats;
-    [SerializeField] private int[] availableBetOptionsPence = { 1000, 2000, 3000, 4000, 5000 };
+    [SerializeField] private int[] availableBetOptionsPence =
+        { 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000 };
     [SerializeField] private BlackjackChipDenomination[] chipDenominations = BlackjackChipDenomination.CreateDefaults();
     [SerializeField, Min(0.1f)] private float dealerActionInterval = 0.8f;
     [SerializeField, Range(0f, 1f)] private float flickAssistanceChance = 0.18f;

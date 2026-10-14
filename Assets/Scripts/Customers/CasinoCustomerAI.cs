@@ -45,7 +45,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private bool headingToExit;
     private bool cashierArrivalReported;
     private int roundsRemaining;
-    [SerializeField, Min(1)] private int minimumBetPence = 1000;
+    [SerializeField, Min(1)] private int minimumBetPence = 500;
     [SerializeField, Min(1)] private int maximumBetPence = 5000;
 
     public event Action<CasinoCustomerAI> Seated;

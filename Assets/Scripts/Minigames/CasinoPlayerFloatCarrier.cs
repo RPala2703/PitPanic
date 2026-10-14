@@ -86,8 +86,8 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         if (promptText != null)
         {
             promptText.text = nearCorrect
-                ? $"E  •  DELIVER FLOAT TO {order.Destination.DisplayName.ToUpperInvariant()}  •  £{order.TotalPence / 100}"
-                : $"FLOAT FOR {order.Destination.DisplayName.ToUpperInvariant()}  •  DELIVER TO THAT TABLE";
+                ? $"E  •  DELIVER FLOAT TO {GetShortDestinationLabel(order)}  •  £{order.TotalPence / 100}.{order.TotalPence % 100:00}"
+                : $"FLOAT FOR {GetShortDestinationLabel(order)}  •  DELIVER TO THAT TABLE";
         }
 
         if (nearCorrect && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
@@ -172,5 +172,10 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         block.SetColor("_BaseColor", color);
         block.SetColor("_Color", color);
         renderer.SetPropertyBlock(block);
+    }
+
+    private static string GetShortDestinationLabel(CasinoFloatRefillOrder refillOrder)
+    {
+        return $"{refillOrder.DestinationId}  •  {refillOrder.Destination.DisplayName.ToUpperInvariant()}";
     }
 }

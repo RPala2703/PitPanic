@@ -45,6 +45,9 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         "Drag to spin the live roulette wheel, then clear every loose chip into the dealer tray.";
     public int WinningNumber => winningNumber;
     public int SweptChipCount => sweptCount;
+    public static bool CanCompleteSweep(int sweptChipCount, int requiredChipCount) =>
+        requiredChipCount > 0 && sweptChipCount >= requiredChipCount;
+
     public static bool TryGetWinningNumber(float normalizedSpin, out int number)
     {
         if (float.IsNaN(normalizedSpin) || float.IsInfinity(normalizedSpin) ||
@@ -240,7 +243,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             {
                 heldChip.transform.localPosition = GetTrayChipPosition(sweptCount);
                 sweptCount++;
-                if (sweptCount >= chipsToSweep)
+                if (CanCompleteSweep(sweptCount, chipsToSweep))
                 {
                     SetStatus($"TABLE CLEAR  •  RESULT {winningNumber}");
                     SetInstruction("Roulette round serviced.");

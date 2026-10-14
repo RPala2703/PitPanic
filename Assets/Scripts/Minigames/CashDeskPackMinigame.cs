@@ -7,9 +7,10 @@ using UnityEngine.UI;
 public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 {
     private static Sprite chipSprite;
-    private static readonly int[] FloatDenominationsPence = { 500, 1000, 2500, 10000 };
-    private static readonly int[] CustomerDenominationsPence = { 2500, 1000, 500 };
+    private static readonly int[] FloatDenominationsPence = { 500, 250, 2500, 10000 };
+    private static readonly int[] CustomerDenominationsPence = { 2500, 250, 500 };
     private static readonly string[] ChipNames = { "RED", "BLUE", "GREEN", "BLACK" };
+    private static readonly int[] SourceDisplayOrder = { 1, 0, 2, 3 };
     private static readonly Color[] FloatChipColors =
     {
         new Color(0.81f, 0.16f, 0.13f),
@@ -135,6 +136,34 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         return true;
     }
 
+    public static string BuildPackingSequenceDisplay(IReadOnlyList<int> sequence, int itemsPerLine = 10)
+    {
+        if (sequence == null || itemsPerLine < 1)
+        {
+            throw new System.ArgumentException("A sequence and positive line length are required.", nameof(sequence));
+        }
+
+        System.Text.StringBuilder builder = new System.Text.StringBuilder();
+        for (int i = 0; i < sequence.Count; i++)
+        {
+            int denominationIndex = sequence[i];
+            if (denominationIndex < 0 || denominationIndex >= FloatDenominationsPence.Length)
+            {
+                throw new System.ArgumentOutOfRangeException(nameof(sequence), "The sequence contains an invalid chip denomination.");
+            }
+
+            if (i > 0)
+            {
+                builder.Append(i % itemsPerLine == 0 ? "\n" : " • ");
+            }
+
+            builder.Append(ChipNames[denominationIndex]).Append(' ')
+                .Append(FormatPounds(FloatDenominationsPence[denominationIndex]));
+        }
+
+        return builder.ToString();
+    }
+
     public void Configure(CasinoPlayerController casinoPlayer, Transform root)
     {
         player = casinoPlayer;
@@ -244,8 +273,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         if (timeRemaining <= 0f)
         {
             SetStatus("TIME'S UP  •  TRY THE ORDER AGAIN");
-            SetInstruction("The register reservation has been returned. Close this task and request it again.");
-            Complete(false, 0);
+            Abandon();
         }
     }
 
@@ -291,7 +319,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
             Vector2 position = new Vector2(i % 2 == 0 ? -270f : 270f, 120f - (i / 2) * 150f);
             CreateButton(
                 $"Float Order {order.Destination.DisplayName}",
-                $"PACK FOR {order.Destination.DisplayName.ToUpperInvariant()}\n£{order.TotalPence / 100}  •  {order.TotalChips} CHIPS",
+                $"PACK FOR {GetShortDestinationLabel(order)}\n{FormatPounds(order.TotalPence)}  •  {order.TotalChips} CHIPS",
                 position,
                 new Vector2(460f, 112f),
                 () => SelectFloatOrder(index));
@@ -339,14 +367,14 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     {
         if (counts == null || counts.Length != requiredCounts.Length)
         {
-            Complete(false, 0);
+            Abandon();
             return;
         }
 
         System.Array.Copy(counts, requiredCounts, counts.Length);
         cashOutMode = false;
         BuildPackingLayout();
-        SetStatus($"PACK FOR {selectedOrder.Destination.DisplayName.ToUpperInvariant()}  •  {FormatPounds(selectedOrder.TotalPence)}");
+        SetStatus($"PACK FOR {GetShortDestinationLabel(selectedOrder)}  •  {FormatPounds(selectedOrder.TotalPence)}");
         SetInstruction("Click the next required denomination. Incorrect choices cost time but can be retried.");
     }
 
@@ -359,12 +387,12 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         float[] chipY = { 95f, 95f, -120f, -120f };
         for (int i = 0; i < chipButtons.Length; i++)
         {
-            int denominationIndex = i;
-            chipButtons[i] = CreateChipButton(i, new Vector2(chipX[i], chipY[i]), () => SelectChip(denominationIndex));
+            int denominationIndex = SourceDisplayOrder[i];
+            chipButtons[i] = CreateChipButton(denominationIndex, new Vector2(chipX[i], chipY[i]), () => SelectChip(denominationIndex));
         }
 
-        CreatePanel("Target Chip Tray", new Vector2(260f, -5f), new Vector2(990f, 560f));
-        RectTransform trayRect = CreateRect("Float Tray Target", hud.transform, new Vector2(0.5f, 0.5f), new Vector2(260f, -5f), new Vector2(950f, 515f));
+        CreatePanel("Target Chip Tray", new Vector2(260f, -5f), new Vector2(990f, 590f));
+        RectTransform trayRect = CreateRect("Float Tray Target", hud.transform, new Vector2(0.5f, 0.5f), new Vector2(260f, -5f), new Vector2(950f, 545f));
         Image trayImage = trayRect.gameObject.AddComponent<Image>();
         trayImage.color = new Color(0.09f, 0.34f, 0.21f, 0.56f);
         Outline outline = trayRect.gameObject.AddComponent<Outline>();
@@ -377,16 +405,16 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         sequenceText.horizontalOverflow = HorizontalWrapMode.Wrap;
         sequenceText.verticalOverflow = VerticalWrapMode.Truncate;
         nextChipText = CreateText("Next Chip", "", new Vector2(260f, 88f), new Vector2(800f, 34f), 21, new Color(1f, 0.88f, 0.45f));
-        totalText = CreateText("Order Total", "", new Vector2(260f, -221f), new Vector2(850f, 35f), 19, Color.white);
-        progressText = CreateText("Pack Progress", "", new Vector2(260f, -255f), new Vector2(850f, 32f), 17, new Color(1f, 0.84f, 0.48f));
+        totalText = CreateText("Order Total", "", new Vector2(260f, -218f), new Vector2(850f, 35f), 19, Color.white);
+        progressText = CreateText("Pack Progress", "", new Vector2(260f, -251f), new Vector2(850f, 30f), 17, new Color(1f, 0.84f, 0.48f));
 
         float[] stackX = { -75f, 145f, 365f, 585f };
         for (int i = 0; i < stackCountTexts.Length; i++)
         {
             CreateText($"Tray {ChipNames[i]} Label", $"{ChipNames[i]}  {FormatPounds(FloatDenominationsPence[i])}",
-                new Vector2(stackX[i], 20f), new Vector2(205f, 30f), 16, FloatChipColors[i]);
+                new Vector2(stackX[i], 22f), new Vector2(205f, 30f), 16, FloatChipColors[i]);
             stackCountTexts[i] = CreateText($"Tray {ChipNames[i]} Count", "0/0",
-                new Vector2(stackX[i], -160f), new Vector2(190f, 28f), 16, Color.white);
+                new Vector2(stackX[i], -145f), new Vector2(190f, 28f), 16, Color.white);
         }
 
         totalRequired = 0;
@@ -404,7 +432,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         if (cashOutMode)
         {
             CreateButton("Finish Cash Out", "FINISH CUSTOMER CASH-OUT",
-                new Vector2(260f, -305f), new Vector2(430f, 52f), CompleteCashOut);
+                new Vector2(260f, -282f), new Vector2(430f, 48f), CompleteCashOut);
         }
     }
 
@@ -444,7 +472,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         Text amount = CreateText(
             $"{ChipNames[denominationIndex]} Chip Amount",
-            $"£{FloatDenominationsPence[denominationIndex] / 100}",
+            FormatPounds(FloatDenominationsPence[denominationIndex]),
             Vector2.zero,
             new Vector2(90f, 38f),
             20,
@@ -496,13 +524,13 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         {
             SetStatus("PACKING MISMATCH");
             SetInstruction("The float does not match its reserved order; no chips were delivered.");
-            Complete(false, 0);
+            Abandon();
             return;
         }
 
         if (selectedOrder != null)
         {
-            SetStatus($"FLOAT PREPARED  •  {selectedOrder.Destination.DisplayName.ToUpperInvariant()}");
+            SetStatus($"FLOAT PREPARED  •  {GetShortDestinationLabel(selectedOrder)}");
             SetInstruction("Float packed exactly. It is now on your tray; carry it to the named table to deliver.");
             Complete(true, 100 + totalRequired * 25);
             return;
@@ -531,21 +559,10 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
             return;
         }
 
-        System.Text.StringBuilder sequenceTextBuilder = new System.Text.StringBuilder();
-        for (int i = 0; i < packingSequence.Length; i++)
-        {
-            if (i > 0)
-            {
-                sequenceTextBuilder.Append(i % 10 == 0 ? "\n" : "   →   ");
-            }
-
-            sequenceTextBuilder.Append('£').Append(FloatDenominationsPence[packingSequence[i]] / 100);
-        }
-
-        sequenceText.text = sequenceTextBuilder.ToString();
-        sequenceText.fontSize = packingSequence.Length > 30 ? 14 : packingSequence.Length > 20 ? 16 : 18;
+        sequenceText.text = BuildPackingSequenceDisplay(packingSequence);
+        sequenceText.fontSize = packingSequence.Length > 10 ? 14 : 17;
         nextChipText.text = sequenceIndex < packingSequence.Length
-            ? $"NEXT  {ChipNames[packingSequence[sequenceIndex]]}  £{FloatDenominationsPence[packingSequence[sequenceIndex]] / 100}"
+            ? $"NEXT  {ChipNames[packingSequence[sequenceIndex]]}  {FormatPounds(FloatDenominationsPence[packingSequence[sequenceIndex]])}"
             : "SEQUENCE COMPLETE";
     }
 
@@ -555,7 +572,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         for (int denominationIndex = 0; denominationIndex < packedCounts.Length; denominationIndex++)
         {
             List<RectTransform> views = trayChipViews[denominationIndex];
-            int visibleChipCount = Mathf.Min(packedCounts[denominationIndex], 4);
+            int visibleChipCount = packedCounts[denominationIndex];
             while (views.Count > visibleChipCount)
             {
                 int last = views.Count - 1;
@@ -569,8 +586,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
                 views.Add(CreateChip(
                     $"Tray {ChipNames[denominationIndex]} Chip {stackIndex + 1}",
                     denominationIndex,
-                    new Vector2(stackX[denominationIndex], -28f - stackIndex * 28f),
-                    62f));
+                    new Vector2(stackX[denominationIndex] + (stackIndex % 5 - 2) * 34f, -24f - (stackIndex / 5) * 42f),
+                    30f));
             }
 
             if (stackCountTexts[denominationIndex] != null)
@@ -592,10 +609,10 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         outline.effectDistance = new Vector2(2f, -2f);
         Text label = CreateText(
             $"{objectName} Value",
-            $"£{FloatDenominationsPence[denominationIndex] / 100}",
+            FormatPounds(FloatDenominationsPence[denominationIndex]),
             position,
             new Vector2(diameter - 6f, diameter - 6f),
-            13,
+            9,
             Color.white);
         label.transform.SetParent(chipRect, false);
         label.rectTransform.anchorMin = Vector2.zero;
@@ -623,7 +640,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         backdropRect.offsetMin = Vector2.zero;
         backdropRect.offsetMax = Vector2.zero;
         Image backdrop = backdropRect.gameObject.AddComponent<Image>();
-        backdrop.color = new Color(0.015f, 0.065f, 0.075f, 0.96f);
+        backdrop.color = new Color(0.015f, 0.065f, 0.075f, 0.28f);
         backdrop.raycastTarget = false;
         backdropRect.SetAsFirstSibling();
     }
@@ -846,6 +863,11 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         }
 
         throw new System.ArgumentException($"Unsupported chip denomination: {valuePence} pence.");
+    }
+
+    private static string GetShortDestinationLabel(CasinoFloatRefillOrder order)
+    {
+        return $"{order.DestinationId}  •  {order.Destination.DisplayName.ToUpperInvariant()}";
     }
 
     private static string FormatPounds(int amountPence)
