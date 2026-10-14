@@ -50,6 +50,7 @@ public static class PitPanicArtPrefabLibrary
     {
         EnsureFolder("Assets/Art");
         EnsureFolder(TextureFolder);
+        EnsureFolder("Assets/Art/Meshes");
         EnsureFolder("Assets/Prefabs");
         EnsureFolder(CharacterFolder);
         EnsureFolder(CasinoFolder);
@@ -88,9 +89,9 @@ public static class PitPanicArtPrefabLibrary
                     cream, gold, white, pink, dark, tigerStripe, brown));
         }
 
-        EnsurePrefab($"{CasinoFolder}/BlackjackTableArt.prefab", root =>
+        EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArt.prefab", root =>
             BuildBlackjackTable(root, walnut, darkWalnut, emerald, brass, burgundy, cream, gold));
-        EnsurePrefab($"{CasinoFolder}/RouletteTableArt.prefab", root =>
+        EnsurePrefab($"{CasinoFolder}/RouletteTableHeroArt.prefab", root =>
             BuildRouletteTable(root, walnut, darkWalnut, emerald, brass, cream, red, rouletteBlack, zeroGreen, gold));
         EnsurePrefab($"{CasinoFolder}/CashDeskArt.prefab", root =>
             BuildCashDesk(root, walnut, darkWalnut, emerald, brass, cream, gold));
@@ -360,20 +361,16 @@ public static class PitPanicArtPrefabLibrary
         Material gold)
     {
         root.name = "BlackjackTableArt";
-        CreateRoundTableBody(root.transform, walnut, darkWalnut, brass, new Vector3(0f, 1.02f, 0f),
+        CreateRoundTableBody(root.transform, walnut, darkWalnut, brass, felt, new Vector3(0f, 1.02f, 0f),
             new Vector3(5.4f, 0.48f, 3.05f));
-        Part(PrimitiveType.Sphere, "Inset Emerald Felt", root.transform, new Vector3(0f, 1.31f, 0f),
-            new Vector3(4.95f, 0.14f, 2.63f), felt);
         Part(PrimitiveType.Sphere, "Raised Dealer Rail", root.transform, new Vector3(0f, 1.49f, 1.05f),
             new Vector3(5.0f, 0.22f, 0.52f), burgundy);
         Part(PrimitiveType.Sphere, "Dealer Rail Brass Inlay", root.transform, new Vector3(0f, 1.65f, 1.04f),
             new Vector3(4.2f, 0.035f, 0.27f), brass);
         for (int side = -1; side <= 1; side++)
         {
-            Part(PrimitiveType.Cylinder, $"Blackjack Bet Spot {side + 2}", root.transform,
-                new Vector3(side * 1.68f, 1.42f, -0.68f), new Vector3(0.60f, 0.018f, 0.60f), brass);
-            Part(PrimitiveType.Cylinder, $"Felt Betting Spot {side + 2}", root.transform,
-                new Vector3(side * 1.68f, 1.445f, -0.68f), new Vector3(0.49f, 0.014f, 0.49f), felt);
+            CreateBettingCircle(root.transform, side + 2,
+                new Vector3(side * 1.68f, 1.35f, -0.68f), brass, felt);
         }
 
         BuildChipTray(root.transform, new Vector3(1.70f, 1.57f, 0.88f), walnut, brass, new[] { gold, burgundy, felt, darkWalnut });
@@ -425,10 +422,8 @@ public static class PitPanicArtPrefabLibrary
         Material gold)
     {
         root.name = "RouletteTableArt";
-        CreateRoundTableBody(root.transform, walnut, darkWalnut, brass, new Vector3(0f, 1.00f, 0f),
+        CreateRoundTableBody(root.transform, walnut, darkWalnut, brass, felt, new Vector3(0f, 1.00f, 0f),
             new Vector3(5.0f, 0.48f, 3.25f));
-        Part(PrimitiveType.Sphere, "Roulette Emerald Layout", root.transform, new Vector3(0f, 1.31f, 0f),
-            new Vector3(4.68f, 0.15f, 2.96f), felt);
         Part(PrimitiveType.Cylinder, "Brass Wheel Foundation", root.transform, new Vector3(0f, 1.42f, 0.35f),
             new Vector3(1.86f, 0.17f, 1.86f), brass);
         Transform wheel = new GameObject("Roulette Wheel Visual").transform;
@@ -438,18 +433,9 @@ public static class PitPanicArtPrefabLibrary
             Vector3.zero, new Vector3(1.60f, 0.17f, 1.60f), darkWalnut);
         Part(PrimitiveType.Cylinder, "Roulette Outer Brass Ring", wheel,
             new Vector3(0f, 0.10f, 0f), new Vector3(1.50f, 0.055f, 1.50f), gold);
-        Part(PrimitiveType.Cylinder, "Roulette Pocket Ring", wheel,
+        Part(PrimitiveType.Cylinder, "Roulette Pocket Base", wheel,
             new Vector3(0f, 0.13f, 0f), new Vector3(1.36f, 0.045f, 1.36f), black);
-        for (int pocket = 0; pocket < 37; pocket++)
-        {
-            float angle = pocket * 360f / 37f;
-            float radians = angle * Mathf.Deg2Rad;
-            Material pocketMaterial = pocket == 0 ? green : pocket % 2 == 0 ? red : black;
-            Part(PrimitiveType.Cube, $"Wheel Pocket {pocket}", wheel,
-                new Vector3(Mathf.Cos(radians) * 0.94f, 0.17f, Mathf.Sin(radians) * 0.94f),
-                new Vector3(0.15f, 0.045f, 0.23f), pocketMaterial,
-                Quaternion.Euler(0f, -angle, 0f));
-        }
+        CreateRoulettePocketRing(wheel, red, black, green);
 
         Part(PrimitiveType.Cylinder, "Roulette Brass Spindle", wheel, new Vector3(0f, 0.24f, 0f),
             new Vector3(0.40f, 0.10f, 0.40f), brass);
@@ -460,7 +446,7 @@ public static class PitPanicArtPrefabLibrary
         for (int i = 0; i < 12; i++)
         {
             Part(PrimitiveType.Cube, $"Roulette Number Tile {i}", root.transform,
-                new Vector3(-1.55f + (i % 6) * 0.58f, 1.44f, -0.66f - (i / 6) * 0.39f),
+                new Vector3(-1.55f + (i % 6) * 0.58f, 1.335f, -0.66f - (i / 6) * 0.39f),
                 new Vector3(0.53f, 0.025f, 0.34f), i % 2 == 0 ? red : black,
                 Quaternion.Euler(0f, 0f, 0f));
         }
@@ -624,15 +610,211 @@ public static class PitPanicArtPrefabLibrary
         Material walnut,
         Material darkWalnut,
         Material brass,
+        Material felt,
         Vector3 center,
         Vector3 size)
     {
-        Part(PrimitiveType.Sphere, "Lower Walnut Pedestal", root, center + Vector3.down * 0.44f,
-            new Vector3(size.x * 0.56f, 0.58f, size.z * 0.58f), darkWalnut);
-        Part(PrimitiveType.Sphere, "Brass Table Reveal", root, center + Vector3.down * 0.17f,
-            new Vector3(size.x * 0.99f, size.y * 0.68f, size.z * 0.99f), brass);
-        Part(PrimitiveType.Sphere, "Rounded Walnut Table Rim", root, center,
-            new Vector3(size.x, size.y, size.z), walnut);
+        Part(PrimitiveType.Cylinder, "Sculpted Walnut Pedestal", root,
+            center + Vector3.down * 0.44f,
+            new Vector3(size.x * 0.43f, 0.52f, size.z * 0.43f), darkWalnut);
+        CreateCasinoTableShell(root, center, size, darkWalnut, walnut, brass, felt);
+    }
+
+    private static void CreateCasinoTableShell(
+        Transform root,
+        Vector3 center,
+        Vector3 size,
+        Material darkWalnut,
+        Material walnut,
+        Material brass,
+        Material felt)
+    {
+        const int segments = 64;
+        float halfX = size.x * 0.5f;
+        float halfZ = size.z * 0.5f;
+        float[] scales = { 0.95f, 1f, 1f, 0.98f, 0.86f };
+        float[] heights =
+        {
+            center.y - size.y * 0.5f,
+            center.y - size.y * 0.32f,
+            center.y + size.y * 0.58f,
+            center.y + size.y * 0.66f,
+            center.y + size.y * 0.66f
+        };
+        Vector3[] vertices = new Vector3[segments * scales.Length + 1];
+        Vector2[] uvs = new Vector2[vertices.Length];
+        for (int ring = 0; ring < scales.Length; ring++)
+        {
+            for (int i = 0; i < segments; i++)
+            {
+                float angle = i * Mathf.PI * 2f / segments;
+                float cos = Mathf.Cos(angle);
+                float sin = Mathf.Sin(angle);
+                float x = Superellipse(cos, 0.72f) * halfX * scales[ring];
+                float z = Superellipse(sin, 0.72f) * halfZ * scales[ring];
+                int index = ring * segments + i;
+                vertices[index] = new Vector3(center.x + x, heights[ring], center.z + z);
+                uvs[index] = new Vector2((x / size.x) + 0.5f, (z / size.z) + 0.5f);
+            }
+        }
+
+        int centerIndex = vertices.Length - 1;
+        vertices[centerIndex] = new Vector3(center.x, heights[4], center.z);
+        uvs[centerIndex] = new Vector2(0.5f, 0.5f);
+        Mesh mesh = new Mesh { name = $"{root.name} Smooth Table Shell" };
+        mesh.vertices = vertices;
+        mesh.uv = uvs;
+        mesh.subMeshCount = 5;
+        for (int ring = 0; ring < scales.Length - 1; ring++)
+        {
+            int[] triangles = new int[segments * 6];
+            for (int i = 0; i < segments; i++)
+            {
+                int next = (i + 1) % segments;
+                int outer = ring * segments + i;
+                int outerNext = ring * segments + next;
+                int inner = (ring + 1) * segments + i;
+                int innerNext = (ring + 1) * segments + next;
+                int triangle = i * 6;
+                triangles[triangle] = outer;
+                triangles[triangle + 1] = inner;
+                triangles[triangle + 2] = innerNext;
+                triangles[triangle + 3] = outer;
+                triangles[triangle + 4] = innerNext;
+                triangles[triangle + 5] = outerNext;
+            }
+
+            mesh.SetTriangles(triangles, ring);
+        }
+
+        int[] feltTriangles = new int[segments * 3];
+        for (int i = 0; i < segments; i++)
+        {
+            int next = (i + 1) % segments;
+            feltTriangles[i * 3] = centerIndex;
+            feltTriangles[i * 3 + 1] = (scales.Length - 1) * segments + next;
+            feltTriangles[i * 3 + 2] = (scales.Length - 1) * segments + i;
+        }
+
+        mesh.SetTriangles(feltTriangles, 4);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        mesh = PersistGeneratedMesh(mesh);
+        GameObject shell = new GameObject("Rounded Casino Table Shell", typeof(MeshFilter), typeof(MeshRenderer));
+        shell.transform.SetParent(root, false);
+        shell.GetComponent<MeshFilter>().sharedMesh = mesh;
+        shell.GetComponent<MeshRenderer>().sharedMaterials = new[] { darkWalnut, walnut, brass, walnut, felt };
+        shell.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        shell.GetComponent<MeshRenderer>().receiveShadows = true;
+    }
+
+    private static float Superellipse(float value, float exponent) =>
+        Mathf.Sign(value) * Mathf.Pow(Mathf.Abs(value), exponent);
+
+    private static void CreateBettingCircle(
+        Transform root,
+        int index,
+        Vector3 center,
+        Material brass,
+        Material felt)
+    {
+        GameObject ringObject = new GameObject($"Blackjack Bet Spot {index}", typeof(MeshFilter), typeof(MeshRenderer));
+        ringObject.transform.SetParent(root, false);
+        ringObject.transform.localPosition = center;
+        Mesh mesh = CreateFlatRingMesh($"Betting Ring {index}", 32, 0.25f, 0.30f);
+        ringObject.GetComponent<MeshFilter>().sharedMesh = mesh;
+        ringObject.GetComponent<MeshRenderer>().sharedMaterial = brass;
+        GameObject inset = new GameObject($"Betting Felt {index}", typeof(MeshFilter), typeof(MeshRenderer));
+        inset.transform.SetParent(root, false);
+        inset.transform.localPosition = center + Vector3.up * 0.006f;
+        Mesh disk = CreateFlatRingMesh($"Betting Felt Disc {index}", 32, 0f, 0.255f);
+        inset.GetComponent<MeshFilter>().sharedMesh = disk;
+        inset.GetComponent<MeshRenderer>().sharedMaterial = felt;
+    }
+
+    private static Mesh CreateFlatRingMesh(string meshName, int segments, float innerRadius, float outerRadius)
+    {
+        Vector3[] vertices = new Vector3[segments * 2 + (innerRadius <= 0f ? 1 : 0)];
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = i * Mathf.PI * 2f / segments;
+            Vector3 direction = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            vertices[i] = direction * (innerRadius <= 0f ? 0f : innerRadius);
+            vertices[segments + i] = direction * outerRadius;
+        }
+
+        Mesh mesh = new Mesh { name = meshName };
+        mesh.vertices = vertices;
+        List<int> triangles = new List<int>(segments * 6);
+        for (int i = 0; i < segments; i++)
+        {
+            int next = (i + 1) % segments;
+            if (innerRadius <= 0f)
+            {
+                triangles.Add(segments * 2);
+                triangles.Add(segments + next);
+                triangles.Add(segments + i);
+            }
+            else
+            {
+                triangles.Add(i);
+                triangles.Add(next);
+                triangles.Add(segments + next);
+                triangles.Add(i);
+                triangles.Add(segments + next);
+                triangles.Add(segments + i);
+            }
+        }
+
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return PersistGeneratedMesh(mesh);
+    }
+
+    private static void CreateRoulettePocketRing(Transform wheel, Material red, Material black, Material green)
+    {
+        const int pockets = 37;
+        const float innerRadius = 0.68f;
+        const float outerRadius = 0.96f;
+        const float height = 0.17f;
+        Vector3[] vertices = new Vector3[pockets * 4];
+        List<int>[] triangles = { new List<int>(), new List<int>(), new List<int>() };
+        for (int pocket = 0; pocket < pockets; pocket++)
+        {
+            float start = (pocket + 0.06f) * Mathf.PI * 2f / pockets;
+            float end = (pocket + 0.94f) * Mathf.PI * 2f / pockets;
+            int first = pocket * 4;
+            vertices[first] = new Vector3(Mathf.Cos(start) * innerRadius, height, Mathf.Sin(start) * innerRadius);
+            vertices[first + 1] = new Vector3(Mathf.Cos(start) * outerRadius, height, Mathf.Sin(start) * outerRadius);
+            vertices[first + 2] = new Vector3(Mathf.Cos(end) * outerRadius, height, Mathf.Sin(end) * outerRadius);
+            vertices[first + 3] = new Vector3(Mathf.Cos(end) * innerRadius, height, Mathf.Sin(end) * innerRadius);
+            List<int> materialTriangles = triangles[pocket == 0 ? 2 : pocket % 2 == 0 ? 0 : 1];
+            materialTriangles.Add(first);
+            materialTriangles.Add(first + 3);
+            materialTriangles.Add(first + 2);
+            materialTriangles.Add(first);
+            materialTriangles.Add(first + 2);
+            materialTriangles.Add(first + 1);
+        }
+
+        Mesh mesh = new Mesh { name = "37 Pocket European Roulette Ring" };
+        mesh.vertices = vertices;
+        mesh.subMeshCount = 3;
+        for (int i = 0; i < triangles.Length; i++)
+        {
+            mesh.SetTriangles(triangles[i], i);
+        }
+
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        mesh = PersistGeneratedMesh(mesh);
+        GameObject ring = new GameObject("37 Individual Roulette Pockets", typeof(MeshFilter), typeof(MeshRenderer));
+        ring.transform.SetParent(wheel, false);
+        ring.GetComponent<MeshFilter>().sharedMesh = mesh;
+        ring.GetComponent<MeshRenderer>().sharedMaterials = new[] { red, black, green };
+        ring.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        ring.GetComponent<MeshRenderer>().receiveShadows = true;
     }
 
     private static void BuildChipTray(
@@ -665,7 +847,8 @@ public static class PitPanicArtPrefabLibrary
     private static Material GetCarpetMaterial()
     {
         string texturePath = $"{TextureFolder}/CasinoCarpet.png";
-        if (!File.Exists(texturePath))
+        TextureImporter currentImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
+        if (!File.Exists(texturePath) || currentImporter == null || currentImporter.userData != "PitPanicCasinoCarpetV2")
         {
             const int size = 128;
             Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false, true)
@@ -674,9 +857,9 @@ public static class PitPanicArtPrefabLibrary
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Repeat
             };
-            Color baseColor = new Color(0.23f, 0.065f, 0.105f);
-            Color motifColor = new Color(0.42f, 0.14f, 0.19f);
-            Color goldColor = new Color(0.60f, 0.36f, 0.13f);
+            Color baseColor = new Color(0.105f, 0.028f, 0.055f);
+            Color motifColor = new Color(0.132f, 0.042f, 0.068f);
+            Color goldColor = new Color(0.19f, 0.095f, 0.045f);
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
@@ -703,11 +886,21 @@ public static class PitPanicArtPrefabLibrary
             File.WriteAllBytes(texturePath, texture.EncodeToPNG());
             UnityEngine.Object.DestroyImmediate(texture);
             AssetDatabase.ImportAsset(texturePath, ImportAssetOptions.ForceSynchronousImport);
+            TextureImporter updatedImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
+            if (updatedImporter != null)
+            {
+                updatedImporter.userData = "PitPanicCasinoCarpetV2";
+                updatedImporter.textureType = TextureImporterType.Default;
+                updatedImporter.wrapMode = TextureWrapMode.Repeat;
+                updatedImporter.filterMode = FilterMode.Bilinear;
+                updatedImporter.mipmapEnabled = true;
+                updatedImporter.SaveAndReimport();
+            }
         }
 
         Material carpet = GetOrCreateMaterial("ArtCasinoCarpet", Color.white, 0.01f);
         carpet.mainTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
-        carpet.mainTextureScale = new Vector2(12f, 8f);
+        carpet.mainTextureScale = new Vector2(5f, 4f);
         EditorUtility.SetDirty(carpet);
         return carpet;
     }
@@ -745,6 +938,20 @@ public static class PitPanicArtPrefabLibrary
 
         AssetDatabase.CreateAsset(material, path);
         return material;
+    }
+
+    private static Mesh PersistGeneratedMesh(Mesh generatedMesh)
+    {
+        string path = $"Assets/Art/Meshes/{generatedMesh.name}.asset";
+        Mesh existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (existing != null)
+        {
+            UnityEngine.Object.DestroyImmediate(generatedMesh);
+            return existing;
+        }
+
+        AssetDatabase.CreateAsset(generatedMesh, path);
+        return generatedMesh;
     }
 
     private static void EnsurePrefab(string path, Action<GameObject> build)
