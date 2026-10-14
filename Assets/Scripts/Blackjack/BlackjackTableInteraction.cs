@@ -50,6 +50,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         seats.Length == 3;
 
     public int WaitingCustomerCount => waitingSet.Count;
+    public bool IsInspectionOpen => panelOpen;
     public BlackjackTableRound ActiveRound => round;
     public int RemainingFlickCardCount => round == null
         ? 0

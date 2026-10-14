@@ -24,7 +24,7 @@ public sealed class CasinoPlayerInteractionRouter : MonoBehaviour
 
     private void Update()
     {
-        if (CasinoMinigamePresentation.IsOpen)
+        if (CasinoMinigamePresentation.IsOpen || IsAnyInspectionOpen())
         {
             return;
         }
@@ -49,7 +49,7 @@ public sealed class CasinoPlayerInteractionRouter : MonoBehaviour
 
         if (keyboard.qKey.wasPressedThisFrame)
         {
-            DispatchBlackjackInspection();
+            DispatchTableInspection();
         }
     }
 
@@ -113,24 +113,71 @@ public sealed class CasinoPlayerInteractionRouter : MonoBehaviour
             : CasinoPlayerInteractionKind.None;
     }
 
-    private void DispatchBlackjackInspection()
+    private void DispatchTableInspection()
     {
         if (GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true)
         {
             return;
         }
 
-        BlackjackTableInteraction[] tables =
+        List<MonoBehaviour> inspections = new List<MonoBehaviour>();
+        BlackjackTableInteraction[] blackjackTables =
             FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None);
-        Array.Sort(tables, (left, right) => CompareDistance(left.transform, right.transform));
-        foreach (BlackjackTableInteraction table in tables)
+        foreach (BlackjackTableInteraction table in blackjackTables)
         {
-            if (table != null && table.IsPlayerInRange(player.transform) &&
-                table.TryOpenInspectionFromPlayerInput())
+            if (table != null && table.IsPlayerInRange(player.transform))
+            {
+                inspections.Add(table);
+            }
+        }
+
+        RouletteInspectionView[] rouletteTables =
+            FindObjectsByType<RouletteInspectionView>(FindObjectsSortMode.None);
+        foreach (RouletteInspectionView roulette in rouletteTables)
+        {
+            if (roulette != null && roulette.IsPlayerInRange(player.transform))
+            {
+                inspections.Add(roulette);
+            }
+        }
+
+        inspections.Sort((left, right) => CompareDistance(left.transform, right.transform));
+        foreach (MonoBehaviour inspection in inspections)
+        {
+            bool opened = inspection switch
+            {
+                BlackjackTableInteraction blackjack => blackjack.TryOpenInspectionFromPlayerInput(),
+                RouletteInspectionView roulette => roulette.TryOpenInspectionFromPlayerInput(),
+                _ => false
+            };
+            if (opened)
             {
                 return;
             }
         }
+    }
+
+    private static bool IsAnyInspectionOpen()
+    {
+        foreach (BlackjackTableInteraction table in
+                 FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
+        {
+            if (table != null && table.IsInspectionOpen)
+            {
+                return true;
+            }
+        }
+
+        foreach (RouletteInspectionView roulette in
+                 FindObjectsByType<RouletteInspectionView>(FindObjectsSortMode.None))
+        {
+            if (roulette != null && roulette.IsOpen)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private List<CasinoMinigameStation> GetNearbyPendingStations()

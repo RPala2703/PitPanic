@@ -15,6 +15,9 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField, Min(1)] private int maximumRoundsPerVisit = 7;
     [SerializeField, Range(0f, 1f)] private float leaveAfterVisitChance = 0.35f;
     [SerializeField, Range(0f, 1f)] private float cashierAfterVisitChance = 0.25f;
+    [SerializeField, Min(0f)] private float blackjack1SelectionWeight = 1f;
+    [SerializeField, Min(0f)] private float blackjack2SelectionWeight = 1f;
+    [SerializeField, Min(0f)] private float rouletteSelectionWeight = 1f;
 
     private readonly HashSet<CasinoCustomerAI> activeCustomers = new HashSet<CasinoCustomerAI>();
     [SerializeField] private Transform entrance;
@@ -27,11 +30,22 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     private int nextCustomerNumber = 1;
 
     public float PatienceSeconds => patienceSeconds;
+    public Transform Entrance => entrance;
     public Transform CashierWaypoint => cashierWaypoint;
     public int MinimumRoundsPerVisit => minimumRoundsPerVisit;
     public int MaximumRoundsPerVisit => Mathf.Max(minimumRoundsPerVisit, maximumRoundsPerVisit);
     public float LeaveAfterVisitChance => leaveAfterVisitChance;
     public float CashierAfterVisitChance => cashierAfterVisitChance;
+    public float GetGameSelectionWeight(CasinoCustomerGame game) => game switch
+    {
+        CasinoCustomerGame.Blackjack1 => blackjack1SelectionWeight,
+        CasinoCustomerGame.Blackjack2 => blackjack2SelectionWeight,
+        CasinoCustomerGame.Roulette => rouletteSelectionWeight,
+        _ => 0f
+    };
+    public float Blackjack1SelectionWeight => blackjack1SelectionWeight;
+    public float Blackjack2SelectionWeight => blackjack2SelectionWeight;
+    public float RouletteSelectionWeight => rouletteSelectionWeight;
     public int InitialCustomerCount => initialCustomerCount;
     public int ActiveCustomerCount => activeCustomers.Count;
     public bool IsConfigured => entrance != null && exit != null && cashierWaypoint != null &&
@@ -52,6 +66,59 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         seats = casinoSeats;
         customerMaterials = materials;
         cashDesk = casinoCashDesk;
+    }
+
+    public static bool TryChooseWeightedGame(
+        IReadOnlyList<CasinoCustomerGame> availableGames,
+        IReadOnlyList<float> weights,
+        float randomValue,
+        out CasinoCustomerGame selectedGame)
+    {
+        selectedGame = default;
+        if (availableGames == null || weights == null || availableGames.Count != weights.Count ||
+            float.IsNaN(randomValue) || float.IsInfinity(randomValue))
+        {
+            return false;
+        }
+
+        float totalWeight = 0f;
+        for (int i = 0; i < weights.Count; i++)
+        {
+            totalWeight += Mathf.Max(0f, weights[i]);
+        }
+
+        if (totalWeight <= 0f)
+        {
+            return false;
+        }
+
+        float selection = Mathf.Clamp01(randomValue) * totalWeight;
+        int lastPositiveWeightIndex = -1;
+        for (int i = 0; i < availableGames.Count; i++)
+        {
+            float weight = Mathf.Max(0f, weights[i]);
+            if (weight <= 0f)
+            {
+                continue;
+            }
+
+            lastPositiveWeightIndex = i;
+            if (selection < weight)
+            {
+                selectedGame = availableGames[i];
+                return true;
+            }
+
+            selection -= weight;
+        }
+
+        if (lastPositiveWeightIndex < 0)
+        {
+            return false;
+        }
+
+        selectedGame = availableGames[lastPositiveWeightIndex];
+        return true;
     }
 
     public void NotifyCashierArrival(CasinoCustomerAI customer)

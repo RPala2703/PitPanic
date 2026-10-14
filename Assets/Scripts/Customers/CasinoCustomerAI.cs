@@ -254,6 +254,21 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             return;
         }
 
+        CompleteGamingRound();
+    }
+
+    public void CompleteRouletteRound()
+    {
+        if (state != CustomerState.Seated || !serviceActive)
+        {
+            return;
+        }
+
+        CompleteGamingRound();
+    }
+
+    private void CompleteGamingRound()
+    {
         serviceActive = false;
         roundsRemaining = RoundsAfterCompletedHand(roundsRemaining);
         if (roundsRemaining > 0)
@@ -306,11 +321,52 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             return false;
         }
 
-        int offset = UnityEngine.Random.Range(0, seats.Length);
-        for (int i = 0; i < seats.Length; i++)
+        List<CasinoSeat> availableSeats = new List<CasinoSeat>();
+        List<CasinoCustomerGame> availableGames = new List<CasinoCustomerGame>();
+        List<float> gameWeights = new List<float>();
+        foreach (CasinoCustomerGame game in Enum.GetValues(typeof(CasinoCustomerGame)))
         {
-            CasinoSeat candidate = seats[(offset + i) % seats.Length];
-            if (candidate == null || !candidate.TryReserve(this))
+            List<CasinoSeat> gameSeats = new List<CasinoSeat>();
+            for (int i = 0; i < seats.Length; i++)
+            {
+                CasinoSeat candidate = seats[i];
+                if (candidate != null && candidate.GameType == game &&
+                    candidate.IsAvailable && candidate.IsGameAvailable)
+                {
+                    gameSeats.Add(candidate);
+                }
+            }
+
+            float weight = spawner.GetGameSelectionWeight(game);
+            if (gameSeats.Count == 0 || weight <= 0f)
+            {
+                continue;
+            }
+
+            availableSeats.AddRange(gameSeats);
+            availableGames.Add(game);
+            gameWeights.Add(weight);
+        }
+
+        if (!CasinoCustomerSpawner.TryChooseWeightedGame(
+                availableGames, gameWeights, UnityEngine.Random.value, out CasinoCustomerGame selectedGame))
+        {
+            return false;
+        }
+        List<CasinoSeat> selectedSeats = new List<CasinoSeat>();
+        foreach (CasinoSeat seat in availableSeats)
+        {
+            if (seat.GameType == selectedGame)
+            {
+                selectedSeats.Add(seat);
+            }
+        }
+
+        int offset = UnityEngine.Random.Range(0, selectedSeats.Count);
+        for (int i = 0; i < selectedSeats.Count; i++)
+        {
+            CasinoSeat candidate = selectedSeats[(offset + i) % selectedSeats.Count];
+            if (!candidate.TryReserve(this))
             {
                 continue;
             }
