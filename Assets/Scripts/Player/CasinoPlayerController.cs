@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(CasinoPlayerInteractionRouter))]
 public sealed class CasinoPlayerController : MonoBehaviour
 {
     [SerializeField, Min(0f)] private float moveSpeed = 5f;
@@ -13,6 +14,10 @@ public sealed class CasinoPlayerController : MonoBehaviour
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        if (GetComponent<CasinoPlayerInteractionRouter>() == null)
+        {
+            gameObject.AddComponent<CasinoPlayerInteractionRouter>();
+        }
     }
 
     public void SetMovementEnabled(bool enabled)

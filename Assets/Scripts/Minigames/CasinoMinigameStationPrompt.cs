@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
@@ -35,6 +34,23 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
         attentionReason = reason;
         promptText = interactionPrompt;
         requestWhenIdle = allowTaskRequestWhenIdle;
+    }
+
+    public bool CanRequestAtPlayer(Transform candidate) =>
+        requestWhenIdle && player != null && candidate == player.transform &&
+        station != null && !station.IsTaskPending && !station.IsMinigameRunning &&
+        interactionZone != null && interactionZone.IsPlayerInRange(candidate);
+
+    public bool TryRequestAndBegin()
+    {
+        if (!CanRequestAtPlayer(player != null ? player.transform : null) ||
+            !station.RequestMinigame(minigameType, attentionReason))
+        {
+            return false;
+        }
+
+        station.TryBegin();
+        return true;
     }
 
     private void Start()
@@ -76,15 +92,6 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
         prompt.text = station.IsTaskPending
             ? $"E  -  {promptText}"
             : $"E  -  REQUEST {promptText}";
-        if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
-        {
-            if (!station.IsTaskPending)
-            {
-                station.RequestMinigame(minigameType, attentionReason);
-            }
-
-            station.TryBegin();
-        }
     }
 
     private void CreatePrompt()

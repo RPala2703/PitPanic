@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
@@ -14,8 +13,13 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
     private bool ownsCursor;
     private CursorLockMode savedCursorLock;
     private bool savedCursorVisible;
+    private Canvas notificationCanvas;
+    private Text notificationText;
+    private float notificationRemaining;
 
     public bool IsCarrying => order != null && tray != null;
+    public bool IsAtCorrectDestination => IsCarrying && order.Destination != null &&
+        order.Destination.InteractionZone.IsPlayerInRange(transform);
     public CasinoFloatRefillOrder CurrentOrder => order;
 
     public void Configure(CasinoCashDeskInteraction refillManager)
@@ -39,7 +43,7 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         return true;
     }
 
-    public void FinishDelivery()
+    public void FinishDelivery(string confirmation = null)
     {
         if (tray != null)
         {
@@ -55,10 +59,35 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
 
         promptCanvas = null;
         promptText = null;
+        if (!string.IsNullOrWhiteSpace(confirmation))
+        {
+            ShowDeliveryConfirmation(confirmation);
+        }
+    }
+
+    public bool TryDeliverFromPlayerInput()
+    {
+        if (!IsAtCorrectDestination || manager == null)
+        {
+            return false;
+        }
+
+        return manager.TryDeliver(this, order.Destination);
     }
 
     private void Update()
     {
+        if (notificationRemaining > 0f)
+        {
+            notificationRemaining -= Time.unscaledDeltaTime;
+            if (notificationRemaining <= 0f && notificationCanvas != null)
+            {
+                Destroy(notificationCanvas.gameObject);
+                notificationCanvas = null;
+                notificationText = null;
+            }
+        }
+
         if (!IsCarrying || manager == null)
         {
             return;
@@ -90,10 +119,6 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
                 : $"FLOAT FOR {GetShortDestinationLabel(order)}  •  DELIVER TO THAT TABLE";
         }
 
-        if (nearCorrect && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
-        {
-            manager.TryDeliver(this, order.Destination);
-        }
     }
 
     private void OnDestroy()
@@ -113,6 +138,11 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         {
             Destroy(promptCanvas.gameObject);
         }
+
+        if (notificationCanvas != null)
+        {
+            Destroy(notificationCanvas.gameObject);
+        }
     }
 
     private void CreatePrompt()
@@ -126,6 +156,28 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
             23);
         promptText.color = new Color(1f, 0.84f, 0.28f);
         promptCanvas.enabled = false;
+    }
+
+    private void ShowDeliveryConfirmation(string confirmation)
+    {
+        if (notificationCanvas != null)
+        {
+            Destroy(notificationCanvas.gameObject);
+        }
+
+        notificationCanvas = CasinoMinigameHud.Create("Float Delivery Confirmation", 90);
+        CanvasGroup group = notificationCanvas.gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+        group.interactable = false;
+        notificationText = CasinoMinigameHud.CreateText(
+            notificationCanvas.transform,
+            "Float Delivered",
+            new Vector2(0f, -72f),
+            new Vector2(900f, 58f),
+            30);
+        notificationText.text = confirmation;
+        notificationText.color = new Color(0.54f, 1f, 0.67f);
+        notificationRemaining = 1.8f;
     }
 
     private static GameObject CreateTray(CasinoFloatRefillOrder refillOrder)

@@ -207,11 +207,6 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         tableView.SetPromptVisible(
             showPrompt,
             flickReady ? $"E  •  FLICK! HELP {TableDisplayName}" : GetActionPrompt());
-        if (inRange && hasAction && (flickStation == null || !flickStation.IsTaskPending) &&
-            keyboard != null && keyboard.eKey.wasPressedThisFrame)
-        {
-            OpenPanel();
-        }
     }
 
     private void OnCustomerSeated(CasinoCustomerAI customer)
@@ -241,7 +236,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void OpenPanel()
     {
-        if (!IsDealerStaffed)
+        if (!IsDealerStaffed || CasinoMinigamePresentation.IsOpen ||
+            playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true)
         {
             return;
         }
@@ -271,6 +267,26 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private bool IsPlayerInRange()
     {
         return interactionZone.IsPlayerInRange(playerController.transform);
+    }
+
+    public bool IsPlayerInRange(Transform candidate)
+    {
+        return candidate != null && interactionZone != null &&
+               interactionZone.IsPlayerInRange(candidate);
+    }
+
+    public bool TryOpenInspectionFromPlayerInput()
+    {
+        if (panelOpen || !IsDealerStaffed || !IsPlayerInRange(playerController.transform) ||
+            flickStation != null && flickStation.IsMinigameRunning ||
+            playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true ||
+            CasinoMinigamePresentation.IsOpen)
+        {
+            return false;
+        }
+
+        OpenPanel();
+        return panelOpen;
     }
 
     private void BeginRound()
@@ -898,7 +914,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private string GetActionPrompt()
     {
-        return $"E  •  Inspect {TableDisplayName} and dealer";
+        return $"Q  •  Inspect {TableDisplayName} and dealer";
     }
 
     public void QueueFlickAssistanceTest()
@@ -964,7 +980,15 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             return false;
         }
 
-        panelOpen = false;
+        if (panelOpen)
+        {
+            ClosePanel();
+        }
+        else
+        {
+            panelOpen = false;
+        }
+
         if (tableView != null)
         {
             tableView.SetVisible(false);
@@ -996,13 +1020,20 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     public void EndFlickAssistance(bool cancelled = false)
     {
-        flickDealerPaused = false;
-        flickBoundaryReady = false;
         if (cancelled)
         {
-            flickAssistanceForRound = false;
+            flickBoundaryReady = flickStation != null && flickStation.IsTaskPending &&
+                                 round != null && state == BlackjackTableState.InitialDeal;
+            flickDealerPaused = flickBoundaryReady;
+            message = flickBoundaryReady
+                ? "FLICK! is paused and ready to retry."
+                : "FLICK! was cancelled; the dealer will continue.";
+            RefreshView();
+            return;
         }
 
+        flickDealerPaused = false;
+        flickBoundaryReady = false;
         nextDealerActionTime = Time.time + dealerActionInterval;
         RefreshView();
     }
