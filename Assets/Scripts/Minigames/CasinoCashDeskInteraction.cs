@@ -22,6 +22,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
     [SerializeField] private CasinoPlayerController player;
     [SerializeField, Min(0)] private int[] registerChipStock = { 500, 500, 500, 50 };
     [SerializeField] private CasinoFloatRefillDestination[] configuredDestinations;
+    [SerializeField] private GameObject carriedTrayPrefab;
 
     private readonly Queue<CasinoCustomerAI> waitingCustomers = new Queue<CasinoCustomerAI>();
     private readonly HashSet<CasinoCustomerAI> queuedCustomers = new HashSet<CasinoCustomerAI>();
@@ -54,6 +55,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
     public bool IsConfigured => attention != null && minigameStation != null &&
                                 minigameStation.IsConfigured && packMinigame != null &&
                                 player != null && registerChipStock != null && registerChipStock.Length == 4 &&
+                                carriedTrayPrefab != null &&
                                 configuredDestinations != null && configuredDestinations.Length > 0;
 
     public void Configure(
@@ -88,7 +90,18 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
             carrier = player.gameObject.AddComponent<CasinoPlayerFloatCarrier>();
         }
 
-        carrier?.Configure(this);
+        carrier?.Configure(this, carriedTrayPrefab);
+    }
+
+    public void ConfigureCarriedTrayPrefab(GameObject trayPrefab)
+    {
+        carriedTrayPrefab = trayPrefab;
+        if (carrier == null && player != null)
+        {
+            carrier = player.GetComponent<CasinoPlayerFloatCarrier>();
+        }
+
+        carrier?.Configure(this, carriedTrayPrefab);
     }
 
     public void InitializeRuntime()
@@ -110,7 +123,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
             carrier = player.gameObject.AddComponent<CasinoPlayerFloatCarrier>();
         }
 
-        carrier.Configure(this);
+        carrier.Configure(this, carriedTrayPrefab);
     }
 
     public IReadOnlyList<CasinoFloatRefillOrder> GetRequestedOrders()
