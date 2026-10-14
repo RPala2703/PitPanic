@@ -29,27 +29,19 @@ public static class PitPanicPrototypeGenerator
     [MenuItem("Pit Panic/Generate Prototype Scene")]
     public static void GeneratePrototypeScene()
     {
-        Material floorMaterial = GetOrCreateMaterial("CasinoFloor", new Color(0.08f, 0.16f, 0.17f));
+        PitPanicArtPrefabLibrary.EnsureStarterAssets();
+        Material floorMaterial = PitPanicArtPrefabLibrary.GetFloorCarpetMaterial();
         Material trimMaterial = GetOrCreateMaterial("Brass", new Color(0.76f, 0.48f, 0.16f));
         Material feltMaterial = GetOrCreateMaterial("BlackjackFelt", new Color(0.04f, 0.31f, 0.22f));
         Material woodMaterial = GetOrCreateMaterial("TableWood", new Color(0.24f, 0.10f, 0.06f));
-        Material playerMaterial = GetOrCreateMaterial("Player", new Color(0.91f, 0.59f, 0.23f));
         Material accentMaterial = GetOrCreateMaterial("Accent", new Color(0.25f, 0.49f, 0.55f));
-        Material[] customerMaterials =
+        GameObject[] customerPrefabs = PitPanicArtPrefabLibrary.GetCustomerCharacterPrefabs();
+        GameObject[] dealerPrefabs =
         {
-            GetOrCreateMaterial("CustomerCoral", new Color(0.94f, 0.35f, 0.28f)),
-            GetOrCreateMaterial("CustomerBlue", new Color(0.27f, 0.66f, 0.86f)),
-            GetOrCreateMaterial("CustomerGold", new Color(0.94f, 0.72f, 0.24f)),
-            GetOrCreateMaterial("CustomerViolet", new Color(0.56f, 0.4f, 0.8f)),
-            GetOrCreateMaterial("CustomerGreen", new Color(0.3f, 0.76f, 0.49f)),
-            GetOrCreateMaterial("CustomerRose", new Color(0.92f, 0.46f, 0.7f))
-        };
-        Material[] dealerMaterials =
-        {
-            GetOrCreateMaterial("DealerNavy", new Color(0.12f, 0.22f, 0.36f)),
-            GetOrCreateMaterial("DealerBurgundy", new Color(0.48f, 0.14f, 0.20f)),
-            GetOrCreateMaterial("DealerTeal", new Color(0.10f, 0.36f, 0.33f)),
-            GetOrCreateMaterial("DealerPlum", new Color(0.34f, 0.18f, 0.40f))
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Tiger),
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Pig),
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Fox),
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Bear)
         };
         AssetDatabase.SaveAssets();
 
@@ -98,7 +90,8 @@ public static class PitPanicPrototypeGenerator
 
         CreateLighting();
         CreateFloor(floorMaterial, trimMaterial);
-        CasinoPlayerController playerController = CreatePlayer(playerMaterial);
+        CasinoPlayerController playerController = CreatePlayer(
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Penguin));
         CasinoSeat[] firstTableSeats = CreateBlackjackTable(
             "Blackjack Table 1",
             new Vector3(-6.2f, 0f, 0.6f),
@@ -145,6 +138,7 @@ public static class PitPanicPrototypeGenerator
             firstFloatDestination,
             secondFloatDestination,
             rouletteFloatDestination);
+        cashDesk.ConfigureCarriedTrayPrefab(PitPanicArtPrefabLibrary.GetCasinoPrefab("CarriedFloatTrayArt"));
         PitDeskInteraction pitDesk = CreatePitDesk(new Vector3(12f, 0f, -4f), woodMaterial, trimMaterial, playerController);
         Transform[] pitDeskPositions = CreatePitDeskWaitingPositions(new Vector3(12f, 0f, -4f), trimMaterial);
         DealerAssignmentManager dealerManager = CreateDealerManager(
@@ -152,13 +146,13 @@ public static class PitPanicPrototypeGenerator
             breakPositions,
             pitDeskPositions,
             pitDesk.GetComponent<CasinoTableAttention>(),
-            dealerMaterials);
+            dealerPrefabs);
         pitDesk.Configure(
             playerController,
             pitDesk.GetComponent<TableInteractionZone>(),
             dealerManager,
             pitDesk.GetComponent<CasinoTableAttention>());
-        CreateCustomerSpawner(entrance, exit, cashierWaypoint, seats, customerMaterials, cashDesk);
+        CreateCustomerSpawner(entrance, exit, cashierWaypoint, seats, customerPrefabs, cashDesk);
         NavMeshSurface navigationSurface = CreateNavigationSurface();
         CreateCamera();
         CreateInputEventSystem();
@@ -440,17 +434,17 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Weighted customer game choice or round-based assistance scheduling is invalid.");
         }
 
-        int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 250, 2500, 10000 });
-        if (packedChips.Length != 4 || packedChips[0] != 2500 ||
-            packedChips[1] != 500 || packedChips[2] != 500 || packedChips[3] != 500 ||
-            CashDeskPackMinigame.GetExactChipComposition(5000, new[] { 500, 250, 2500, 10000 }).Length != 2)
+        int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 1000, 2500, 10000 });
+        if (packedChips.Length != 3 || packedChips[0] != 2500 ||
+            packedChips[1] != 1000 || packedChips[2] != 500 ||
+            CashDeskPackMinigame.GetExactChipComposition(5000, new[] { 500, 1000, 2500, 10000 }).Length != 2)
         {
             throw new System.InvalidOperationException("Cash desk chip packing does not match the pence total exactly.");
         }
 
         int[] denominationDisplaySequence = { 1, 0, 2, 1, 0 };
         string sequenceDisplay = CashDeskPackMinigame.BuildPackingSequenceDisplay(denominationDisplaySequence, 3);
-        if (sequenceDisplay != "BLUE £2.50 • RED £5.00 • GREEN £25.00\nBLUE £2.50 • RED £5.00")
+        if (sequenceDisplay != "BLUE £10.00 • RED £5.00 • GREEN £25.00\nBLUE £10.00 • RED £5.00")
         {
             throw new System.InvalidOperationException("Cash desk sequence labels must show chip names, exact pence values, and fit deterministic rows.");
         }
@@ -533,7 +527,8 @@ public static class PitPanicPrototypeGenerator
         floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, new int[4]);
         floatDestination.RequestAttention();
         if (!floatDestination.NeedsRefill() ||
-            floatOrder.TotalPence != 16250 || floatOrder.TotalChips != 19 ||
+            floatOrder.TotalPence != 20000 || floatOrder.TotalChips != 19 ||
+            floatOrder.GetDenominationPence(1) != 1000 ||
             !floatOrder.HasExactContents(correctFloatCounts) ||
             floatOrder.HasExactContents(incorrectFloatCounts) ||
             !floatDestination.Receive(floatOrder, correctFloatCounts) ||
@@ -953,7 +948,7 @@ public static class PitPanicPrototypeGenerator
 
         cashDesk.RefreshFloatRequests();
         IReadOnlyList<CasinoFloatRefillOrder> requestedFloats = cashDesk.GetRequestedOrders();
-        if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence != 16250 ||
+        if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence != 20000 ||
             !requestedFloats[0].HasExactContents(new[] { 10, 5, 4, 0 }))
         {
             throw new System.InvalidOperationException("Low table floats did not create distinct, exact-value delivery requests.");
@@ -1012,8 +1007,8 @@ public static class PitPanicPrototypeGenerator
             };
             string[] requiredLabelValues =
             {
-                "BLACKJACK 1",
-                "BLACKJACK 2",
+                "BJ1  •  BLACKJACK 1",
+                "BJ2  •  BLACKJACK 2",
                 "ROULETTE",
                 "PIT BOSS",
                 "CASHIER",
@@ -1031,7 +1026,10 @@ public static class PitPanicPrototypeGenerator
                 if (facing == null || labelCanvas == null || labelText == null ||
                     labelText.text != requiredLabelValues[labelIndex])
                 {
-                    throw new System.InvalidOperationException($"{labelName} is missing its readable camera-facing canvas or expected station text.");
+                    throw new System.InvalidOperationException(
+                        $"{labelName} is missing its readable camera-facing canvas or expected station text " +
+                        $"(object={labelObject != null}, facing={facing != null}, canvas={labelCanvas != null}, " +
+                        $"text={labelText != null}, value='{(labelText != null ? labelText.text : string.Empty)}').");
                 }
 
                 facing.AlignTo(camera);
@@ -1960,11 +1958,39 @@ public static class PitPanicPrototypeGenerator
         {
             for (int z = -1; z <= 1; z += 2)
             {
-                Vector3 position = new Vector3(x * 14.4f, 2f, z * 9.3f);
-                CreatePrimitive(PrimitiveType.Cube, "Decorative Column", position, new Vector3(0.8f, 4f, 0.8f), trimMaterial, floor.transform);
-                CreatePrimitive(PrimitiveType.Cube, "Column Base", new Vector3(position.x, 0.25f, position.z), new Vector3(1.1f, 0.5f, 1.1f), floorMaterial, floor.transform);
+                Vector3 position = new Vector3(x * 14.4f, 0f, z * 9.3f);
+                Transform column = InstantiateArtVisual(
+                    PitPanicArtPrefabLibrary.GetCasinoPrefab("CasinoColumnArt"), floor.transform);
+                column.name = "VisualRoot • Casino Column";
+                column.position = position;
+                column.rotation = Quaternion.identity;
             }
         }
+
+        CreatePendantLight(floor.transform, new Vector3(-12f, 5.5f, -1f), trimMaterial);
+        CreatePendantLight(floor.transform, new Vector3(-6f, 5.5f, 4f), trimMaterial);
+        CreatePendantLight(floor.transform, new Vector3(0f, 5.5f, 0f), trimMaterial);
+        CreatePendantLight(floor.transform, new Vector3(6f, 5.5f, 4f), trimMaterial);
+        CreatePendantLight(floor.transform, new Vector3(12f, 5.5f, -1f), trimMaterial);
+    }
+
+    private static void CreatePendantLight(Transform parent, Vector3 position, Material brass)
+    {
+        GameObject pendant = new GameObject("Warm Casino Pendant");
+        pendant.transform.SetParent(parent, false);
+        pendant.transform.position = position;
+        CreatePrimitive(PrimitiveType.Cylinder, "Pendant Stem", position + Vector3.down * 0.28f,
+            new Vector3(0.08f, 0.30f, 0.08f), brass, pendant.transform);
+        CreatePrimitive(PrimitiveType.Sphere, "Brass Pendant Shade", position + Vector3.down * 0.60f,
+            new Vector3(0.72f, 0.18f, 0.72f), brass, pendant.transform);
+        GameObject bulb = CreatePrimitive(PrimitiveType.Sphere, "Warm Diffuser", position + Vector3.down * 0.78f,
+            new Vector3(0.42f, 0.10f, 0.42f), brass, pendant.transform);
+        Light light = bulb.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = new Color(1f, 0.68f, 0.39f);
+        light.intensity = 2.1f;
+        light.range = 7f;
+        light.shadows = LightShadows.None;
     }
 
     private static CasinoSeat[] CreateBlackjackTable(
@@ -1984,58 +2010,25 @@ public static class PitPanicPrototypeGenerator
         navMeshModifier.overrideArea = true;
         navMeshModifier.area = 1;
 
-        GameObject tabletop = CreatePrimitive(PrimitiveType.Cube, "Tabletop", center + new Vector3(0f, 1.15f, 0f), new Vector3(5.2f, 0.32f, 2.6f), woodMaterial, table.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Felt Playing Surface", center + new Vector3(0f, 1.34f, 0f), new Vector3(4.85f, 0.08f, 2.25f), feltMaterial, table.transform);
-
-        for (int x = -1; x <= 1; x += 2)
-        {
-            for (int z = -1; z <= 1; z += 2)
-            {
-                CreatePrimitive(
-                    PrimitiveType.Cylinder,
-                    "Table Leg",
-                    center + new Vector3(x * 1.8f, 0.56f, z * 0.78f),
-                    new Vector3(0.24f, 0.56f, 0.24f),
-                    trimMaterial,
-                    table.transform);
-            }
-        }
-
-        CreatePrimitive(PrimitiveType.Cube, "Dealer Rail", center + new Vector3(0f, 1.62f, 1.18f), new Vector3(5.2f, 0.42f, 0.22f), woodMaterial, table.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Dealer Rail Accent", center + new Vector3(0f, 1.84f, 1.18f), new Vector3(4.5f, 0.05f, 0.12f), accentMaterial, table.transform);
-
-        for (int x = -1; x <= 1; x++)
-        {
-            CreatePrimitive(
-                PrimitiveType.Cylinder,
-                "Player Stool",
-                center + new Vector3(x * 1.7f, 0.42f, -1.85f),
-                new Vector3(0.52f, 0.42f, 0.52f),
-                woodMaterial,
-                table.transform);
-            CreatePrimitive(
-                PrimitiveType.Cylinder,
-                "Stool Cushion",
-                center + new Vector3(x * 1.7f, 0.86f, -1.85f),
-                new Vector3(0.55f, 0.08f, 0.55f),
-                feltMaterial,
-                table.transform);
-        }
+        InstantiateArtVisual(
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableArt"), table.transform);
+        GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
+        interactionBounds.transform.SetParent(table.transform, false);
+        BoxCollider tableFootprint = interactionBounds.AddComponent<BoxCollider>();
+        tableFootprint.center = new Vector3(0f, 1.10f, 0f);
+        tableFootprint.size = new Vector3(5.2f, 0.50f, 2.6f);
 
         CasinoTableAttention attention = table.AddComponent<CasinoTableAttention>();
         CreateAttentionIndicator(table.transform, attention, center + Vector3.up * 5.1f);
         string destinationId = tableName == "Blackjack Table 1" ? "BJ1" : "BJ2";
-        string tableDisplayName = destinationId == "BJ1" ? "BLACKJACK 1" : "BLACKJACK 2";
-        CreateWorldLabel(table.transform, $"{tableName} Label", tableDisplayName, center + new Vector3(0f, 2.2f, -1.5f));
+        string tableDisplayName = destinationId == "BJ1" ? "BJ1  •  BLACKJACK 1" : "BJ2  •  BLACKJACK 2";
+        CreateWorldLabel(table.transform, $"{tableName} Label", tableDisplayName, center + new Vector3(0f, 2.35f, -1.3f));
 
         CasinoSeat[] seats = new CasinoSeat[3];
         float[] seatOffsets = { -1.7f, 0f, 1.7f };
         for (int i = 0; i < seats.Length; i++)
         {
             Vector3 betSpotWorld = center + new Vector3(seatOffsets[i], 1.43f, -0.65f);
-            CreatePrimitive(PrimitiveType.Cylinder, $"Blackjack Bet Spot {i + 1} Rim", betSpotWorld, new Vector3(0.63f, 0.018f, 0.63f), trimMaterial, table.transform);
-            CreatePrimitive(PrimitiveType.Cylinder, $"Blackjack Bet Spot {i + 1}", betSpotWorld + new Vector3(0f, 0.035f, 0f), new Vector3(0.53f, 0.018f, 0.53f), feltMaterial, table.transform);
-
             GameObject bettingPosition = new GameObject($"Betting Position {i + 1}");
             bettingPosition.transform.SetParent(table.transform, false);
             bettingPosition.transform.localPosition = new Vector3(seatOffsets[i], 1.47f, -0.65f);
@@ -2053,7 +2046,7 @@ public static class PitPanicPrototypeGenerator
         }
 
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
-        interactionZone.Configure(tabletop.GetComponent<BoxCollider>());
+        interactionZone.Configure(tableFootprint);
         floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
         floatDestination.Configure(
             destinationId,
@@ -2177,16 +2170,24 @@ public static class PitPanicPrototypeGenerator
         NavMeshModifier modifier = table.AddComponent<NavMeshModifier>();
         modifier.overrideArea = true;
         modifier.area = 1;
-        GameObject counter = CreatePrimitive(PrimitiveType.Cube, "Roulette Counter", center + new Vector3(0f, 1.05f, 0f), new Vector3(4.4f, 0.32f, 2.6f), woodMaterial, table.transform);
-        CreatePrimitive(PrimitiveType.Cylinder, "Roulette Wheel Rim", center + new Vector3(0f, 1.32f, 0f), new Vector3(1.65f, 0.14f, 1.65f), trimMaterial, table.transform);
-        GameObject wheel = CreatePrimitive(PrimitiveType.Cylinder, "Roulette Wheel", center + new Vector3(0f, 1.42f, 0f), new Vector3(1.38f, 0.12f, 1.38f), feltMaterial, table.transform);
-        CreatePrimitive(PrimitiveType.Cylinder, "Roulette Hub", center + new Vector3(0f, 1.52f, 0f), new Vector3(0.36f, 0.11f, 0.36f), accentMaterial, table.transform);
+        Transform rouletteVisuals = InstantiateArtVisual(
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("RouletteTableArt"), table.transform);
+        Transform wheel = FindDeepChild(rouletteVisuals, "Roulette Wheel Visual");
+        if (wheel == null)
+        {
+            throw new System.InvalidOperationException("Roulette table art prefab has no rotating wheel root.");
+        }
+        GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
+        interactionBounds.transform.SetParent(table.transform, false);
+        BoxCollider tableFootprint = interactionBounds.AddComponent<BoxCollider>();
+        tableFootprint.center = new Vector3(0f, 1.02f, 0f);
+        tableFootprint.size = new Vector3(4.4f, 0.55f, 2.6f);
 
         CasinoTableAttention attention = table.AddComponent<CasinoTableAttention>();
         CreateAttentionIndicator(table.transform, attention, center + Vector3.up * 4f);
         CreateWorldLabel(table.transform, "Roulette Table Label", "ROULETTE", center + new Vector3(0f, 2.2f, -1.5f));
         TableInteractionZone interactionZone = table.AddComponent<TableInteractionZone>();
-        interactionZone.Configure(counter.GetComponent<BoxCollider>());
+        interactionZone.Configure(tableFootprint);
         floatDestination = table.AddComponent<CasinoFloatRefillDestination>();
         floatDestination.Configure(
             "ROULETTE",
@@ -2230,13 +2231,6 @@ public static class PitPanicPrototypeGenerator
         {
             Vector3 offset = customerOffsets[i];
             Vector3 betPosition = new Vector3(Mathf.Sign(offset.x) * 1.65f, 1.24f, Mathf.Sign(offset.z) * 0.78f);
-            CreatePrimitive(
-                PrimitiveType.Cylinder,
-                $"Roulette Betting Spot {i + 1}",
-                center + betPosition,
-                new Vector3(0.55f, 0.025f, 0.55f),
-                trimMaterial,
-                table.transform);
 
             GameObject bettingPoint = new GameObject($"Roulette Betting Position {i + 1}");
             bettingPoint.transform.SetParent(table.transform, false);
@@ -2278,9 +2272,10 @@ public static class PitPanicPrototypeGenerator
     private static Transform[] CreateBreakRoom(Material woodMaterial, Material feltMaterial, Material trimMaterial)
     {
         GameObject room = new GameObject("Dealer Break Room");
-        CreatePrimitive(PrimitiveType.Cube, "Break Room Rug", new Vector3(-11.4f, 0.015f, 5.1f), new Vector3(7.2f, 0.04f, 4.6f), feltMaterial, room.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Break Room Sign", new Vector3(-11.4f, 2.9f, 7.45f), new Vector3(5f, 0.48f, 0.25f), trimMaterial, room.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Break Room Bench", new Vector3(-11.4f, 0.45f, 6.6f), new Vector3(4.5f, 0.25f, 0.8f), woodMaterial, room.transform);
+        Vector3 roomCenter = new Vector3(-11.4f, 0f, 5.1f);
+        room.transform.position = roomCenter;
+        InstantiateArtVisual(
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("BreakRoomArt"), room.transform);
         CreateWorldLabel(room.transform, "Break Room Label", "DEALER BREAK ROOM", new Vector3(-11.4f, 3.25f, 7.35f));
 
         Transform[] positions = new Transform[4];
@@ -2295,10 +2290,14 @@ public static class PitPanicPrototypeGenerator
         {
             GameObject position = new GameObject($"Dealer Rest Position {i + 1}");
             position.transform.SetParent(room.transform, false);
-            position.transform.position = new Vector3(-11.4f, 0f, 5.1f) + offsets[i];
+            position.transform.localPosition = offsets[i];
             position.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
             positions[i] = position.transform;
-            CreatePrimitive(PrimitiveType.Cylinder, $"Resting Stool {i + 1}", position.transform.position + Vector3.right * 0.65f + Vector3.up * 0.2f, new Vector3(0.55f, 0.2f, 0.55f), woodMaterial, room.transform);
+            GameObject marker = CreatePrimitive(PrimitiveType.Cylinder,
+                $"Rest Position Marker {i + 1}",
+                position.transform.position + Vector3.up * 0.035f,
+                new Vector3(0.52f, 0.025f, 0.52f), trimMaterial, room.transform);
+            Object.DestroyImmediate(marker.GetComponent<Collider>());
         }
 
         return positions;
@@ -2313,15 +2312,20 @@ public static class PitPanicPrototypeGenerator
     {
         GameObject cashier = new GameObject("Cashier Station");
         cashier.transform.position = center;
-        GameObject counter = CreatePrimitive(PrimitiveType.Cube, "Cashier Counter", center + new Vector3(0f, 0.65f, 0f), new Vector3(4.2f, 1.3f, 1.2f), woodMaterial, cashier.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Cashier Sign", center + new Vector3(0f, 1.55f, 0.7f), new Vector3(2.4f, 0.45f, 0.15f), accentMaterial, cashier.transform);
+        InstantiateArtVisual(
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("CashDeskArt"), cashier.transform);
+        GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
+        interactionBounds.transform.SetParent(cashier.transform, false);
+        interactionBounds.transform.localPosition = new Vector3(0f, 0.65f, 0f);
+        BoxCollider counterFootprint = interactionBounds.AddComponent<BoxCollider>();
+        counterFootprint.size = new Vector3(4.2f, 1.3f, 1.2f);
         CreateWorldLabel(cashier.transform, "Cashier Station Label", "CASHIER", center + new Vector3(0f, 1.9f, 0.65f));
         GameObject waypoint = new GameObject("Cashier Customer Waypoint");
         waypoint.transform.position = center + new Vector3(0f, 0f, -1.5f);
         CasinoTableAttention attention = cashier.AddComponent<CasinoTableAttention>();
         CreateAttentionIndicator(cashier.transform, attention, center + Vector3.up * 3.2f);
         TableInteractionZone zone = cashier.AddComponent<TableInteractionZone>();
-        zone.Configure(counter.GetComponent<BoxCollider>(), 1.5f);
+        zone.Configure(counterFootprint, 1.5f);
         CashDeskPackMinigame packMinigame = cashier.AddComponent<CashDeskPackMinigame>();
         packMinigame.Configure(player, cashier.transform);
         CasinoMinigameStation station = cashier.AddComponent<CasinoMinigameStation>();
@@ -2354,13 +2358,18 @@ public static class PitPanicPrototypeGenerator
     {
         GameObject desk = new GameObject("Pit Desk");
         desk.transform.position = center;
-        GameObject counter = CreatePrimitive(PrimitiveType.Cube, "Pit Boss Counter", center + new Vector3(0f, 0.65f, 0f), new Vector3(3.4f, 1.3f, 1.4f), woodMaterial, desk.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Pit Desk Sign", center + new Vector3(0f, 1.65f, 0.75f), new Vector3(2.5f, 0.4f, 0.14f), trimMaterial, desk.transform);
+        InstantiateArtVisual(
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("PitDeskArt"), desk.transform);
+        GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
+        interactionBounds.transform.SetParent(desk.transform, false);
+        interactionBounds.transform.localPosition = new Vector3(0f, 0.65f, 0f);
+        BoxCollider deskFootprint = interactionBounds.AddComponent<BoxCollider>();
+        deskFootprint.size = new Vector3(3.4f, 1.3f, 1.4f);
         CreateWorldLabel(desk.transform, "Pit Desk Label", "PIT BOSS", center + new Vector3(0f, 2f, 0.7f));
         CasinoTableAttention attention = desk.AddComponent<CasinoTableAttention>();
         CreateAttentionIndicator(desk.transform, attention, center + Vector3.up * 3.5f);
         TableInteractionZone zone = desk.AddComponent<TableInteractionZone>();
-        zone.Configure(counter.GetComponent<BoxCollider>(), 1.5f);
+        zone.Configure(deskFootprint, 1.5f);
         PitDeskInteraction interaction = desk.AddComponent<PitDeskInteraction>();
         interaction.Configure(player, zone, null, attention);
         return interaction;
@@ -2394,7 +2403,7 @@ public static class PitPanicPrototypeGenerator
         Transform[] breakPositions,
         Transform[] pitDeskPositions,
         CasinoTableAttention pitDeskAttention,
-        Material[] dealerMaterials)
+        GameObject[] dealerPrefabs)
     {
         GameObject managerObject = new GameObject("Dealer Assignment Manager");
         DealerAssignmentManager manager = managerObject.AddComponent<DealerAssignmentManager>();
@@ -2412,7 +2421,14 @@ public static class PitPanicPrototypeGenerator
             agent.radius = 0.28f;
             agent.height = 1.7f;
             AIDealer dealer = dealerObject.AddComponent<AIDealer>();
-            CreateDealerVisual(dealerObject.transform, dealerMaterials[i], i);
+            GameObject dealerVisual = PrefabUtility.InstantiatePrefab(dealerPrefabs[i]) as GameObject;
+            if (dealerVisual == null)
+            {
+                throw new System.InvalidOperationException($"Dealer character prefab {i} could not be instantiated.");
+            }
+
+            dealerVisual.transform.SetParent(dealerObject.transform, false);
+            dealerVisual.name = $"Dealer Animal Visual • {dealerPrefabs[i].name}";
             dealer.Configure(
                 manager,
                 breakPositions[i],
@@ -2425,33 +2441,6 @@ public static class PitPanicPrototypeGenerator
 
         manager.Configure(dealers, stations, breakPositions, pitDeskPositions, pitDeskAttention);
         return manager;
-    }
-
-    private static void CreateDealerVisual(Transform parent, Material material, int index)
-    {
-        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        body.name = "Dealer Uniform";
-        body.transform.SetParent(parent, false);
-        body.transform.localPosition = new Vector3(0f, 0.76f, 0f);
-        body.transform.localScale = new Vector3(0.55f, 0.76f, 0.55f);
-        Object.DestroyImmediate(body.GetComponent<Collider>());
-        body.GetComponent<Renderer>().sharedMaterial = material;
-
-        GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        head.name = "Dealer Head";
-        head.transform.SetParent(parent, false);
-        head.transform.localPosition = new Vector3(0f, 1.58f, 0f);
-        head.transform.localScale = Vector3.one * 0.38f;
-        Object.DestroyImmediate(head.GetComponent<Collider>());
-        head.GetComponent<Renderer>().sharedMaterial = material;
-
-        GameObject nameBadge = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        nameBadge.name = $"Dealer Badge {index + 1}";
-        nameBadge.transform.SetParent(parent, false);
-        nameBadge.transform.localPosition = new Vector3(0f, 0.92f, -0.29f);
-        nameBadge.transform.localScale = new Vector3(0.22f, 0.1f, 0.035f);
-        Object.DestroyImmediate(nameBadge.GetComponent<Collider>());
-        nameBadge.GetComponent<Renderer>().sharedMaterial = material;
     }
 
     private static (Transform entrance, Transform exit) CreateCasinoEntrances(Material trimMaterial, Material accentMaterial)
@@ -2478,12 +2467,12 @@ public static class PitPanicPrototypeGenerator
         Transform exit,
         Transform cashierWaypoint,
         CasinoSeat[] seats,
-        Material[] customerMaterials,
+        GameObject[] customerCharacterPrefabs,
         CasinoCashDeskInteraction cashDesk)
     {
         GameObject spawnerObject = new GameObject("Customer Spawner");
         CasinoCustomerSpawner spawner = spawnerObject.AddComponent<CasinoCustomerSpawner>();
-        spawner.Configure(entrance, exit, cashierWaypoint, seats, customerMaterials, cashDesk);
+        spawner.Configure(entrance, exit, cashierWaypoint, seats, customerCharacterPrefabs, cashDesk);
     }
 
     private static NavMeshSurface CreateNavigationSurface()
@@ -2517,7 +2506,7 @@ public static class PitPanicPrototypeGenerator
         AssetDatabase.SaveAssets();
     }
 
-    private static CasinoPlayerController CreatePlayer(Material playerMaterial)
+    private static CasinoPlayerController CreatePlayer(GameObject playerPrefab)
     {
         GameObject player = new GameObject("Player");
         player.transform.position = new Vector3(0f, 0f, -6f);
@@ -2533,13 +2522,15 @@ public static class PitPanicPrototypeGenerator
             player.AddComponent<CasinoPlayerInteractionRouter>();
         }
 
-        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        visual.name = "Player Visual";
+        GameObject visual = PrefabUtility.InstantiatePrefab(playerPrefab) as GameObject;
+        if (visual == null)
+        {
+            throw new System.InvalidOperationException("The penguin pit-boss character prefab could not be instantiated.");
+        }
+
         visual.transform.SetParent(player.transform, false);
-        visual.transform.localPosition = new Vector3(0f, 0.9f, 0f);
-        visual.transform.localScale = new Vector3(0.76f, 0.9f, 0.76f);
-        Object.DestroyImmediate(visual.GetComponent<Collider>());
-        visual.GetComponent<Renderer>().sharedMaterial = playerMaterial;
+        visual.name = "Penguin Pit Boss Visual";
+        visual.transform.localPosition = Vector3.zero;
         return player.GetComponent<CasinoPlayerController>();
     }
 
@@ -2591,6 +2582,52 @@ public static class PitPanicPrototypeGenerator
         primitive.transform.localScale = scale;
         primitive.GetComponent<Renderer>().sharedMaterial = material;
         return primitive;
+    }
+
+    private static Transform InstantiateArtVisual(GameObject prefab, Transform parent)
+    {
+        if (prefab == null || parent == null)
+        {
+            throw new System.ArgumentNullException(prefab == null ? nameof(prefab) : nameof(parent));
+        }
+
+        GameObject visualRoot = new GameObject("VisualRoot");
+        visualRoot.transform.SetParent(parent, false);
+        GameObject instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+        if (instance == null)
+        {
+            throw new System.InvalidOperationException($"Could not instantiate casino art prefab '{prefab.name}'.");
+        }
+
+        instance.transform.SetParent(visualRoot.transform, false);
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale = Vector3.one;
+        return visualRoot.transform;
+    }
+
+    private static Transform FindDeepChild(Transform root, string childName)
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        if (root.name == childName)
+        {
+            return root;
+        }
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform child = FindDeepChild(root.GetChild(i), childName);
+            if (child != null)
+            {
+                return child;
+            }
+        }
+
+        return null;
     }
 
     private static Material GetOrCreateMaterial(string materialName, Color color)

@@ -24,7 +24,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField] private Transform exit;
     [SerializeField] private Transform cashierWaypoint;
     [SerializeField] private CasinoSeat[] seats;
-    [SerializeField] private Material[] customerMaterials;
+    [SerializeField] private GameObject[] customerCharacterPrefabs;
     [SerializeField] private CasinoCashDeskInteraction cashDesk;
     private float spawnTimer;
     private int nextCustomerNumber = 1;
@@ -49,7 +49,8 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     public int InitialCustomerCount => initialCustomerCount;
     public int ActiveCustomerCount => activeCustomers.Count;
     public bool IsConfigured => entrance != null && exit != null && cashierWaypoint != null &&
-                                seats != null && customerMaterials != null && customerMaterials.Length > 0 &&
+                                seats != null && customerCharacterPrefabs != null &&
+                                customerCharacterPrefabs.Length > 0 &&
                                 cashDesk != null && cashDesk.IsConfigured;
 
     public void Configure(
@@ -57,14 +58,14 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         Transform exitPoint,
         Transform cashier,
         CasinoSeat[] casinoSeats,
-        Material[] materials,
+        GameObject[] characterPrefabs,
         CasinoCashDeskInteraction casinoCashDesk = null)
     {
         entrance = entrancePoint;
         exit = exitPoint;
         cashierWaypoint = cashier;
         seats = casinoSeats;
-        customerMaterials = materials;
+        customerCharacterPrefabs = characterPrefabs;
         cashDesk = casinoCashDesk;
     }
 
@@ -135,9 +136,10 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     private void Start()
     {
         if (entrance == null || exit == null || cashierWaypoint == null ||
-            seats == null || customerMaterials == null || customerMaterials.Length == 0)
+            seats == null || customerCharacterPrefabs == null ||
+            customerCharacterPrefabs.Length == 0)
         {
-            Debug.LogError($"{nameof(CasinoCustomerSpawner)} on {name} is missing its entrance, exit, cashier waypoint, seats, or character materials.", this);
+            Debug.LogError($"{nameof(CasinoCustomerSpawner)} on {name} is missing its entrance, exit, cashier waypoint, seats, or animal character prefabs.", this);
             enabled = false;
             return;
         }
@@ -187,6 +189,19 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         CustomerPatience patience = customerObject.AddComponent<CustomerPatience>();
         CasinoCustomerAI customer = customerObject.AddComponent<CasinoCustomerAI>();
 
+        GameObject characterPrefab = customerCharacterPrefabs[
+            Random.Range(0, customerCharacterPrefabs.Length)];
+        CasinoCharacterVisual characterTemplate = characterPrefab != null
+            ? characterPrefab.GetComponent<CasinoCharacterVisual>()
+            : null;
+        if (characterTemplate == null)
+        {
+            Debug.LogError("A customer character prefab is missing its CasinoCharacterVisual component.", this);
+            Object.Destroy(customerObject);
+            spawnTimer = 2f;
+            return;
+        }
+
         Color[] variations =
         {
             new Color(0.94f, 0.35f, 0.28f),
@@ -197,28 +212,20 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             new Color(0.92f, 0.46f, 0.7f)
         };
         Color color = variations[(nextCustomerNumber - 2) % variations.Length];
-        Material material = customerMaterials[Random.Range(0, customerMaterials.Length)];
+        CasinoCharacterVisual visual = Object.Instantiate(characterPrefab, customerObject.transform)
+            .GetComponent<CasinoCharacterVisual>();
+        visual.name = "Customer Animal Visual";
+        Renderer bodyRenderer = visual.OutfitRenderer;
+        if (bodyRenderer == null)
+        {
+            Debug.LogError("A customer animal prefab is missing its outfit renderer.", visual);
+            Object.Destroy(customerObject);
+            spawnTimer = 2f;
+            return;
+        }
 
-        GameObject visual = new GameObject("Customer Visual");
-        visual.transform.SetParent(customerObject.transform, false);
-        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        body.name = "Body";
-        body.transform.SetParent(visual.transform, false);
-        body.transform.localPosition = new Vector3(0f, 0.68f, 0f);
-        body.transform.localScale = new Vector3(0.62f, 0.7f, 0.62f);
-        Object.Destroy(body.GetComponent<Collider>());
-        Renderer bodyRenderer = body.GetComponent<Renderer>();
-        bodyRenderer.sharedMaterial = material;
-
-        GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        head.name = "Head";
-        head.transform.SetParent(visual.transform, false);
-        head.transform.localPosition = new Vector3(0f, 1.42f, 0f);
-        head.transform.localScale = Vector3.one * 0.42f;
-        Object.Destroy(head.GetComponent<Collider>());
-        head.GetComponent<Renderer>().sharedMaterial = customerMaterials[(nextCustomerNumber - 2) % customerMaterials.Length];
-
-        customer.Configure(this, seats, exit, cashierWaypoint, visual.transform, bodyRenderer, color, wanderRadius, seatChoiceChance);
+        customer.Configure(this, seats, exit, cashierWaypoint, visual.transform, bodyRenderer,
+            color, wanderRadius, seatChoiceChance);
         activeCustomers.Add(customer);
     }
 }

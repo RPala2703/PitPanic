@@ -4,7 +4,7 @@ using System.Collections.Generic;
 public sealed class CasinoFloatRefillOrder : IReadOnlyIntList
 {
     public const int RedChipPence = 500;
-    public const int BlueChipPence = 250;
+    public const int BlueChipPence = 1000;
     public const int GreenChipPence = 2500;
     public const int BlackChipPence = 10000;
     public const int RedChipCount = 10;

@@ -7,6 +7,7 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
 {
     private CasinoCashDeskInteraction manager;
     private CasinoFloatRefillOrder order;
+    private GameObject trayPrefab;
     private GameObject tray;
     private Canvas promptCanvas;
     private Text promptText;
@@ -22,9 +23,13 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         order.Destination.InteractionZone.IsPlayerInRange(transform);
     public CasinoFloatRefillOrder CurrentOrder => order;
 
-    public void Configure(CasinoCashDeskInteraction refillManager)
+    public void Configure(CasinoCashDeskInteraction refillManager, GameObject carriedTrayPrefab = null)
     {
         manager = refillManager;
+        if (carriedTrayPrefab != null)
+        {
+            trayPrefab = carriedTrayPrefab;
+        }
     }
 
     public bool BeginCarrying(CasinoFloatRefillOrder refillOrder)
@@ -34,8 +39,19 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
             return false;
         }
 
-        order = refillOrder;
+        if (trayPrefab == null)
+        {
+            Debug.LogError("Cannot carry a float because the casino has no carried-tray art prefab.", this);
+            return false;
+        }
+
         tray = CreateTray(refillOrder);
+        if (tray == null)
+        {
+            return false;
+        }
+
+        order = refillOrder;
         tray.transform.SetParent(transform, false);
         tray.transform.localPosition = new Vector3(0f, 1.5f, 0.28f);
         tray.transform.localRotation = Quaternion.Euler(12f, 0f, 0f);
@@ -180,15 +196,10 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         notificationRemaining = 1.8f;
     }
 
-    private static GameObject CreateTray(CasinoFloatRefillOrder refillOrder)
+    private GameObject CreateTray(CasinoFloatRefillOrder refillOrder)
     {
-        GameObject trayRoot = new GameObject("Carried Casino Float Tray");
-        GameObject baseTray = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        baseTray.name = "Tray";
-        baseTray.transform.SetParent(trayRoot.transform, false);
-        baseTray.transform.localScale = new Vector3(1.45f, 0.09f, 1.75f);
-        SetColor(baseTray.GetComponent<Renderer>(), new Color(0.24f, 0.13f, 0.065f));
-        Object.Destroy(baseTray.GetComponent<Collider>());
+        GameObject trayRoot = Object.Instantiate(trayPrefab);
+        trayRoot.name = "Carried Casino Float Tray";
 
         Color[] colors =
         {
