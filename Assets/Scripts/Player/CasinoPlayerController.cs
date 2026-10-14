@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 public sealed class CasinoPlayerController : MonoBehaviour
 {
     [SerializeField, Min(0f)] private float moveSpeed = 5f;
+    [SerializeField, Min(0f)] private float turnSpeedDegrees = 720f;
     [SerializeField] private Vector2 floorHalfExtents = new Vector2(15f, 10f);
 
     private CharacterController characterController;
@@ -41,6 +42,12 @@ public sealed class CasinoPlayerController : MonoBehaviour
         if (keyboard.wKey.isPressed) input.y += 1f;
 
         Vector3 movement = new Vector3(input.x, 0f, input.y).normalized;
+        if (movement.sqrMagnitude > 0.0001f)
+        {
+            Quaternion target = Quaternion.LookRotation(movement, Vector3.up);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, target, turnSpeedDegrees * Time.deltaTime);
+        }
+
         Vector3 nextPosition = transform.position + movement * moveSpeed * Time.deltaTime;
         nextPosition.x = Mathf.Clamp(nextPosition.x, -floorHalfExtents.x, floorHalfExtents.x);
         nextPosition.z = Mathf.Clamp(nextPosition.z, -floorHalfExtents.y, floorHalfExtents.y);

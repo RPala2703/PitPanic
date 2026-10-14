@@ -43,3 +43,12 @@ The project currently has no licensed animal meshes, authored animation clips, c
 | VFX set | Card/chip trails, pocket highlight, task ping, payout/delivery feedback | Small, lightweight URP effects; avoid gameplay-obscuring bloom |
 
 Record the source, creator, licence, and import settings for every third-party asset before adding it to the project. No external or unlicensed assets are bundled with the current prototype.
+
+## Visual cleanup pass
+
+- Character face and torso details are snapped to the head and torso surfaces (`SnapFeaturesToSurface`), characters use `Character_<Species>V2` prefabs, and arms have pivots used for dealer deal, pay and collect gestures.
+- The player turns smoothly towards the movement direction and keeps its last facing when idle.
+- Pendant light fixtures were replaced by invisible soft fill lights so no glowing discs appear from the overhead camera.
+- Roulette has a coloured betting layout beside the wheel; labels are compact (BJ1, BJ2, ROULETTE, CASHIER, PIT DESK, BREAK ROOM).
+- `BlackjackFloorActivity` mirrors each round on the table with 3D cards, chip stacks, payouts and collection. It reads round state only.
+- Verified by Unity batch-mode generation and validation only; Play Mode screenshots have not been reviewed, and the art remains primitive greybox.

@@ -52,6 +52,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     public int WaitingCustomerCount => waitingSet.Count;
     public bool IsInspectionOpen => panelOpen;
     public BlackjackTableRound ActiveRound => round;
+    public BlackjackTableState State => state;
     public int RemainingFlickCardCount => round == null
         ? 0
         : Mathf.Max(0, round.CustomerHands.Count * 2 + 2 - dealStep);

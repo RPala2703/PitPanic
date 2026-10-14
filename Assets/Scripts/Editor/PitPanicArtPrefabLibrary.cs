@@ -84,14 +84,14 @@ public static class PitPanicArtPrefabLibrary
         for (int i = 0; i < Species.Length; i++)
         {
             int index = i;
-            EnsurePrefab($"{CharacterFolder}/Character_{Species[i]}.prefab",
+            EnsurePrefab($"{CharacterFolder}/Character_{Species[i]}V2.prefab",
                 root => BuildCharacter(root, Species[index], MaterialForSpecies(index), suits[index % suits.Length],
                     cream, gold, white, pink, dark, tigerStripe, brown));
         }
 
-        EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArt.prefab", root =>
+        EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArtV2.prefab", root =>
             BuildBlackjackTable(root, walnut, darkWalnut, emerald, brass, burgundy, cream, gold));
-        EnsurePrefab($"{CasinoFolder}/RouletteTableHeroArt.prefab", root =>
+        EnsurePrefab($"{CasinoFolder}/RouletteTableHeroArtV2.prefab", root =>
             BuildRouletteTable(root, walnut, darkWalnut, emerald, brass, cream, red, rouletteBlack, zeroGreen, gold));
         EnsurePrefab($"{CasinoFolder}/CashDeskArt.prefab", root =>
             BuildCashDesk(root, walnut, darkWalnut, emerald, brass, cream, gold));
@@ -109,7 +109,7 @@ public static class PitPanicArtPrefabLibrary
 
     public static GameObject GetCharacterPrefab(CasinoAnimalSpecies species)
     {
-        string path = $"{CharacterFolder}/Character_{species}.prefab";
+        string path = $"{CharacterFolder}/Character_{species}V2.prefab";
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (prefab == null)
         {
@@ -125,7 +125,7 @@ public static class PitPanicArtPrefabLibrary
         for (int i = 0; i < Species.Length; i++)
         {
             prefabs[i] = AssetDatabase.LoadAssetAtPath<GameObject>(
-                $"{CharacterFolder}/Character_{Species[i]}.prefab");
+                $"{CharacterFolder}/Character_{Species[i]}V2.prefab");
         }
 
         return prefabs;
@@ -168,41 +168,57 @@ public static class PitPanicArtPrefabLibrary
         Material stripe,
         Material brown)
     {
-        root.name = $"Character_{species}";
+        root.name = $"Character_{species}V2";
         Transform bodyRig = CreateEmpty("Animated Body", root.transform);
         Transform headRig = CreateEmpty("Animated Head", root.transform);
         Transform tailRig = CreateEmpty("Animated Accessory", root.transform);
         GameObject torso = Part(PrimitiveType.Sphere, "Uniform Jacket", bodyRig, new Vector3(0f, 0.87f, 0f),
             new Vector3(0.68f, 0.82f, 0.53f), outfit);
-        Part(PrimitiveType.Sphere, "White Shirt Front", bodyRig, new Vector3(0f, 0.94f, 0.444f),
-            new Vector3(0.25f, 0.53f, 0.09f), white);
-        Part(PrimitiveType.Sphere, "Waistcoat Panel", bodyRig, new Vector3(0f, 0.72f, 0.51f),
-            new Vector3(0.29f, 0.34f, 0.055f), outfit);
+        Part(PrimitiveType.Sphere, "White Shirt Front", bodyRig, new Vector3(0f, 0.94f, 0.30f),
+            new Vector3(0.25f, 0.53f, 0.2f), white);
+        Part(PrimitiveType.Sphere, "Waistcoat Panel", bodyRig, new Vector3(0f, 0.72f, 0.30f),
+            new Vector3(0.29f, 0.34f, 0.15f), outfit);
         Part(PrimitiveType.Sphere, "Bow Tie", bodyRig, new Vector3(0f, 1.35f, 0.50f),
             new Vector3(0.19f, 0.09f, 0.08f), gold);
         Part(PrimitiveType.Sphere, "Gold Name Badge", bodyRig, new Vector3(0.23f, 1.00f, 0.52f),
             new Vector3(0.10f, 0.13f, 0.055f), gold);
+        Part(PrimitiveType.Sphere, "Left Trouser", bodyRig, new Vector3(-0.18f, 0.26f, 0f),
+            new Vector3(0.22f, 0.37f, 0.24f), dark);
+        Part(PrimitiveType.Sphere, "Right Trouser", bodyRig, new Vector3(0.18f, 0.26f, 0f),
+            new Vector3(0.22f, 0.37f, 0.24f), dark);
+        Part(PrimitiveType.Sphere, "Left Shoe", bodyRig, new Vector3(-0.18f, 0.08f, 0.10f),
+            new Vector3(0.28f, 0.13f, 0.36f), dark);
+        Part(PrimitiveType.Sphere, "Right Shoe", bodyRig, new Vector3(0.18f, 0.08f, 0.10f),
+            new Vector3(0.28f, 0.13f, 0.36f), dark);
+        Transform leftArm = null;
+        Transform rightArm = null;
         for (int side = -1; side <= 1; side += 2)
         {
-            Part(PrimitiveType.Sphere, side < 0 ? "Left Sleeve" : "Right Sleeve", bodyRig,
-                new Vector3(side * 0.43f, 0.91f, 0.015f), new Vector3(0.23f, 0.53f, 0.25f), outfit);
-            Part(PrimitiveType.Sphere, side < 0 ? "Left Paw" : "Right Paw", bodyRig,
-                new Vector3(side * 0.45f, 0.43f, 0.10f), new Vector3(0.22f, 0.22f, 0.20f), fur);
-            Part(PrimitiveType.Sphere, side < 0 ? "Left Trouser" : "Right Trouser", bodyRig,
-                new Vector3(side * 0.18f, 0.26f, 0f), new Vector3(0.22f, 0.37f, 0.24f), dark);
-            Part(PrimitiveType.Sphere, side < 0 ? "Left Shoe" : "Right Shoe", bodyRig,
-                new Vector3(side * 0.18f, 0.08f, 0.10f), new Vector3(0.28f, 0.13f, 0.36f), dark);
+            Transform arm = CreateEmpty(side < 0 ? "Left Arm Pivot" : "Right Arm Pivot", bodyRig);
+            arm.localPosition = new Vector3(side * 0.40f, 1.18f, 0.02f);
+            Part(PrimitiveType.Sphere, side < 0 ? "Left Sleeve" : "Right Sleeve", arm,
+                new Vector3(side * 0.03f, -0.27f, 0f), new Vector3(0.23f, 0.53f, 0.25f), outfit);
+            Part(PrimitiveType.Sphere, side < 0 ? "Left Paw" : "Right Paw", arm,
+                new Vector3(side * 0.05f, -0.75f, 0.08f), new Vector3(0.22f, 0.22f, 0.20f), fur);
+            if (side < 0)
+            {
+                leftArm = arm;
+            }
+            else
+            {
+                rightArm = arm;
+            }
         }
 
         GameObject head = Part(PrimitiveType.Sphere, "Head Shape", headRig, new Vector3(0f, 1.58f, 0f),
             new Vector3(0.72f, 0.64f, 0.60f), fur);
         Transform animatedHead = headRig;
-        Vector3 eyeScale = new Vector3(0.09f, 0.12f, 0.045f);
+        Vector3 eyeScale = new Vector3(0.13f, 0.16f, 0.10f);
         Material faceFur = species == CasinoAnimalSpecies.Penguin ? white : cream;
         if (species == CasinoAnimalSpecies.Penguin)
         {
-            Part(PrimitiveType.Sphere, "White Penguin Belly", bodyRig, new Vector3(0f, 0.84f, 0.47f),
-                new Vector3(0.40f, 0.63f, 0.12f), white);
+            Part(PrimitiveType.Sphere, "White Penguin Belly", bodyRig, new Vector3(0f, 0.84f, 0.30f),
+                new Vector3(0.40f, 0.63f, 0.22f), white);
             Part(PrimitiveType.Sphere, "Penguin Beak", headRig, new Vector3(0f, 1.47f, 0.63f),
                 new Vector3(0.19f, 0.10f, 0.15f), gold);
             for (int side = -1; side <= 1; side += 2)
@@ -222,7 +238,7 @@ public static class PitPanicArtPrefabLibrary
             Part(PrimitiveType.Sphere, side < 0 ? "Left Eye" : "Right Eye", headRig,
                 new Vector3(side * 0.17f, 1.68f, 0.52f), eyeScale, dark);
             Part(PrimitiveType.Sphere, side < 0 ? "Eye Glint Left" : "Eye Glint Right", headRig,
-                new Vector3(side * 0.17f + 0.025f, 1.72f, 0.558f), new Vector3(0.025f, 0.035f, 0.018f), white);
+                new Vector3(side * 0.17f + 0.03f, 1.73f, 0.5f), new Vector3(0.04f, 0.055f, 0.03f), white);
         }
 
         if (species != CasinoAnimalSpecies.Penguin)
@@ -237,7 +253,78 @@ public static class PitPanicArtPrefabLibrary
             new Vector3(0.035f, 0.035f, 0.025f), gold);
 
         CasinoCharacterVisual visual = root.AddComponent<CasinoCharacterVisual>();
+        SnapFeaturesToSurface(headRig, bodyRig);
         visual.Configure(species, bodyRig, animatedHead, tailRig, torso.GetComponent<Renderer>());
+        visual.ConfigureArms(leftArm, rightArm);
+    }
+
+    private static float EllipsoidFront(float x, float y, Vector3 radii, Vector3 centre)
+    {
+        float nx = (x - centre.x) / radii.x;
+        float ny = (y - centre.y) / radii.y;
+        float arg = Mathf.Max(0.18f, 1f - nx * nx - ny * ny);
+        return radii.z * Mathf.Sqrt(arg);
+    }
+
+    // Places front-facing features on the head and torso surfaces so nothing floats off the model.
+    private static void SnapFeaturesToSurface(Transform head, Transform body)
+    {
+        Vector3 headCentre = new Vector3(0f, 1.58f, 0f);
+        Vector3 headRadii = new Vector3(0.36f, 0.32f, 0.30f);
+        Vector3 torsoCentre = new Vector3(0f, 0.87f, 0f);
+        Vector3 torsoRadii = new Vector3(0.34f, 0.41f, 0.265f);
+        Transform leftEye = null;
+        Transform rightEye = null;
+        foreach (Transform child in head)
+        {
+            string name = child.name;
+            if (name.Contains("Head Shape") || name.Contains("Ear") || name.Contains("Whisker") ||
+                name.Contains("Glint") || child.localPosition.z < 0.2f)
+            {
+                continue;
+            }
+
+            Vector3 position = child.localPosition;
+            float lift = name.Contains("Nose") || name.Contains("Nostril") || name.Contains("Teeth") ||
+                name.Contains("Tusk") || name.Contains("Trunk Tip") ? 0.07f : 0f;
+            position.z = EllipsoidFront(position.x, position.y, headRadii, headCentre) +
+                child.localScale.z * 0.15f + lift;
+            child.localPosition = position;
+            if (name == "Left Eye")
+            {
+                leftEye = child;
+            }
+            else if (name == "Right Eye")
+            {
+                rightEye = child;
+            }
+        }
+
+        foreach (Transform child in head)
+        {
+            Transform eye = child.name == "Eye Glint Left" ? leftEye : child.name == "Eye Glint Right" ? rightEye : null;
+            if (eye != null)
+            {
+                Vector3 position = child.localPosition;
+                position.z = eye.localPosition.z + eye.localScale.z * 0.42f;
+                child.localPosition = position;
+            }
+        }
+
+        foreach (Transform child in body)
+        {
+            string name = child.name;
+            if (!(name.Contains("Shirt") || name.Contains("Waistcoat") || name.Contains("Bow Tie") ||
+                name.Contains("Badge") || name.Contains("Belly") || name.Contains("Button")))
+            {
+                continue;
+            }
+
+            Vector3 position = child.localPosition;
+            position.z = EllipsoidFront(position.x, position.y, torsoRadii, torsoCentre) +
+                child.localScale.z * 0.15f + (name.Contains("Badge") || name.Contains("Button") ? 0.03f : 0f);
+            child.localPosition = position;
+        }
     }
 
     private static void BuildSpeciesFeatures(
@@ -259,7 +346,7 @@ public static class PitPanicArtPrefabLibrary
                 for (int i = -1; i <= 1; i++)
                 {
                     Part(PrimitiveType.Cube, $"Tiger Forehead Stripe {i + 2}", head,
-                        new Vector3(i * 0.16f, 1.94f, 0.48f), new Vector3(0.07f, 0.24f, 0.04f),
+                        new Vector3(i * 0.16f, 1.82f, 0.48f), new Vector3(0.07f, 0.24f, 0.04f),
                         stripe, Quaternion.Euler(0f, 0f, -i * 14f));
                 }
 
@@ -324,8 +411,8 @@ public static class PitPanicArtPrefabLibrary
                 break;
             case CasinoAnimalSpecies.Raccoon:
                 Ears(head, brown, brown, 0.24f, 0.20f);
-                Part(PrimitiveType.Sphere, "Raccoon Eye Mask", head, new Vector3(0f, 1.68f, 0.49f),
-                    new Vector3(0.46f, 0.17f, 0.09f), dark);
+                Part(PrimitiveType.Sphere, "Raccoon Eye Mask", head, new Vector3(0f, 1.68f, 0.30f),
+                    new Vector3(0.46f, 0.17f, 0.2f), dark);
                 Part(PrimitiveType.Sphere, "Raccoon Muzzle", head, new Vector3(0f, 1.46f, 0.58f),
                     new Vector3(0.27f, 0.16f, 0.15f), cream);
                 Tail(tail, brown, dark, new Vector3(0f, 0.58f, -0.55f), new Vector3(0.25f, 0.26f, 0.65f));
@@ -401,12 +488,27 @@ public static class PitPanicArtPrefabLibrary
                 new Vector3(seat * 1.7f, 0.97f, -1.88f), new Vector3(0.10f, 0.035f, 0.10f), brass);
         }
 
-        Part(PrimitiveType.Cube, "Table Name Plaque", root.transform, new Vector3(0f, 1.60f, -1.30f),
-            new Vector3(2.3f, 0.12f, 0.35f), walnut);
-        Part(PrimitiveType.Cube, "Plaque Gold Inlay", root.transform, new Vector3(0f, 1.68f, -1.30f),
-            new Vector3(2.12f, 0.025f, 0.20f), gold);
-        Part(PrimitiveType.Cube, "Plaque Ivory Face", root.transform, new Vector3(0f, 1.70f, -1.30f),
-            new Vector3(1.94f, 0.025f, 0.15f), cream);
+        for (int slot = 0; slot < 2; slot++)
+        {
+            float x = -0.22f + slot * 0.44f;
+            CreateCardSlotOutline(root.transform, new Vector3(x, 1.345f, 0.50f), cream);
+        }
+    }
+
+    private static void CreateCardSlotOutline(Transform parent, Vector3 centre, Material material)
+    {
+        const float width = 0.32f;
+        const float depth = 0.46f;
+        const float line = 0.018f;
+        Vector3 flat = new Vector3(0f, 0.012f, 0f);
+        Part(PrimitiveType.Cube, "Card Slot Edge", parent, centre + new Vector3(0f, 0f, depth * 0.5f),
+            new Vector3(width, flat.y, line), material);
+        Part(PrimitiveType.Cube, "Card Slot Edge", parent, centre - new Vector3(0f, 0f, depth * 0.5f),
+            new Vector3(width, flat.y, line), material);
+        Part(PrimitiveType.Cube, "Card Slot Edge", parent, centre + new Vector3(width * 0.5f, 0f, 0f),
+            new Vector3(line, flat.y, depth), material);
+        Part(PrimitiveType.Cube, "Card Slot Edge", parent, centre - new Vector3(width * 0.5f, 0f, 0f),
+            new Vector3(line, flat.y, depth), material);
     }
 
     private static void BuildRouletteTable(
@@ -443,14 +545,7 @@ public static class PitPanicArtPrefabLibrary
             new Vector3(0.27f, 0.15f, 0.27f), gold);
         Part(PrimitiveType.Sphere, "Roulette Ball", wheel, new Vector3(0f, 0.25f, 1.19f),
             new Vector3(0.13f, 0.13f, 0.13f), cream);
-        for (int i = 0; i < 12; i++)
-        {
-            Part(PrimitiveType.Cube, $"Roulette Number Tile {i}", root.transform,
-                new Vector3(-1.55f + (i % 6) * 0.58f, 1.335f, -0.66f - (i / 6) * 0.39f),
-                new Vector3(0.53f, 0.025f, 0.34f), i % 2 == 0 ? red : black,
-                Quaternion.Euler(0f, 0f, 0f));
-        }
-
+        BuildRouletteLayout(root.transform, red, black, green, cream, gold);
         BuildChipTray(root.transform, new Vector3(-1.65f, 1.54f, 0.70f), walnut, brass, new[] { red, black, green, gold });
         for (int side = -1; side <= 1; side += 2)
         {
@@ -460,6 +555,43 @@ public static class PitPanicArtPrefabLibrary
                     new Vector3(side * 1.65f, 0.50f, front * 0.78f),
                     new Vector3(0.28f, 0.50f, 0.28f), darkWalnut);
             }
+        }
+    }
+
+    private static void BuildRouletteLayout(
+        Transform root,
+        Material red,
+        Material black,
+        Material green,
+        Material cream,
+        Material gold)
+    {
+        Transform layout = CreateEmpty("Roulette Betting Layout", root);
+        int[] reds = { 1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36 };
+        const float cell = 0.24f;
+        const float rowStep = 0.27f;
+        const float baseZ = -0.60f;
+        const float y = 1.345f;
+        float left = -6f * cell;
+        Part(PrimitiveType.Cube, "Layout Border", layout, new Vector3(0.1f, y - 0.004f, baseZ - rowStep),
+            new Vector3(13f * cell + 0.18f, 0.010f, 3f * rowStep + 0.10f), cream);
+        Part(PrimitiveType.Cube, "Zero Cell", layout, new Vector3(left - 0.20f, y, baseZ - rowStep),
+            new Vector3(0.22f, 0.020f, 3f * rowStep - 0.03f), green);
+        for (int number = 1; number <= 36; number++)
+        {
+            int column = (number - 1) / 3;
+            int row = (number - 1) % 3;
+            bool isRed = System.Array.IndexOf(reds, number) >= 0;
+            Part(PrimitiveType.Cube, $"Layout Number {number}", layout,
+                new Vector3(left + cell * (column + 0.5f), y, baseZ - row * rowStep),
+                new Vector3(cell - 0.02f, 0.020f, rowStep - 0.03f), isRed ? red : black);
+        }
+
+        for (int row = 0; row < 3; row++)
+        {
+            Part(PrimitiveType.Cube, $"Layout Column Bet {row + 1}", layout,
+                new Vector3(left + cell * 12.5f + 0.02f, y, baseZ - row * rowStep),
+                new Vector3(cell - 0.02f, 0.020f, rowStep - 0.03f), gold);
         }
     }
 
@@ -1011,10 +1143,10 @@ public static class PitPanicArtPrefabLibrary
         for (int side = -1; side <= 1; side += 2)
         {
             Part(PrimitiveType.Sphere, side < 0 ? "Left Ear" : "Right Ear", head,
-                new Vector3(side * 0.29f, 2.08f, -0.01f), new Vector3(width, height, 0.20f), outer,
+                new Vector3(side * 0.27f, 1.76f + height * 0.30f, -0.01f), new Vector3(width, height, 0.20f), outer,
                 Quaternion.Euler(0f, 0f, side * 12f));
             Part(PrimitiveType.Sphere, side < 0 ? "Left Ear Inner" : "Right Ear Inner", head,
-                new Vector3(side * 0.29f, 2.08f, 0.12f), new Vector3(width * 0.48f, height * 0.70f, 0.07f), inner,
+                new Vector3(side * 0.27f, 1.76f + height * 0.30f, 0.08f), new Vector3(width * 0.48f, height * 0.70f, 0.07f), inner,
                 Quaternion.Euler(0f, 0f, side * 12f));
         }
     }
@@ -1024,10 +1156,10 @@ public static class PitPanicArtPrefabLibrary
         for (int side = -1; side <= 1; side += 2)
         {
             Part(PrimitiveType.Sphere, side < 0 ? "Left Pointed Ear" : "Right Pointed Ear", head,
-                new Vector3(side * 0.27f, 2.00f, 0f), new Vector3(0.28f, 0.46f, 0.23f), outer,
+                new Vector3(side * 0.25f, 1.76f + 0.46f * 0.32f, 0f), new Vector3(0.28f, 0.46f, 0.23f), outer,
                 Quaternion.Euler(0f, 0f, side * 10f));
             Part(PrimitiveType.Sphere, side < 0 ? "Left Ear Inner" : "Right Ear Inner", head,
-                new Vector3(side * 0.27f, 2.00f, 0.14f), new Vector3(0.13f, 0.28f, 0.09f), inner,
+                new Vector3(side * 0.25f, 1.76f + 0.46f * 0.32f, 0.09f), new Vector3(0.13f, 0.28f, 0.09f), inner,
                 Quaternion.Euler(0f, 0f, side * 10f));
         }
     }
@@ -1039,7 +1171,7 @@ public static class PitPanicArtPrefabLibrary
             for (int line = -1; line <= 1; line++)
             {
                 Part(PrimitiveType.Cylinder, $"Whisker {side}-{line}", head,
-                    new Vector3(side * 0.30f, 1.45f + line * 0.055f, 0.60f),
+                    new Vector3(side * 0.33f, 1.45f + line * 0.055f, 0.20f),
                     new Vector3(0.012f, 0.24f, 0.012f), material,
                     Quaternion.Euler(0f, 0f, side * (76f + line * 8f)));
             }
