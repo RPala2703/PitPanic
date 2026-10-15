@@ -112,3 +112,11 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Third-party art packs: never commit unless the licence explicitly allows redistribution
+/ArtSource/
+/Assets/ThirdParty/
+/Assets/ThirdParty.meta
+/Assets/Art/ImportedMaterialsURP/
+/Assets/Art/ImportedMaterialsURP.meta
+*.unitypackage
