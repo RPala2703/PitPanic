@@ -2128,11 +2128,44 @@ public static class PitPanicPrototypeGenerator
             }
         }
 
+        CreateKayKitDecor(floor.transform);
         CreatePendantLight(floor.transform, new Vector3(-12f, 5.5f, -1f), trimMaterial);
         CreatePendantLight(floor.transform, new Vector3(-6f, 5.5f, 4f), trimMaterial);
         CreatePendantLight(floor.transform, new Vector3(0f, 5.5f, 0f), trimMaterial);
         CreatePendantLight(floor.transform, new Vector3(6f, 5.5f, 4f), trimMaterial);
         CreatePendantLight(floor.transform, new Vector3(12f, 5.5f, -1f), trimMaterial);
+    }
+
+    // Visual-only dressing along the north wall, outside the walkable and NavMesh area.
+    private static void CreateKayKitDecor(Transform parent)
+    {
+        (string model, float x, float height, float yaw)[] props =
+        {
+            ("lamp_standing", -13.4f, 2.4f, 0f),
+            ("lamp_standing", 13.4f, 2.4f, 0f),
+            ("shelf_B_large_decorated", -8.5f, 2.2f, 180f),
+            ("cabinet_medium_decorated", -3.0f, 1.3f, 180f),
+            ("cabinet_medium_decorated", 3.0f, 1.3f, 180f),
+            ("shelf_B_large_decorated", 8.5f, 2.2f, 180f),
+            ("cactus_medium_A", -5.8f, 1.0f, 0f),
+            ("cactus_medium_B", 5.8f, 1.0f, 0f)
+        };
+        Transform decor = new GameObject("KayKit Wall Decor").transform;
+        decor.SetParent(parent, false);
+        int placed = 0;
+        foreach ((string model, float x, float height, float yaw) in props)
+        {
+            if (PitPanicArtPrefabLibrary.TryAddKayKit(decor, model, new Vector3(x, 0f, 10.2f), yaw, height, $"Decor {model}"))
+            {
+                placed++;
+            }
+        }
+
+        if (placed == 0)
+        {
+            Debug.LogWarning("KayKit decor skipped: models or texture are not imported (Assets/Art/KayKitFurniture).");
+            Object.DestroyImmediate(decor.gameObject);
+        }
     }
 
     private static void CreatePendantLight(Transform parent, Vector3 position, Material brass)
@@ -2166,7 +2199,7 @@ public static class PitPanicPrototypeGenerator
         navMeshModifier.area = 1;
 
         InstantiateArtVisual(
-            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableHeroArtV2"), table.transform);
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableHeroArtV3"), table.transform);
         GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
         interactionBounds.transform.SetParent(table.transform, false);
         BoxCollider tableFootprint = interactionBounds.AddComponent<BoxCollider>();

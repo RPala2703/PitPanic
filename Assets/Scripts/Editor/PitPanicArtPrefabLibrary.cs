@@ -89,7 +89,7 @@ public static class PitPanicArtPrefabLibrary
                     cream, gold, white, pink, dark, tigerStripe, brown));
         }
 
-        EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArtV2.prefab", root =>
+        EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArtV3.prefab", root =>
             BuildBlackjackTable(root, walnut, darkWalnut, emerald, brass, burgundy, cream, gold));
         EnsurePrefab($"{CasinoFolder}/RouletteTableHeroArtV2.prefab", root =>
             BuildRouletteTable(root, walnut, darkWalnut, emerald, brass, cream, red, rouletteBlack, zeroGreen, gold));
@@ -480,6 +480,12 @@ public static class PitPanicArtPrefabLibrary
 
         for (int seat = -1; seat <= 1; seat++)
         {
+            Vector3 stoolPosition = new Vector3(seat * 1.7f, 0f, -1.88f);
+            if (TryAddKayKit(root.transform, "chair_stool", stoolPosition, 0f, 0.95f, $"Customer Stool {seat + 2}"))
+            {
+                continue;
+            }
+
             Part(PrimitiveType.Cylinder, $"Customer Stool {seat + 2}", root.transform,
                 new Vector3(seat * 1.7f, 0.43f, -1.88f), new Vector3(0.60f, 0.40f, 0.60f), darkWalnut);
             Part(PrimitiveType.Sphere, $"Burgundy Padded Stool {seat + 2}", root.transform,
@@ -556,6 +562,74 @@ public static class PitPanicArtPrefabLibrary
                     new Vector3(0.28f, 0.50f, 0.28f), darkWalnut);
             }
         }
+    }
+
+    public const string KayKitFolder = "Assets/Art/KayKitFurniture";
+
+    public static Material GetKayKitMaterial()
+    {
+        string path = $"{ArtMaterialFolder}/KayKitFurniture.mat";
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material != null)
+        {
+            return material;
+        }
+
+        Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>($"{KayKitFolder}/furniturebits_texture.png");
+        if (texture == null)
+        {
+            return null;
+        }
+
+        EnsureFolder("Assets/Materials/PitPanic");
+        EnsureFolder(ArtMaterialFolder);
+        material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        material.SetTexture("_BaseMap", texture);
+        material.SetColor("_BaseColor", Color.white);
+        material.SetFloat("_Smoothness", 0.1f);
+        AssetDatabase.CreateAsset(material, path);
+        return material;
+    }
+
+    public static bool HasKayKit(string modelName)
+    {
+        return AssetDatabase.LoadAssetAtPath<GameObject>($"{KayKitFolder}/Models/{modelName}.fbx") != null &&
+               GetKayKitMaterial() != null;
+    }
+
+    // Adds a CC0 KayKit model scaled to a target height; returns false so callers can fall back to primitives.
+    public static bool TryAddKayKit(
+        Transform parent, string modelName, Vector3 localPosition, float yaw, float targetHeight, string objectName)
+    {
+        GameObject source = AssetDatabase.LoadAssetAtPath<GameObject>($"{KayKitFolder}/Models/{modelName}.fbx");
+        Material material = GetKayKitMaterial();
+        if (source == null || material == null)
+        {
+            return false;
+        }
+
+        GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(source);
+        instance.name = objectName;
+        instance.transform.SetParent(parent, false);
+        foreach (Collider collider in instance.GetComponentsInChildren<Collider>())
+        {
+            UnityEngine.Object.DestroyImmediate(collider);
+        }
+
+        Renderer[] renderers = instance.GetComponentsInChildren<Renderer>();
+        Bounds bounds = renderers[0].bounds;
+        foreach (Renderer renderer in renderers)
+        {
+            bounds.Encapsulate(renderer.bounds);
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        }
+
+        float scale = bounds.size.y > 0.001f ? targetHeight / bounds.size.y : 1f;
+        instance.transform.localScale = Vector3.one * scale;
+        instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        instance.transform.localPosition = localPosition - new Vector3(0f, bounds.min.y * scale, 0f);
+        return true;
     }
 
     private static void BuildRouletteLayout(
