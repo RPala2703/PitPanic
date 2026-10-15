@@ -2163,7 +2163,7 @@ public static class PitPanicPrototypeGenerator
 
         if (placed == 0)
         {
-            Debug.LogWarning("KayKit decor skipped: models or texture are not imported (Assets/Art/KayKitFurniture).");
+            Debug.Log("KayKit decor skipped: KayKit Furniture is not installed (optional).");
             Object.DestroyImmediate(decor.gameObject);
         }
     }
@@ -2199,7 +2199,7 @@ public static class PitPanicPrototypeGenerator
         navMeshModifier.area = 1;
 
         InstantiateArtVisual(
-            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableHeroArtV3"), table.transform);
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableHeroArtV4"), table.transform);
         GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
         interactionBounds.transform.SetParent(table.transform, false);
         BoxCollider tableFootprint = interactionBounds.AddComponent<BoxCollider>();

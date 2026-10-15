@@ -89,7 +89,7 @@ public static class PitPanicArtPrefabLibrary
                     cream, gold, white, pink, dark, tigerStripe, brown));
         }
 
-        EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArtV3.prefab", root =>
+        EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArtV4.prefab", root =>
             BuildBlackjackTable(root, walnut, darkWalnut, emerald, brass, burgundy, cream, gold));
         EnsurePrefab($"{CasinoFolder}/RouletteTableHeroArtV2.prefab", root =>
             BuildRouletteTable(root, walnut, darkWalnut, emerald, brass, cream, red, rouletteBlack, zeroGreen, gold));
