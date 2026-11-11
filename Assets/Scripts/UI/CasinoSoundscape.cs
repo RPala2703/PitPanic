@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 
 public enum CasinoSoundCue { Card, Chip, Step, Celebrate, Disappointed, Success, Mistake, Warning, Roulette, Button }
+public enum CasinoMusicTrack { Title, Casino }
 
 [DefaultExecutionOrder(-110)]
 public sealed class CasinoSoundscape : MonoBehaviour
@@ -10,11 +11,17 @@ public sealed class CasinoSoundscape : MonoBehaviour
     private readonly AudioClip[] cues = new AudioClip[10];
     private readonly float[] lastPlayed = new float[10];
     private AudioSource music;
+    private AudioClip titleTrack;
+    private AudioClip casinoTrack;
     private AudioSource ambience;
     private AudioSource[] voices;
     private int voice;
     private float intensity;
     private Transform focus;
+    private CasinoMusicTrack currentMusicTrack;
+    private const float TitleMusicGain = .72f;
+    private const float CasinoMusicGain = .12f;
+    public static CasinoMusicTrack CurrentMusicTrack => instance != null ? instance.currentMusicTrack : CasinoMusicTrack.Title;
     public static Transform Focus => instance != null ? instance.focus : null;
     public static void SetFocus(Transform owner)
     {
@@ -47,7 +54,12 @@ public sealed class CasinoSoundscape : MonoBehaviour
         ambience = Source(true);
         voices = new AudioSource[12];
         for (int i = 0; i < voices.Length; i++) voices[i] = Source(false);
-        music.clip = ComposeMusic();
+        titleTrack = Resources.Load<AudioClip>("Audio/Music/PitPanicWelcome");
+        casinoTrack = Resources.Load<AudioClip>("Audio/Music/PixelatedRoulette");
+        if (titleTrack == null || casinoTrack == null)
+            throw new InvalidOperationException("The title and casino music clips must be present in Resources/Audio/Music.");
+        music.loop = true;
+        music.clip = titleTrack;
         ambience.clip = ComposeAmbience();
         for (int i = 0; i < cues.Length; i++) cues[i] = ComposeCue((CasinoSoundCue)i);
         ApplyVolumes();
@@ -75,9 +87,19 @@ public sealed class CasinoSoundscape : MonoBehaviour
 
     private void ApplyVolumes()
     {
-        music.volume = MusicVolume;
+        music.volume = MusicVolume * (currentMusicTrack == CasinoMusicTrack.Title ? TitleMusicGain : CasinoMusicGain);
         ambience.volume = AmbienceVolume;
         foreach (AudioSource source in voices) source.volume = EffectsVolume;
+    }
+
+    public static void SetMusicTrack(CasinoMusicTrack track)
+    {
+        if (instance == null || instance.currentMusicTrack == track && instance.music.isPlaying) return;
+        instance.currentMusicTrack = track;
+        instance.music.Stop();
+        instance.music.clip = track == CasinoMusicTrack.Title ? instance.titleTrack : instance.casinoTrack;
+        instance.ApplyVolumes();
+        instance.music.Play();
     }
 
     public static void Play(CasinoSoundCue cue, Vector3 position, Transform owner = null)
@@ -112,28 +134,6 @@ public sealed class CasinoSoundscape : MonoBehaviour
         AudioClip clip = AudioClip.Create(name, samples.Length, 1, 22050, false);
         clip.SetData(samples, 0);
         return clip;
-    }
-
-    private static AudioClip ComposeMusic()
-    {
-        const int rate = 22050;
-        const float beat = .5f;
-        float[] samples = new float[rate * 16];
-        int[] melody = { 72, 76, 79, 76, 74, 77, 81, 77, 71, 74, 79, 74, 72, 76, 79, 84 };
-        int[] bass = { 48, 53, 55, 48 };
-        for (int i = 0; i < samples.Length; i++)
-        {
-            float t = i / (float)rate;
-            int note = Mathf.FloorToInt(t / beat);
-            float phase = t % beat;
-            float f = 440 * Mathf.Pow(2, (melody[note % melody.Length] - 69) / 12f);
-            float b = 440 * Mathf.Pow(2, (bass[note / 8 % 4] - 69) / 12f);
-            float envelope = Mathf.Min(1, phase * 120) * Mathf.Exp(-phase * 7);
-            float lead = Mathf.Sin(2 * Mathf.PI * f * phase) + .25f * Mathf.Sin(4 * Mathf.PI * f * phase);
-            float kick = Mathf.Sin(2 * Mathf.PI * 65 * phase) * Mathf.Exp(-phase * 30);
-            samples[i] = .14f * lead * envelope + .07f * Mathf.Sin(2 * Mathf.PI * b * t) * Mathf.Exp(-phase * 3) + .05f * kick;
-        }
-        return Clip("Original Pit Panic ragtime loop", samples);
     }
 
     private static AudioClip ComposeAmbience()

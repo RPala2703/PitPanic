@@ -134,8 +134,11 @@ actual round outcomes, and tired/rest states follow dealer duty.
 Customer sprite palettes are kept intact rather than tinting the whole animal
 blue/red to represent an outfit; impatience uses a restrained warm tint.
 
-`CasinoSoundscape` synthesizes original music, chatter and effects locally.
-There are no downloaded recordings or external audio licensing dependencies.
+`Pit Panic Welcome!` loops on the title screen; `Pixelated Roulette` loops during
+shifts. Gameplay music is deliberately mixed at 12% of the Music slider level
+(default effective gain .054) so sound effects remain prominent; title music uses
+72%. The supplied MP3s are in `Assets/Resources/Audio/Music`. Original synthesized
+chatter and effects remain generated locally; no other recordings were added.
 Settings provides separately persisted **Music**, **Ambience** and **Effects**
 sliders alongside the master mute. Card, chip, footstep, roulette, outcome,
 task-result and warning sounds use a bounded voice pool and cue rate limits.
