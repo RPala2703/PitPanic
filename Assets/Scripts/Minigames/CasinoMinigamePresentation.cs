@@ -62,9 +62,10 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         GameObject board = CreateImage("Minigame Board", root.transform, Vector2.zero,
             new Vector2(1510f, 820f), boardColor, false);
         CasinoHudStyle.Panel(board.GetComponent<Image>(), boardColor);
-        GameObject titleBadge = CreateImage("Title Badge", board.transform, new Vector2(0f, 342f),
-            new Vector2(520f, 66f), accent);
-        CasinoHudStyle.Panel(titleBadge.GetComponent<Image>(), accent);
+        GameObject titleBadge = CreateImage("Title Burst", board.transform, new Vector2(0f, 342f),
+            new Vector2(560f, 72f), accent);
+        CasinoPixelArt.SetSprite(titleBadge.GetComponent<Image>(), CasinoPixelArt.Burst, accent);
+        titleBadge.GetComponent<Image>().preserveAspect = false;
         presentation.sparkles = new Image[2];
         for (int i = 0; i < presentation.sparkles.Length; i++)
         {
@@ -88,7 +89,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
             new Vector2(0f, 292f), new Vector2(1390f, 38f), 19, new Color(0.94f, 0.97f, 0.92f));
         GameObject area = CreateImage("Minigame Game Area", board.transform, new Vector2(0f, -38f),
             new Vector2(1430f, 620f), gameColor, false);
-        CasinoHudStyle.Panel(area.GetComponent<Image>(), gameColor);
+        area.GetComponent<Image>().color = new Color(gameColor.r, gameColor.g, gameColor.b, 0.55f);
         presentation.GameArea = area.transform;
         return presentation;
     }
