@@ -1956,6 +1956,14 @@ public static class PitPanicPrototypeGenerator
             if (atlas == null || !atlas.isReadable || atlas.width != 384 || atlas.height != 3328 ||
                 atlas.filterMode != FilterMode.Point)
                 throw new System.InvalidOperationException($"Missing or incorrectly imported action atlas for {species}.");
+            Texture2D customerAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_Customer_{species}.png");
+            if (customerAtlas == null || customerAtlas.width != 384 || customerAtlas.height != 3328 ||
+                customerAtlas.filterMode != FilterMode.Point ||
+                customerAtlas.GetPixel(16, 22) == atlas.GetPixel(16, 22))
+                throw new System.InvalidOperationException($"Customer {species} must have a distinct civilian outfit atlas.");
+            Color forwardCard = customerAtlas.GetPixel(6, ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 40);
+            if (forwardCard.r < .8f || forwardCard.g < .7f)
+                throw new System.InvalidOperationException($"Away-facing seated {species} must hold cards toward the table, not behind their back.");
             for (int pose = 0; pose < 13; pose++)
             {
                 HashSet<int> frameHashes = new HashSet<int>();

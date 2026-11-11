@@ -221,8 +221,25 @@ public static class FirstShiftPlayModeValidation
             Check(!inspection.TryOpenInspectionFromPlayerInput(), "Roulette overlapped Blackjack inspection");
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
             Check(flick.IsRunning, "E failed to start FLICK");
+            Check(CasinoSoundscape.Focus == flick.transform && !CasinoSoundscape.AllowsEffect(null) &&
+                CasinoSoundscape.AllowsEffect(flick.transform) && !CasinoSoundscape.AllowsEffect(rgame.transform),
+                "Minigame audio did not isolate the active task");
+            yield return Press(UnityEngine.InputSystem.Key.P);
+            float flickPausedAt = (float)Get(flick, "timeRemaining");
+            Vector3 pausedPlayer = player.transform.position;
+            Check(AudioListener.pause && Time.timeScale == 0, "Pause did not stop audio and simulation");
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            yield return Press(UnityEngine.InputSystem.Key.W);
+            yield return new WaitForSecondsRealtime(.4f);
+            Check(flick.IsRunning && (float)Get(flick, "timeRemaining") == flickPausedAt &&
+                player.transform.position == pausedPlayer, "Paused minigame or character continued updating");
+            ((GameObject)Get(shift, "pausePanel")).transform.Find("Pause card/Resume").GetComponent<Button>().onClick.Invoke();
+            Check(!AudioListener.pause && Time.timeScale > 0 && flick.IsRunning,
+                "Resume did not restore the existing minigame");
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(!flick.IsRunning && blackjack.IsFlickReady, "FLICK cancellation failed");
+            Check(CasinoSoundscape.Focus == null && CasinoSoundscape.AllowsEffect(null),
+                "Closing minigame did not restore casino audio");
             yield return Press(UnityEngine.InputSystem.Key.E);
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
             Check(flick.IsRunning, "FLICK retry failed");
@@ -404,6 +421,87 @@ public static class FirstShiftPlayModeValidation
             spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
             Check(shift.IsRunning && !(bool)Get(shift, "tutorial") && spawner.AcceptingArrivals,
                 "Skip tutorial did not start normal scheduling");
+            player = FindFirstObjectByType<CasinoPlayerController>();
+            BlackjackTableInteraction exhaustedTable = Array.Find(FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None),
+                t => t.TableDisplayName == "BLACKJACK 2");
+            Check(spawner.TrySpawnGuidedCustomer(CasinoCustomerGame.Blackjack2), "Could not seat exhaustion-test customer");
+            CasinoCustomerAI servedCustomer = null;
+            timeout = Time.realtimeSinceStartup + 40;
+            while (servedCustomer == null && Time.realtimeSinceStartup < timeout)
+            {
+                foreach (CasinoCustomerAI customer in FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None))
+                    if (customer.Seat != null && customer.Seat.GameType == CasinoCustomerGame.Blackjack2 &&
+                        customer.IsInService) { servedCustomer = customer; break; }
+                yield return null;
+            }
+            Check(servedCustomer != null, "Customer did not enter actual Blackjack service");
+            Check(servedCustomer.GetComponentInChildren<PixelCharacterVisual>().UsesCustomerAnimation,
+                "Customer is using staff-uniform animation");
+            AIDealer exhaustedDealer = exhaustedTable.AssignedDealer;
+            float oldEnergy = exhaustedDealer.Energy;
+            Set(exhaustedDealer, "energy", 0f);
+            yield return null;
+            Check(!exhaustedDealer.CanServe && !exhaustedTable.IsDealerStaffed,
+                "Zero energy dealer still serves the table");
+            CustomerPatience patience = servedCustomer.GetComponent<CustomerPatience>();
+            Check(patience.IsWaiting, "Exhausted dealer did not restart customer patience");
+            int penalties = CustomerSatisfaction.PenaltyCount;
+            patience.Begin(1);
+            yield return new WaitForSecondsRealtime(1.2f);
+            Check(CustomerSatisfaction.PenaltyCount > penalties && !servedCustomer.IsSeated,
+                "Neglected exhausted table did not lose its customer and satisfaction");
+            Set(exhaustedDealer, "energy", oldEnergy);
+            yield return null;
+            Check(exhaustedTable.IsDealerStaffed, "Restored dealer cannot serve");
+            yield return Press(UnityEngine.InputSystem.Key.P);
+            float pausedEnergy = exhaustedDealer.Energy;
+            float pausedRemaining = shift.RemainingSeconds;
+            yield return new WaitForSecondsRealtime(.4f);
+            Check(exhaustedDealer.Energy == pausedEnergy && shift.RemainingSeconds == pausedRemaining,
+                "Pause did not freeze dealer energy and shift time");
+            ((GameObject)Get(shift, "pausePanel")).transform.Find("Pause card/Main Menu").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
+            menu = (GameObject)Get(shift, "menu");
+            Check(menu.activeSelf && !shift.IsRunning && Time.timeScale == 0 && !AudioListener.pause,
+                "Pause Main Menu did not return to an idle title");
+            Check(menu.transform.Find("Quit").GetComponent<Button>().interactable, "Quit Game button missing");
+            Check(CasinoSoundscape.Focus == menu.transform, "Main Menu retained old task audio focus");
+            menu.transform.Find("Continue").GetComponent<Button>().onClick.Invoke();
+            Check(shift.IsRunning && !AudioListener.pause && Time.timeScale > 0,
+                "Continue after Main Menu did not resume playable simulation");
+            RouletteRoundController resumedRoulette = FindFirstObjectByType<RouletteRoundController>();
+            timeout = Time.realtimeSinceStartup + 30;
+            while (!resumedRoulette.IsDealerStaffed && Time.realtimeSinceStartup < timeout) yield return null;
+            Check(resumedRoulette.IsDealerStaffed, "Roulette dealer did not reach the table after Continue");
+            float rouletteEnergy = resumedRoulette.AssignedDealer.Energy;
+            Set(resumedRoulette.AssignedDealer, "energy", 0f);
+            yield return null;
+            Check(!resumedRoulette.IsDealerStaffed && resumedRoulette.PhaseLabel.Contains("EXHAUSTED"),
+                "Roulette dealer exhaustion did not stop service or explain the problem");
+            Set(resumedRoulette.AssignedDealer, "energy", rouletteEnergy);
+            blackjack = Array.Find(FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None),
+                t => t.TableDisplayName == "BLACKJACK 1");
+            player = FindFirstObjectByType<CasinoPlayerController>();
+            MoveNear(blackjack.transform, blackjack.IsPlayerInRange);
+            blackjack.QueueFlickAssistanceTest();
+            FindFirstObjectByType<CasinoCustomerSpawner>().TrySpawnGuidedCustomer(CasinoCustomerGame.Blackjack1);
+            timeout = Time.realtimeSinceStartup + 60;
+            while (!blackjack.IsFlickReady && Time.realtimeSinceStartup < timeout) yield return null;
+            Check(blackjack.IsFlickReady, "Menu-return task did not reach a safe deal boundary");
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
+            flick = blackjack.GetComponent<FlickCardMinigame>();
+            Check(flick.IsRunning, "Could not start menu-return task");
+            yield return Press(UnityEngine.InputSystem.Key.P);
+            ((GameObject)Get(shift, "pausePanel")).transform.Find("Pause card/Main Menu").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
+            Check(!shift.IsRunning && !CasinoMinigamePresentation.IsOpen && !AudioListener.pause &&
+                CasinoSoundscape.Focus == ((GameObject)Get(shift, "menu")).transform,
+                "Returning from a paused task leaked its minigame, pause or audio focus");
         }
     }
 }

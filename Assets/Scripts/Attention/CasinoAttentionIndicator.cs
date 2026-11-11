@@ -68,6 +68,7 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (AudioListener.pause) return;
         if (targetCamera == null)
         {
             targetCamera = Camera.main;

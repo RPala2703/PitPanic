@@ -96,6 +96,7 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (table == null)
         {
             return;

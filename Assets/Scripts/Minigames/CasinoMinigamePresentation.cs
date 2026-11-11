@@ -138,6 +138,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
 
     private void Update()
     {
+        if (AudioListener.pause) return;
         if (canvasGroup == null)
         {
             return;

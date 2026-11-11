@@ -26,6 +26,7 @@ public static class PitPanicRichPixelArt
                 }
             Sprite[] expressions = new Sprite[4];
             Texture2D atlas = New(48 * 8, 64 * 4 * 13);
+            Texture2D customerAtlas = New(48 * 8, 64 * 4 * 13);
             for (int pose = 0; pose < 13; pose++)
             for (int direction = 0; direction < 4; direction++)
             for (int frame = 0; frame < 8; frame++)
@@ -34,6 +35,11 @@ public static class PitPanicRichPixelArt
                 Character(drawing, species, direction, 0);
                 AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame);
                 atlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
+                drawing.SetPixels32(new Color32[48 * 64]);
+                Character(drawing, species, direction, 0);
+                DressCustomer(drawing, species, direction);
+                AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame, true);
+                customerAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
                 UnityEngine.Object.DestroyImmediate(drawing);
             }
             string atlasPath = $"Assets/Art/Pixel/Animation_{species}.png";
@@ -51,6 +57,21 @@ public static class PitPanicRichPixelArt
             atlasImporter.maxTextureSize = 4096;
             atlasImporter.SaveAndReimport();
             Texture2D animation = AssetDatabase.LoadAssetAtPath<Texture2D>(atlasPath);
+            string customerPath = $"Assets/Art/Pixel/Animation_Customer_{species}.png";
+            customerAtlas.Apply();
+            File.WriteAllBytes(customerPath, customerAtlas.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(customerAtlas);
+            AssetDatabase.ImportAsset(customerPath);
+            TextureImporter customerImporter = (TextureImporter)AssetImporter.GetAtPath(customerPath);
+            customerImporter.textureType = TextureImporterType.Default;
+            customerImporter.npotScale = TextureImporterNPOTScale.None;
+            customerImporter.isReadable = true;
+            customerImporter.filterMode = FilterMode.Point;
+            customerImporter.mipmapEnabled = false;
+            customerImporter.textureCompression = TextureImporterCompression.Uncompressed;
+            customerImporter.maxTextureSize = 4096;
+            customerImporter.SaveAndReimport();
+            Texture2D customerAnimation = AssetDatabase.LoadAssetAtPath<Texture2D>(customerPath);
             for (int i = 0; i < expressions.Length; i++)
             {
                 Texture2D t = New(48, 64);
@@ -90,6 +111,7 @@ public static class PitPanicRichPixelArt
                     {
                         pixel.ConfigureExpressions(expressions);
                         pixel.ConfigureAnimation(animation);
+                        pixel.ConfigureCustomerAnimation(customerAnimation);
                         PrefabUtility.SaveAsPrefabAsset(root, path);
                     }
                 }
@@ -117,13 +139,37 @@ public static class PitPanicRichPixelArt
         Debug.Log("Rich pixel artwork rebuilt with original GUIDs and point filtering.");
     }
 
-    private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame)
+    private static Color32 CustomerShirt(CasinoAnimalSpecies species) => ((int)species % 4) switch
+    {
+        0 => new Color32(70, 171, 177, 255),
+        1 => new Color32(227, 151, 68, 255),
+        2 => new Color32(150, 103, 195, 255),
+        _ => new Color32(86, 172, 102, 255)
+    };
+
+    private static void DressCustomer(Texture2D t, CasinoAnimalSpecies species, int direction)
+    {
+        Color32 shirt = CustomerShirt(species);
+        R(t, 11, 19, 28, 15, shirt);
+        R(t, 12, 20, 3, 12, Shade(shirt, 1.2f));
+        R(t, 35, 19, 4, 14, Shade(shirt, .7f));
+        R(t, 7, 24, 4, 8, shirt); R(t, 40, 24, 3, 8, shirt);
+        if (direction != 1)
+        {
+            R(t, 20, 30, 10, 4, Cream);
+            R(t, 22, 28, 6, 5, shirt);
+            R(t, 14, 23, 20, 2, Shade(shirt, 1.35f));
+        }
+        if ((int)species % 2 == 0) R(t, 14, 26, 20, 2, Shade(shirt, .75f));
+    }
+
+    private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false)
     {
         int[] ease = { 0, -1, -2, 1, 4, 6, 3, 0 };
         int reach = ease[frame];
         if (pose == CasinoAnimationPose.Collect)
             reach = new[] { 0, 2, 5, 6, 4, 2, -1, 0 }[frame];
-        Color32 sleeve = new Color32(137, 42, 81, 255);
+        Color32 sleeve = customer ? CustomerShirt(species) : new Color32(137, 42, 81, 255);
         bool action = pose == CasinoAnimationPose.Deal || pose == CasinoAnimationPose.Pay ||
             pose == CasinoAnimationPose.Collect || pose == CasinoAnimationPose.Shuffle;
         if (pose == CasinoAnimationPose.Walk || pose == CasinoAnimationPose.Carry)
@@ -138,7 +184,7 @@ public static class PitPanicRichPixelArt
         if (action)
         {
             R(t, 37, 17, 10, 18, new Color32(0, 0, 0, 0));
-            int y = 23 + reach;
+            int y = direction == 1 ? 39 + Mathf.Clamp(reach, 0, 3) : 23 + reach;
             R(t, 35, y, 11, 8, Ink); R(t, 36, y + 2, 8, 4, sleeve);
             R(t, 40, y + 2, 6, 4, Cream);
             if ((pose == CasinoAnimationPose.Deal && frame < 5) || pose == CasinoAnimationPose.Shuffle)
@@ -171,13 +217,22 @@ public static class PitPanicRichPixelArt
             int hand = new[] { 0, 1, 3, 5, 6, 4, 2, 0 }[frame];
             if (pose == CasinoAnimationPose.Disappointed)
             {
-                R(t, 30, 27 + hand, 10, 5, Cream);
-                R(t, 31, 25 + hand, 9, 3, sleeve);
+                int handY = direction == 1 ? 39 + hand / 2 : 27 + hand;
+                R(t, 35, handY, 7, 5, Cream);
+                R(t, 36, handY - 2, 6, 3, sleeve);
             }
             if (pose == CasinoAnimationPose.Rest)
             {
-                R(t, 10, 18 + hand / 2, 12, 4, Cream);
-                R(t, 28, 18 + hand / 2, 12, 4, Cream);
+                if (direction == 1)
+                {
+                    R(t, 5, 34 + hand / 2, 7, 4, Cream);
+                    R(t, 36, 34 + hand / 2, 7, 4, Cream);
+                }
+                else
+                {
+                    R(t, 10, 18 + hand / 2, 12, 4, Cream);
+                    R(t, 28, 18 + hand / 2, 12, 4, Cream);
+                }
             }
             if (direction == 0)
             {
@@ -192,9 +247,22 @@ public static class PitPanicRichPixelArt
         }
         if (pose == CasinoAnimationPose.Examine)
         {
-            R(t, 15, 28 + Mathf.Max(0, reach), 18, 12, Ink);
-            R(t, 17, 30 + Mathf.Max(0, reach), 6, 8, Cream);
-            R(t, 25, 30 + Mathf.Max(0, reach), 6, 8, Cream);
+            if (direction == 1)
+            {
+                R(t, 6, 35, 7, 12, Ink); R(t, 35, 35, 7, 12, Ink);
+                R(t, 7, 36, 5, 8, sleeve); R(t, 36, 36, 5, 8, sleeve);
+                R(t, 7, 43, 5, 4, Cream); R(t, 36, 43, 5, 4, Cream);
+                R(t, 5, 47 + Mathf.Max(0, reach / 2), 8, 10, Ink);
+                R(t, 6, 48 + Mathf.Max(0, reach / 2), 6, 8, Cream);
+                R(t, 35, 47 + Mathf.Max(0, reach / 2), 8, 10, Ink);
+                R(t, 36, 48 + Mathf.Max(0, reach / 2), 6, 8, Cream);
+            }
+            else
+            {
+                R(t, 15, 28 + Mathf.Max(0, reach), 18, 12, Ink);
+                R(t, 17, 30 + Mathf.Max(0, reach), 6, 8, Cream);
+                R(t, 25, 30 + Mathf.Max(0, reach), 6, 8, Cream);
+            }
         }
         if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 3 && frame <= 4)
         { R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream); R(t, 14, 46, 4, 1, Ink); R(t, 31, 46, 4, 1, Ink); }

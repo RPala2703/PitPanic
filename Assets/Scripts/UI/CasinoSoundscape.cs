@@ -14,6 +14,21 @@ public sealed class CasinoSoundscape : MonoBehaviour
     private AudioSource[] voices;
     private int voice;
     private float intensity;
+    private Transform focus;
+    public static Transform Focus => instance != null ? instance.focus : null;
+    public static void SetFocus(Transform owner)
+    {
+        if (instance == null) return;
+        instance.focus = owner;
+        foreach (AudioSource source in instance.voices) source.Stop();
+        instance.ambience.mute = owner != null;
+    }
+    public static void ReleaseFocus(Transform owner)
+    {
+        if (instance != null && instance.focus == owner) SetFocus(null);
+    }
+    public static bool AllowsEffect(Transform owner) => !AudioListener.pause &&
+        (instance == null || instance.focus == null || instance.focus == owner);
     public static float MusicVolume => PlayerPrefs.GetFloat("PitPanic.MusicVolume", .45f);
     public static float AmbienceVolume => PlayerPrefs.GetFloat("PitPanic.AmbienceVolume", .3f);
     public static float EffectsVolume => PlayerPrefs.GetFloat("PitPanic.EffectsVolume", .65f);
@@ -65,9 +80,9 @@ public sealed class CasinoSoundscape : MonoBehaviour
         foreach (AudioSource source in voices) source.volume = EffectsVolume;
     }
 
-    public static void Play(CasinoSoundCue cue, Vector3 position)
+    public static void Play(CasinoSoundCue cue, Vector3 position, Transform owner = null)
     {
-        if (instance == null) return;
+        if (instance == null || !AllowsEffect(owner)) return;
         int index = (int)cue;
         float interval = cue == CasinoSoundCue.Warning ? 8 : cue == CasinoSoundCue.Step ? .16f : .07f;
         if (Time.unscaledTime - instance.lastPlayed[index] < interval) return;
@@ -87,6 +102,7 @@ public sealed class CasinoSoundscape : MonoBehaviour
 
     private void Update()
     {
+        if (AudioListener.pause) return;
         music.pitch = Mathf.MoveTowards(music.pitch, 1 + intensity * .08f, Time.unscaledDeltaTime * .015f);
         ambience.volume = Mathf.MoveTowards(ambience.volume, AmbienceVolume * (1 + intensity * .2f), Time.unscaledDeltaTime * .02f);
     }

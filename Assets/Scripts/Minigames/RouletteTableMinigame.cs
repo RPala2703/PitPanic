@@ -687,7 +687,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         }
 
         selectedPayoutCounts[denominationIndex] += payoutQuantity;
-        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position);
+        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position, transform);
         selectedPayoutPence += PayoutDenominationsPence[denominationIndex] * payoutQuantity;
         payoutActions.Add(new[] { denominationIndex, payoutQuantity });
         RenderPayoutSelection();
@@ -833,7 +833,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         float elapsed = 0f;
         while (elapsed < 0.45f && IsRunning)
         {
-            elapsed += Time.unscaledDeltaTime;
+            elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / 0.45f);
             for (int i = 0; i < flyingChips.Count; i++)
             {
@@ -1073,7 +1073,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         }
 
         stage = RouletteStage.Spinning;
-        CasinoSoundscape.Play(CasinoSoundCue.Roulette, transform.position);
+        CasinoSoundscape.Play(CasinoSoundCue.Roulette, transform.position, transform);
         spinTimer = Mathf.Max(0.1f, spinSeconds);
         wheelStartAngle = wheelRing.localEulerAngles.z;
         int pocketIndex = System.Array.IndexOf(EuropeanWheelOrder, winningNumber);

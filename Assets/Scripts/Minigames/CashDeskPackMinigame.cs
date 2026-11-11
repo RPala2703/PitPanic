@@ -507,7 +507,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         if (!TryAdvancePackingSequence(packingSequence, sequenceIndex, denominationIndex, out int nextIndex))
         {
-            CasinoSoundscape.Play(CasinoSoundCue.Mistake, transform.position);
+            CasinoSoundscape.Play(CasinoSoundCue.Mistake, transform.position, transform);
             timeRemaining = Mathf.Max(0f, timeRemaining - 0.5f);
             int expectedDenomination = packingSequence[sequenceIndex];
             SetStatus($"WRONG CHIP  •  {timeRemaining:0.0}s LEFT");
@@ -517,7 +517,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         }
 
         packedCounts[denominationIndex]++;
-        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position);
+        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position, transform);
         packedCount++;
         sequenceIndex = nextIndex;
         SetStatus("CORRECT CHIP  •  KEEP THE SEQUENCE MOVING");

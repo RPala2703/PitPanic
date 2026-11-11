@@ -136,7 +136,7 @@ public sealed class RouletteRoundController : MonoBehaviour
                                   dealerStation.AssignedDealer != null &&
                                   dealerStation.AssignedDealer.isActiveAndEnabled &&
                                   dealerStation.AssignedDealer.AssignedStation == dealerStation &&
-                                  dealerStation.AssignedDealer.IsAtStation;
+                                  dealerStation.AssignedDealer.CanServe;
     public bool HasActiveCustomersAndDealer => IsDealerStaffed && ParticipantCount > 0 &&
                                                Phase != RouletteRoundPhase.WaitingForPlayers;
     public bool IsConfigured => dealerStation != null && dealerStation.IsConfigured &&
@@ -149,7 +149,8 @@ public sealed class RouletteRoundController : MonoBehaviour
     public AIDealer AssignedDealer => dealerStation != null ? dealerStation.AssignedDealer : null;
     public bool HasPendingAssistance => assistanceStation != null && assistanceStation.IsTaskPending;
     public CasinoFloatRefillDestination FloatDestination => floatDestination;
-    public string PhaseLabel => Phase switch
+    public string PhaseLabel => AssignedDealer != null && AssignedDealer.IsAtStation && !AssignedDealer.CanServe
+        ? "EXHAUSTED! ASSIGN COVER" : Phase switch
     {
         RouletteRoundPhase.WaitingForPlayers => IsDealerStaffed ? "WAITING FOR PLAYERS" : "UNSTAFFED",
         RouletteRoundPhase.AcceptingBets => "ACCEPTING BETS",
@@ -369,6 +370,7 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         RefreshAssistanceStatus();
         if (!IsDealerStaffed)
         {

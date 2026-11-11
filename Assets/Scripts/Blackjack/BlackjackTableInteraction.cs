@@ -74,7 +74,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                    name.ToUpperInvariant();
         }
     }
-    public bool IsDealerStaffed => assignedDealer != null && assignedDealer.IsAtStation;
+    public bool IsDealerStaffed => assignedDealer != null && assignedDealer.CanServe;
     public bool IsActivelyServing => waitingSet.Count > 0 ||
                                      state != BlackjackTableState.WaitingForCustomers &&
                                      state != BlackjackTableState.ClearingTable;
@@ -160,6 +160,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         UpdateRoundProgress();
         UpdateAutomatedDealer();
 
@@ -246,6 +247,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         panelOpen = true;
+        CasinoSoundscape.SetFocus(transform);
         tableView.SetPromptVisible(false, "");
         tableView.SetVisible(true);
         playerController.SetMovementEnabled(false);
@@ -255,6 +257,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void ClosePanel()
     {
+        CasinoSoundscape.ReleaseFocus(transform);
         panelOpen = false;
         if (tableView != null)
         {

@@ -10,6 +10,9 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     [SerializeField] private Sprite[] frames;
     [SerializeField] private Sprite[] expressions;
     [SerializeField] private Texture2D animationAtlas;
+    [SerializeField] private Texture2D customerAnimationAtlas;
+    public void ConfigureCustomerAnimation(Texture2D texture) => customerAnimationAtlas = texture;
+    public bool UsesCustomerAnimation => customer != null && animationAtlas == customerAnimationAtlas;
     private static readonly Dictionary<Texture2D, Sprite[]> AnimationCache = new Dictionary<Texture2D, Sprite[]>();
     private Sprite[] animationFrames;
     private CasinoAnimationPose currentPose;
@@ -98,6 +101,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         agent = GetComponentInParent<NavMeshAgent>();
         dealer = GetComponentInParent<AIDealer>();
         customer = GetComponentInParent<CasinoCustomerAI>();
+        if (customer != null && customerAnimationAtlas != null) animationAtlas = customerAnimationAtlas;
         carrier = GetComponentInParent<CasinoPlayerFloatCarrier>();
         restScale = spriteRenderer != null ? spriteRenderer.transform.localScale : Vector3.one;
         previousPosition = transform.position;
@@ -117,6 +121,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (Time.timeScale == 0) return;
         Camera camera = Camera.main;
         if (spriteRenderer == null || frames == null || frames.Length != 8 || camera == null)
         {

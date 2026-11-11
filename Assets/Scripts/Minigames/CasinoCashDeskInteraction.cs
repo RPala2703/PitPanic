@@ -226,6 +226,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (!IsConfigured)
         {
             return;

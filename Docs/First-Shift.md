@@ -3,15 +3,20 @@
 Open `Assets/Scenes/PitPanicPrototype.unity` in Unity and press Play. Choose
 **New Game** for the short introduction and guided shift, or **Skip Training** on the introduction to start without
 the lessons. The on-screen objective points to the relevant station. Use WASD
-to move, E to open a table and play its available task, and P to pause when no interaction
-is open. The tutorial can also be skipped using the HUD button.
+to move, E to open a table and play its available task, and P to pause, including
+during a minigame. The tutorial can also be skipped using the HUD button.
 Q remains a compatibility shortcut to the same table interface. When carrying
 a float tray, E delivers the tray before opening a table. Escape closes an
 interface or cancels a minigame without trapping movement.
+Outside an interaction, Escape opens the pause menu; P or Escape resumes.
+Pause freezes the shift, customers, dealers, minigame timers, visual effects and audio,
+and blocks input to the underlying interface. **Resume** keeps your current task open.
+**Main Menu** abandons the current shift and returns to the title without erasing
+unlocked shifts or tutorial completion; it does not save a mid-shift checkpoint.
 
 The animated full-screen title presentation uses its own canvas scenery,
 pauses the simulation and hides the gameplay camera. **Settings** provides
-a persisted sound toggle and fullscreen toggle; **Quit** exits the standalone
+a persisted sound toggle and fullscreen toggle; **Quit Game** exits the standalone
 (or stops Play Mode in the Editor). It is not a second gameplay scene.
 During the dealer lesson, BJ1's dealer is deliberately made tired so the
 player can practise assigning cover and sending a dealer on break.
@@ -20,6 +25,11 @@ waiting at a table. From full energy, the 30% break warning arrives after
 about 2 minutes 20 seconds of busy work, or 4 minutes 40 seconds of idle duty.
 Break recovery is 1.5 energy per second: about 45 seconds from the break-warning
 threshold to ready. This keeps rotating three tables with one reserve feasible.
+At zero energy a dealer stops servicing their table. Customers lose patience even
+during an interrupted round, eventually leaving and lowering satisfaction. Lost
+customers mean lost earning opportunities, and unresolved dealer-cover tasks hurt
+the shift rating. Assign cover and send the exhausted dealer on break; this is not
+an arbitrary cash fine and does not change payout accounting.
 
 The shift duration defaults to nine minutes and can be changed on the
 **First Shift Controller** in the scene. When time runs out, arrivals stop and
@@ -60,7 +70,9 @@ and tired/resting expressions. Blackjack reuses its physical dealing/payout
 animation; roulette adds customer/dealer gestures and an orbiting ball.
 The cashier's chip movement follows actual customer/float service activity.
 The playable pit boss is a penguin. Staff use their animal names, and customers
-use the ten-species character pool with distinct outfits and species details.
+use the ten-species character pool with separate civilian-shirt animation atlases,
+rather than staff uniforms. Away-facing seated hands and cards reach toward the
+table, with direction-aware resting and service poses.
 Working dealer visuals step toward the felt while their collision/navigation
 positions remain outside the table, preserving access and break-room routes.
 
@@ -111,6 +123,10 @@ Settings provides separately persisted **Music**, **Ambience** and **Effects**
 sliders alongside the master mute. Card, chip, footstep, roulette, outcome,
 task-result and warning sounds use a bounded voice pool and cue rate limits.
 The original melody runs slightly faster toward the end of a shift.
+Opening a table, Pit Desk or minigame stops outstanding world effects and mutes
+casino chatter. Only effects owned by the active interface/task can play;
+closing it restores the world soundscape. Music remains independently controlled.
+Pause silences all channels until resumed.
 
 Customer arrivals ramp from about 17 seconds apart to 9 seconds, then about
 7 seconds in the finale, retaining the existing customer cap and task scheduler.

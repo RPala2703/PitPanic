@@ -140,8 +140,8 @@ public sealed class CasinoShiftController : MonoBehaviour
         if (!running)
             return;
 
-        if (Keyboard.current != null && Keyboard.current.pKey.wasPressedThisFrame &&
-            (paused || !AnyInteractionOpen()))
+        if (Keyboard.current != null && (Keyboard.current.pKey.wasPressedThisFrame ||
+            Keyboard.current.escapeKey.wasPressedThisFrame && (paused || !AnyInteractionOpen())))
             SetPaused(!paused);
         if (paused)
             return;
@@ -210,10 +210,24 @@ public sealed class CasinoShiftController : MonoBehaviour
     private void SetPaused(bool value)
     {
         paused = value;
+        AudioListener.pause = value;
         dealers.SetPaused(value);
         router.enabled = !value;
-        player.SetMovementEnabled(!value);
+        player.SetMovementEnabled(!value && !AnyInteractionOpen());
         pausePanel.SetActive(value);
+    }
+
+    private void ReturnToMainMenu()
+    {
+        foreach (CasinoMinigame game in minigames)
+            if (game != null && game.IsRunning) game.Abandon();
+        running = false;
+        skipMenu = false;
+        requestedShift = 0;
+        AudioListener.pause = false;
+        CasinoSoundscape.SetFocus(null);
+        dealers.SetPaused(false);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     private void UpdateTutorial()
@@ -449,6 +463,7 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void OnDestroy()
     {
+        AudioListener.pause = false;
         foreach (BlackjackTableInteraction table in FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
             table.RoundSettled -= OnBlackjackSettled;
         if (roulette != null) roulette.BetSettled -= OnRouletteSettled;
@@ -536,9 +551,17 @@ public sealed class CasinoShiftController : MonoBehaviour
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         });
         results.SetActive(false);
-        pausePanel = Panel("Shift Paused", new Vector2(520f, 250f));
-        Label(pausePanel.transform, "Pause title", "TAKE A BREATHER!", new Vector2(0f, 45f), new Vector2(480f, 45f), 28);
-        MakeButton(pausePanel.transform, "Resume", "RESUME  •  P", new Vector2(0f, -45f), () => SetPaused(false));
+        GameObject pauseShade = CasinoMinigamePresentation.CreateImage("Pause backdrop", canvas.transform,
+            Vector2.zero, new Vector2(1600, 900), new Color(0, 0, 0, .7f), true);
+        RectTransform shadeRect = (RectTransform)pauseShade.transform;
+        shadeRect.anchorMin = Vector2.zero; shadeRect.anchorMax = Vector2.one;
+        shadeRect.offsetMin = shadeRect.offsetMax = Vector2.zero;
+        pausePanel = pauseShade;
+        GameObject pauseCard = Panel("Pause card", new Vector2(520f, 330f));
+        pauseCard.transform.SetParent(pauseShade.transform, false);
+        Label(pauseCard.transform, "Pause title", "TAKE A BREATHER!", new Vector2(0f, 90f), new Vector2(480f, 45f), 28);
+        MakeButton(pauseCard.transform, "Resume", "RESUME  •  P / ESC", new Vector2(0f, 0f), () => SetPaused(false));
+        MakeButton(pauseCard.transform, "Main Menu", "MAIN MENU", new Vector2(0f, -80f), ReturnToMainMenu);
         pausePanel.SetActive(false);
     }
 

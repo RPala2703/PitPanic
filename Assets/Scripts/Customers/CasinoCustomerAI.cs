@@ -104,6 +104,13 @@ public sealed class CasinoCustomerAI : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
+        if (state == CustomerState.Seated && serviceActive && reservedSeat != null)
+        {
+            AIDealer dealer = reservedSeat.DealerStation != null ? reservedSeat.DealerStation.AssignedDealer : null;
+            if (dealer != null && dealer.CanServe) patience.Pause();
+            else patience.Resume();
+        }
         UpdateImpatienceColor();
 
         if (state == CustomerState.TravellingToSeat && !agent.pathPending && agent.pathStatus != NavMeshPathStatus.PathComplete)

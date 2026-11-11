@@ -41,6 +41,7 @@ public sealed class AIDealer : MonoBehaviour
 
     public string DealerId => string.IsNullOrWhiteSpace(dealerId) ? name : dealerId;
     public float Energy => energy;
+    public bool CanServe => IsAtStation && energy > 0f;
     public float TiredThreshold => tiredThreshold;
     public float ExhaustedThreshold => exhaustedThreshold;
     public float FullRestThreshold => fullRestThreshold;
@@ -87,7 +88,7 @@ public sealed class AIDealer : MonoBehaviour
         RequestBreak();
     }
 
-    public string StatusLabel => state switch
+    public string StatusLabel => IsAtStation && energy <= 0 ? "EXHAUSTED! SERVICE STOPPED" : state switch
     {
         DealerDutyState.Working => "WORKING",
         DealerDutyState.NeedsBreak => "NEEDS BREAK",
@@ -362,6 +363,7 @@ public sealed class AIDealer : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (IsAtStation)
         {
             CurrentStationTime += Time.deltaTime;

@@ -19,6 +19,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
     public void Build(Action newGame, Action continueGame, bool canContinue)
     {
         CasinoSoundscape.SetIntensity(0);
+        CasinoSoundscape.SetFocus(transform);
         RectTransform rect = (RectTransform)transform;
         rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
         rect.offsetMin = rect.offsetMax = Vector2.zero;
@@ -77,7 +78,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         Button cont = Button("Continue", "CONTINUE", new Vector2(0, -45), continueGame);
         cont.interactable = canContinue;
         Button("Settings", "SETTINGS", new Vector2(0, -115), () => settings.SetActive(true));
-        Button("Quit", "QUIT", new Vector2(0, -185), () =>
+        Button("Quit", "QUIT GAME", new Vector2(0, -185), () =>
         {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -167,6 +168,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
 
     private void OnDisable()
     {
+        CasinoSoundscape.ReleaseFocus(transform);
         if (gameCamera != null) gameCamera.cullingMask = savedCullingMask;
     }
 }

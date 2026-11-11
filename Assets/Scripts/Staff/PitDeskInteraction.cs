@@ -56,6 +56,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (!isOpen && (CasinoMinigamePresentation.IsOpen || CasinoPlayerInteractionRouter.IsAnyInspectionOpen()))
         {
             if (promptText != null)
@@ -132,6 +133,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void Open()
     {
+        CasinoSoundscape.SetFocus(transform);
         isOpen = true;
         feedbackUntil = 0f;
         panel.SetActive(true);
@@ -141,6 +143,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void Close()
     {
+        CasinoSoundscape.ReleaseFocus(transform);
         isOpen = false;
         selectedDealer = null;
         if (panel != null) panel.SetActive(false);

@@ -11,7 +11,7 @@ public sealed class CasinoButtonFeedback : MonoBehaviour, IPointerDownHandler, I
     {
         if (button == null || !button.IsInteractable()) return;
         transform.localScale = rest * .96f;
-        CasinoSoundscape.Play(CasinoSoundCue.Button, Vector3.zero);
+        CasinoSoundscape.Play(CasinoSoundCue.Button, Vector3.zero, CasinoSoundscape.Focus);
     }
     public void OnPointerUp(PointerEventData data) => transform.localScale = rest;
     public void OnPointerExit(PointerEventData data) => transform.localScale = rest;

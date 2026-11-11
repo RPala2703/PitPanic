@@ -24,6 +24,7 @@ public sealed class CasinoPlayerInteractionRouter : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (CasinoMinigamePresentation.IsOpen || IsAnyInspectionOpen())
         {
             return;
