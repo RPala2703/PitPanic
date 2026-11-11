@@ -1061,7 +1061,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     {
         if (winningNumber < 0)
         {
-            winningNumber = Random.Range(0, 37);
+            winningNumber = roundController.IsTutorialRound ? 1 : Random.Range(0, 37);
             if (!roundController.TrySetAssistanceWinningNumber(assistanceRoundId, winningNumber))
             {
                 winningNumber = -1;

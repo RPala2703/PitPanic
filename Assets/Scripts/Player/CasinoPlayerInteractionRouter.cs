@@ -60,6 +60,8 @@ public sealed class CasinoPlayerInteractionRouter : MonoBehaviour
         List<CasinoMinigameStationPrompt> requestablePrompts = GetNearbyRequestablePrompts();
         PitDeskInteraction pitDesk = FindFirstObjectByType<PitDeskInteraction>();
         bool carrying = carrier != null && carrier.IsCarrying;
+        if (!carrying && TryOpenTable())
+            return;
         bool pitDeskAvailable = pitDesk != null && pitDesk.IsPlayerInRange(player.transform);
         CasinoPlayerInteractionKind action = GetPriorityAction(
             carrying,
@@ -120,6 +122,11 @@ public sealed class CasinoPlayerInteractionRouter : MonoBehaviour
             return;
         }
 
+        TryOpenTable();
+    }
+
+    private bool TryOpenTable()
+    {
         List<MonoBehaviour> inspections = new List<MonoBehaviour>();
         BlackjackTableInteraction[] blackjackTables =
             FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None);
@@ -152,12 +159,13 @@ public sealed class CasinoPlayerInteractionRouter : MonoBehaviour
             };
             if (opened)
             {
-                return;
+                return true;
             }
         }
+        return false;
     }
 
-    private static bool IsAnyInspectionOpen()
+    public static bool IsAnyInspectionOpen()
     {
         foreach (BlackjackTableInteraction table in
                  FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))

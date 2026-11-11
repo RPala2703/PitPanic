@@ -35,6 +35,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
     private CasinoFloatRefillOrder carryingOrder;
     private CasinoPlayerFloatCarrier carrier;
     private int nextOrderSequence;
+    public event Action<CasinoFloatRefillDestination> FloatDelivered;
 
     public int WaitingCustomerCount => waitingCustomers.Count + (activeCustomer != null ? 1 : 0);
     public CasinoCustomerAI ActiveCustomer => activeCustomer;
@@ -189,10 +190,12 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
         }
 
         orderStatuses[carryingOrder.Id] = CasinoFloatRefillStatus.Delivered;
+        CasinoFloatRefillDestination deliveredDestination = carryingOrder.Destination;
         activeOrdersByDestination.Remove(carryingOrder.DestinationId);
         string confirmation = $"FLOAT DELIVERED  •  {carryingOrder.DestinationId}";
         carryingOrder = null;
         floatCarrier.FinishDelivery(confirmation);
+        FloatDelivered?.Invoke(deliveredDestination);
         BeginNextPackIfReady();
         return true;
     }

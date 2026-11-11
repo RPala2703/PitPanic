@@ -62,7 +62,7 @@ public sealed class CasinoCharacterVisual : MonoBehaviour
     {
         PixelCharacterVisual pixel = GetComponent<PixelCharacterVisual>();
         if (pixel != null)
-            pixel.PlayGesture(duration);
+            pixel.PlayGesture(type, duration);
         Vector3 direction = worldTarget - transform.position;
         direction.y = 0f;
         gestureYaw = direction.sqrMagnitude > 0.0001f

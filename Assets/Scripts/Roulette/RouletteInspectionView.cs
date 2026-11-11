@@ -38,6 +38,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private float nextRefreshTime;
     private CursorLockMode savedCursorLockMode;
     private bool savedCursorVisible;
+    private Button assistanceButton;
 
     public bool IsConfigured => player != null && interactionZone != null &&
                                 interactionZone.IsConfigured && roundController != null &&
@@ -65,6 +66,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
     {
         if (panelOpen || !IsConfigured || !IsPlayerInRange(player.transform) ||
             CasinoMinigamePresentation.IsOpen ||
+            CasinoPlayerInteractionRouter.IsAnyInspectionOpen() ||
             player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true)
         {
             return false;
@@ -100,6 +102,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
     {
         if (panelOpen)
         {
+            assistanceButton.gameObject.SetActive(roundController.HasPendingAssistance);
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 Close();
@@ -118,6 +121,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
         bool carrying = player != null &&
                         player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true;
         bool showPrompt = IsConfigured && !carrying &&
+                          !CasinoPlayerInteractionRouter.IsAnyInspectionOpen() &&
                           !CasinoMinigamePresentation.IsOpen &&
                           IsPlayerInRange(player.transform);
         if (prompt.activeSelf != showPrompt)
@@ -178,7 +182,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
         Image promptBackground = prompt.AddComponent<Image>();
         promptBackground.color = new Color(0.025f, 0.06f, 0.05f, 0.92f);
         promptBackground.raycastTarget = false;
-        CreateText(prompt.transform, "Prompt", "Q  •  INSPECT ROULETTE",
+        CreateText(prompt.transform, "Prompt", "E  •  ROULETTE",
             Vector2.zero, new Vector2(460f, 42f), 19, Color.white);
 
         board = CreateObject("Roulette Inspection Board", canvas.transform);
@@ -194,6 +198,16 @@ public sealed class RouletteInspectionView : MonoBehaviour
         CasinoPixelArt.AddSparkle(board.transform, new Vector2(260f, 352f), 24f);
         closeButton = CreateButton(board.transform, "Close", "CLOSE  •  ESC",
             new Vector2(608f, 351f), new Vector2(190f, 48f), Close);
+        assistanceButton = CreateButton(board.transform, "Start assistance", "PLAY TABLE TASK!",
+            new Vector2(315f, -357f), new Vector2(420f, 52f), () =>
+            {
+                CasinoMinigameStation station = roundController.GetComponent<CasinoMinigameStation>();
+                if (station == null || !station.IsTaskPending) return;
+                Close();
+                if (!station.TryBegin())
+                    TryOpenInspectionFromPlayerInput();
+            });
+        assistanceButton.gameObject.SetActive(false);
 
         GameObject wheelPanel = CreatePanel(board.transform, "Wheel Panel",
             new Vector2(120f, 165f), new Vector2(360f, 310f));
@@ -231,11 +245,11 @@ public sealed class RouletteInspectionView : MonoBehaviour
             new Vector2(0f, -15f), new Vector2(690f, 150f), 16, Color.white, TextAnchor.UpperLeft);
 
         GameObject bottomPanel = CreatePanel(extraDetails.transform, "Results and Float",
-            new Vector2(315f, -315f), new Vector2(750f, 110f));
+            new Vector2(315f, -292f), new Vector2(750f, 74f));
         historyText = CreateText(bottomPanel.transform, "Recent Results", "",
-            new Vector2(-175f, 0f), new Vector2(330f, 95f), 15, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(-175f, 0f), new Vector2(330f, 70f), 15, Color.white, TextAnchor.MiddleLeft);
         inventoryText = CreateText(bottomPanel.transform, "Float Inventory", "",
-            new Vector2(185f, 0f), new Vector2(330f, 95f), 15, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(185f, 0f), new Vector2(330f, 70f), 15, Color.white, TextAnchor.MiddleLeft);
 
         summaryArt = CreateObject("Table Summary", board.transform);
         SetRect(summaryArt, new Vector2(0.5f, 0.5f), new Vector2(315f, -192f), new Vector2(750f, 250f));

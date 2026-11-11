@@ -45,7 +45,8 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
 
     public bool TryRequestAndBegin()
     {
-        if (!CanRequestAtPlayer(player != null ? player.transform : null) ||
+        if (CasinoMinigamePresentation.IsOpen || CasinoPlayerInteractionRouter.IsAnyInspectionOpen() ||
+            !CanRequestAtPlayer(player != null ? player.transform : null) ||
             !station.RequestMinigame(minigameType, attentionReason))
         {
             return false;
@@ -75,7 +76,9 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
             return;
         }
 
-        if (player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true)
+        if (player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true ||
+            CasinoMinigamePresentation.IsOpen || CasinoPlayerInteractionRouter.IsAnyInspectionOpen() ||
+            GetComponent<BlackjackTableInteraction>() != null || GetComponent<RouletteInspectionView>() != null)
         {
             canvas.enabled = false;
             return;
