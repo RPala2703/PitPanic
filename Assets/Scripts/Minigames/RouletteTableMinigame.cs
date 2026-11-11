@@ -101,9 +101,9 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     public override bool CanBegin => IsConfigured && Mouse.current != null &&
                                      roundController.Phase == RouletteRoundPhase.AwaitingAssistance &&
                                      roundController.AssistanceBets.Count > 0;
-    protected override string PresentationTitle => "SPIN!  •  SWEEP!  •  PAY!";
+    protected override string PresentationTitle => "SPIN!";
     protected override string PresentationInstructions =>
-        "Spin once, clear losing bets and pay the winners using the table float.";
+        "DRAG THE WHEEL  •  LET IT FLY!";
     public int WinningNumber => winningNumber;
     public int SweptChipCount => sweptCount;
     public long AssistanceRoundId => assistanceRoundId;
@@ -1107,6 +1107,8 @@ public sealed class RouletteTableMinigame : CasinoMinigame
 
     private void EnterSweepStage()
     {
+        Presentation.SetTitle("SWEEP!");
+        Presentation.SetInstructions("DRAG LOSING CHIPS TO THE TRAY!");
         if (!roundController.TrySetAssistanceWinningNumber(assistanceRoundId, winningNumber))
         {
             SetStatus("ROULETTE ROUND UNAVAILABLE");
@@ -1239,6 +1241,8 @@ public sealed class RouletteTableMinigame : CasinoMinigame
 
     private void EnterPayStage()
     {
+        Presentation.SetTitle("PAY!");
+        Presentation.SetInstructions("MATCH THE TARGET  •  PAY THE WINNER!");
         stage = RouletteStage.Pay;
         if (statusHeader != null)
         {

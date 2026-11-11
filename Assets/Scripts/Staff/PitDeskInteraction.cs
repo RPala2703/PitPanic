@@ -6,6 +6,7 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class PitDeskInteraction : MonoBehaviour
 {
+    private float feedbackUntil;
     [SerializeField] private CasinoPlayerController player;
     [SerializeField] private TableInteractionZone interactionZone;
     [SerializeField] private DealerAssignmentManager assignmentManager;
@@ -116,11 +117,14 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
         panel = CreateRect("Staff Management", canvas.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1040f, 620f));
         Image panelImage = panel.AddComponent<Image>();
-        panelImage.color = new Color(0.035f, 0.13f, 0.12f, 0.98f);
+        CasinoHudStyle.Panel(panelImage, CasinoHudStyle.Ink);
+        Text title = CreateText("Desk Title", panel.transform, new Vector2(0f, 278f), new Vector2(700f, 40f), 25);
+        title.text = "DEALER CREW!";
+        title.color = CasinoHudStyle.Gold;
         statusText = CreateText("Assignment Status", panel.transform, new Vector2(0f, -276f), new Vector2(820f, 30f), 16);
         promptText = CreateText("Pit Desk Prompt", canvas.transform, new Vector2(0f, -314f), new Vector2(760f, 46f), 20);
         promptText.fontStyle = FontStyle.Bold;
-        promptText.text = "E  •  PIT DESK STAFF MANAGEMENT";
+        promptText.text = "E  •  DEALER CREW";
         CreateButton("Close", panel.transform, "ESC  •  CLOSE", new Vector2(0f, -310f), new Vector2(170f, 38f), Close);
         panel.SetActive(false);
     }
@@ -128,6 +132,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
     private void Open()
     {
         isOpen = true;
+        feedbackUntil = 0f;
         panel.SetActive(true);
         player.SetMovementEnabled(false);
         RenderDealerRows();
@@ -163,15 +168,24 @@ public sealed class PitDeskInteraction : MonoBehaviour
             AIDealer dealer = dealers[i];
             if (dealer == null) continue;
             float y = rowY - i * 98f;
-            string minutes = dealer.CurrentStationTime >= 60f ? $"{dealer.CurrentStationTime / 60f:0.0}m" : $"{dealer.CurrentStationTime:0}s";
             GameObject row = CreateRect($"Dealer Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(-260f, y), new Vector2(490f, 80f));
-            row.AddComponent<Image>().color = dealer == selectedDealer
+            Image rowImage = row.AddComponent<Image>();
+            CasinoHudStyle.Panel(rowImage, dealer == selectedDealer
                 ? new Color(0.24f, 0.39f, 0.28f, 0.95f)
-                : new Color(0.08f, 0.23f, 0.20f, 0.92f);
+                : new Color(0.08f, 0.23f, 0.20f, 0.92f));
             bool breakRecommended = dealer.NeedsBreak || dealer.Energy <= dealer.TiredThreshold;
-            Text details = CreateText("Dealer Details", row.transform, new Vector2(-106f, 7f), new Vector2(270f, 62f), 14);
+            SpriteRenderer portraitSource = dealer.GetComponentInChildren<SpriteRenderer>();
+            if (portraitSource != null && portraitSource.sprite != null)
+            {
+                GameObject portrait = CreateRect("Dealer Portrait", row.transform,
+                    new Vector2(0.5f, 0.5f), new Vector2(-198f, 0f), new Vector2(62f, 70f));
+                Image portraitImage = portrait.AddComponent<Image>();
+                CasinoPixelArt.SetSprite(portraitImage, portraitSource.sprite, Color.white);
+                portraitImage.raycastTarget = false;
+            }
+            Text details = CreateText("Dealer Details", row.transform, new Vector2(-58f, 7f), new Vector2(235f, 62f), 16);
             details.text =
-                $"{dealer.DealerId}  •  {dealer.CurrentAssignmentLabel}\n{dealer.StatusLabel}  •  ENERGY  {dealer.Energy:0}%\n{(breakRecommended ? "BREAK RECOMMENDED  •  " : string.Empty)}{minutes} ON STATION";
+                $"{dealer.DealerId}  •  {dealer.Energy:0}%\n{(breakRecommended ? "BREAK NEEDED!" : dealer.StatusLabel)}\n{dealer.CurrentAssignmentLabel}";
             if (breakRecommended)
             {
                 details.color = new Color(1f, 0.76f, 0.35f);
@@ -181,8 +195,8 @@ public sealed class PitDeskInteraction : MonoBehaviour
             {
                 int dealerIndex = i;
                 CreateButton("Select Dealer", row.transform, dealer == selectedDealer ? "SELECTED" : "ASSIGN", new Vector2(165f, 24f), new Vector2(106f, 22f), () => SelectDealer(dealerIndex));
-                CreateButton("Send On Break", row.transform, "SEND ON BREAK", new Vector2(165f, 0f), new Vector2(106f, 22f), () => SendDealerOnBreak(dealerIndex));
-                CreateButton("Leave Waiting", row.transform, "LEAVE WAITING", new Vector2(165f, -24f), new Vector2(106f, 22f), () => LeaveDealerWaiting(dealerIndex));
+                CreateButton("Send On Break", row.transform, "BREAK", new Vector2(165f, 0f), new Vector2(106f, 22f), () => SendDealerOnBreak(dealerIndex));
+                CreateButton("Leave Waiting", row.transform, "WAIT", new Vector2(165f, -24f), new Vector2(106f, 22f), () => LeaveDealerWaiting(dealerIndex));
             }
 
             rows.Add(row);
@@ -194,18 +208,18 @@ public sealed class PitDeskInteraction : MonoBehaviour
             CasinoDealerStation station = stations[i];
             float y = stationY - i * 98f;
             GameObject stationRow = CreateRect($"Table Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(275f, y), new Vector2(500f, 80f));
-            stationRow.AddComponent<Image>().color = new Color(0.22f, 0.18f, 0.10f, 0.95f);
+            CasinoHudStyle.Panel(stationRow.AddComponent<Image>(), new Color(0.28f, 0.18f, 0.20f, 0.95f));
             string currentName = station.AssignedDealer != null
                 ? $"{station.AssignedDealer.DealerId}  {station.AssignedDealer.StatusLabel}"
                 : "UNSTAFFED";
-            string incomingName = station.PendingReplacement != null ? $"INCOMING: {station.PendingReplacement.DealerId}" : "NO ROTATION";
+            string incomingName = station.PendingReplacement != null ? $"ON THE WAY: {station.PendingReplacement.DealerId}" : "";
             CreateText("Table Details", stationRow.transform, new Vector2(-80f, 10f), new Vector2(280f, 55f), 15).text =
                 $"{station.StationName}  •  {currentName}\n{incomingName}";
             int stationIndex = i;
             Button assignmentButton = CreateButton(
                 "Assign Selected Dealer",
                 stationRow.transform,
-                selectedDealer == null ? "SELECT READY DEALER" : "ASSIGN TO TABLE",
+                selectedDealer == null ? "PICK A DEALER" : "SEND HERE!",
                 new Vector2(165f, 0f),
                 new Vector2(150f, 36f),
                 () => AssignSelectedDealer(stationIndex));
@@ -219,38 +233,44 @@ public sealed class PitDeskInteraction : MonoBehaviour
             else
             {
                 stationHint.text = station.CanAcceptReplacement
-                    ? station.AssignedDealer == null ? "UNSTAFFED — READY COVER CAN BE ASSIGNED" : "READY DEALER CAN REPLACE CURRENT DEALER"
-                    : station.PendingReplacement != null ? "REPLACEMENT EN ROUTE" : "REPLACEMENT UNAVAILABLE";
+                    ? station.AssignedDealer == null ? "NEEDS A DEALER!" : "READY FOR COVER"
+                    : station.PendingReplacement != null ? "COVER ON THE WAY" : "NOT AVAILABLE";
             }
 
             rows.Add(stationRow);
         }
 
-        statusText.text = selectedDealer == null
-            ? "SELECT A READY DEALER, THEN ASSIGN TO TABLE, SEND ON BREAK, OR LEAVE WAITING"
-            : $"SELECTED  {selectedDealer.DealerId}  •  {selectedDealer.Energy:0}% ENERGY";
+        if (Time.unscaledTime >= feedbackUntil)
+        {
+            statusText.text = selectedDealer == null
+                ? "PICK A READY DEALER, THEN CHOOSE A TABLE!"
+                : $"{selectedDealer.DealerId} IS READY  •  PICK A TABLE!";
+        }
     }
 
     private void SelectDealer(int index)
     {
         selectedDealer = assignmentManager.Dealers[index];
+        feedbackUntil = 0f;
         RenderDealerRows();
     }
 
     private void SendDealerOnBreak(int index)
     {
         AIDealer dealer = assignmentManager.Dealers[index];
+        string feedback;
         if (assignmentManager.TrySendDealerOnBreak(dealer, out string reason))
         {
             selectedDealer = null;
-            statusText.text = $"{dealer.DealerId} IS WALKING TO THE BREAK ROOM.";
+            feedback = $"{dealer.DealerId} IS OFF TO BREAK!";
         }
         else
         {
-            statusText.text = reason;
+            feedback = reason;
         }
 
         RenderDealerRows();
+        ShowFeedback(feedback);
     }
 
     private void LeaveDealerWaiting(int index)
@@ -258,8 +278,8 @@ public sealed class PitDeskInteraction : MonoBehaviour
         AIDealer dealer = assignmentManager.Dealers[index];
         assignmentManager.AcknowledgeDealerAtPitDesk(dealer);
         selectedDealer = null;
-        statusText.text = $"{dealer.DealerId} WILL WAIT AT THE PIT DESK.";
         RenderDealerRows();
+        ShowFeedback($"{dealer.DealerId} WILL WAIT HERE.");
     }
 
     private void AssignSelectedDealer(int stationIndex)
@@ -273,11 +293,18 @@ public sealed class PitDeskInteraction : MonoBehaviour
         AIDealer assignedDealer = selectedDealer;
         CasinoDealerStation station = assignmentManager.Stations[stationIndex];
         bool assigned = assignmentManager.TryAssignDealer(assignedDealer, station, out string reason);
-        statusText.text = assigned
+        string feedback = assigned
             ? $"{assignedDealer.DealerId} IS WALKING TO {station.StationName}"
             : reason;
         selectedDealer = null;
         RenderDealerRows();
+        ShowFeedback(feedback);
+    }
+
+    private void ShowFeedback(string message)
+    {
+        statusText.text = message;
+        feedbackUntil = Time.unscaledTime + 3f;
     }
 
     private Button CreateButton(string objectName, Transform parent, string label, Vector2 position, Vector2 size, UnityEngine.Events.UnityAction action)
@@ -287,6 +314,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
         image.color = new Color(0.57f, 0.39f, 0.15f, 0.98f);
         Button button = buttonObject.AddComponent<Button>();
         button.targetGraphic = image;
+        CasinoHudStyle.Button(button);
         button.onClick.AddListener(action);
         Text text = CreateText("Label", buttonObject.transform, Vector2.zero, size, 13);
         text.text = label;

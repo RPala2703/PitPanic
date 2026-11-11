@@ -60,7 +60,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
     protected override string PresentationTitle =>
         table != null ? $"FLICK!  •  {table.TableDisplayName}" : "FLICK! DEAL THE OPENING HANDS";
     protected override string PresentationInstructions =>
-        "Click and hold the card shoe, drag to the glowing hand, then release to deal.";
+        "GRAB A CARD  •  FLICK TO THE GLOWING HAND!";
     public int SuccessfulFlicks => successfulFlicks;
     public int MissedFlicks => missedFlicks;
     public bool IsConfigured => table != null && player != null && tableRoot != null;

@@ -11,6 +11,10 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
     private float targetScale;
     private bool closeWhenHidden;
     private Image[] sparkles;
+    private Text titleText;
+    private Text instructionsText;
+    private RectTransform titleRect;
+    private float titlePop;
 
     public static bool IsOpen => activePresentation != null && !activePresentation.closeWhenHidden;
     public Transform GameArea { get; private set; }
@@ -46,7 +50,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         presentation.canvasGroup.alpha = 0f;
         presentation.targetAlpha = 1f;
         presentation.presentationRect = root.transform as RectTransform;
-        presentation.presentationRect.localScale = Vector3.one * 0.96f;
+        presentation.presentationRect.localScale = Vector3.one * 0.92f;
         presentation.targetScale = 1f;
         activePresentation = presentation;
 
@@ -69,15 +73,36 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
             presentation.sparkles[i] = sparkle.GetComponent<Image>();
             CasinoPixelArt.SetSprite(presentation.sparkles[i], CasinoPixelArt.Sparkle, accent);
         }
-        CreateText(board.transform, "Minigame Title", title,
+        GameObject card = CreateImage("Arcade Card", board.transform,
+            new Vector2(-620f, 342f), new Vector2(34f, 46f), Color.white);
+        CasinoPixelArt.SetSprite(card.GetComponent<Image>(), CasinoPixelArt.Card, Color.white);
+        card.transform.localRotation = Quaternion.Euler(0f, 0f, 15f);
+        GameObject chip = CreateImage("Arcade Chip", board.transform,
+            new Vector2(620f, 342f), new Vector2(45f, 45f), accent);
+        CasinoPixelArt.SetSprite(chip.GetComponent<Image>(), CasinoPixelArt.Chip, accent);
+        chip.AddComponent<CasinoPixelSparkle>();
+        presentation.titleText = CreateText(board.transform, "Minigame Title", title,
             new Vector2(0f, 342f), new Vector2(480f, 50f), 32, CasinoHudStyle.Ink);
-        CreateText(board.transform, "Minigame Instructions", instructions,
+        presentation.titleRect = presentation.titleText.rectTransform;
+        presentation.instructionsText = CreateText(board.transform, "Minigame Instructions", instructions,
             new Vector2(0f, 292f), new Vector2(1390f, 38f), 19, new Color(0.94f, 0.97f, 0.92f));
         GameObject area = CreateImage("Minigame Game Area", board.transform, new Vector2(0f, -38f),
             new Vector2(1430f, 620f), gameColor, false);
         CasinoHudStyle.Panel(area.GetComponent<Image>(), gameColor);
         presentation.GameArea = area.transform;
         return presentation;
+    }
+
+    public void SetTitle(string title)
+    {
+        if (titleText == null || titleText.text == title) return;
+        titleText.text = title;
+        titlePop = 1f;
+    }
+
+    public void SetInstructions(string instructions)
+    {
+        if (instructionsText != null) instructionsText.text = instructions;
     }
 
     public void Close()
@@ -88,7 +113,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         }
 
         targetAlpha = 0f;
-        targetScale = 0.96f;
+        targetScale = 0.92f;
         closeWhenHidden = true;
         if (canvasGroup != null)
         {
@@ -128,8 +153,13 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         }
         if (presentationRect != null)
         {
-            float scale = Mathf.MoveTowards(presentationRect.localScale.x, targetScale, Time.unscaledDeltaTime * 0.32f);
+            float scale = Mathf.MoveTowards(presentationRect.localScale.x, targetScale, Time.unscaledDeltaTime * 0.8f);
             presentationRect.localScale = Vector3.one * scale;
+        }
+        if (titleRect != null && titlePop > 0f)
+        {
+            titlePop = Mathf.MoveTowards(titlePop, 0f, Time.unscaledDeltaTime * 4f);
+            titleRect.localScale = Vector3.one * (1f + 0.18f * titlePop);
         }
 
         if (closeWhenHidden && canvasGroup.alpha <= 0f)

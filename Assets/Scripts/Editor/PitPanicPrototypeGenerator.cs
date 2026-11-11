@@ -23,8 +23,40 @@ public static class PitPanicPrototypeGenerator
     {
         RunBlackjackRuleChecks();
         ValidateRoulettePixelArt();
+        ValidateAttentionBadge();
         GeneratePrototypeScene();
         ValidatePrototypeScene();
+    }
+
+    private static void ValidateAttentionBadge()
+    {
+        Texture2D texture = CasinoPixelArt.Attention.texture;
+        if (texture.filterMode != FilterMode.Point || texture.GetPixel(0, 0).a != 0f ||
+            texture.GetPixel(15, 20).r < 0.95f || texture.GetPixel(15, 20).g < 0.95f ||
+            texture.GetPixel(15, 7).g < 0.95f || texture.GetPixel(15, 10).g > 0.8f)
+        {
+            throw new System.InvalidOperationException("The pixel attention badge is missing its transparent corners or exclamation mark.");
+        }
+
+        GameObject testObject = new GameObject("Attention lifecycle validation");
+        try
+        {
+            CasinoTableAttention attention = testObject.AddComponent<CasinoTableAttention>();
+            int changes = 0;
+            attention.AttentionChanged += _ => changes++;
+            attention.RequestAttention(TableAttentionReason.DealCards);
+            attention.RequestAttention(TableAttentionReason.ChipRefillRequired);
+            attention.ResolveAttention(TableAttentionReason.DealCards);
+            if (!attention.HasPendingTasks || changes != 1)
+                throw new System.InvalidOperationException("Attention disappeared while another task was pending.");
+            attention.ResolveAttention(TableAttentionReason.ChipRefillRequired);
+            if (attention.HasPendingTasks || changes != 2)
+                throw new System.InvalidOperationException("Attention did not clear when the final task was resolved.");
+        }
+        finally
+        {
+            Object.DestroyImmediate(testObject);
+        }
     }
 
     private static void ValidateRoulettePixelArt()

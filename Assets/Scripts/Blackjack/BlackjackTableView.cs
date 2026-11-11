@@ -117,7 +117,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         }
 
         messageText.text = message;
-        accuracyText.text = $"PAYOUT ACCURACY  {accuracyScore}    MISCOUNTS  {penaltyCount}";
+        accuracyText.text = $"SCORE  {accuracyScore}    MISCOUNTS  {penaltyCount}";
 
         bool hasWaitingCustomer = seats != null && Array.Exists(seats, seat => seat != null && seat.Occupant != null);
         bool canDeal = state == BlackjackTableState.WaitingForCustomers && hasWaitingCustomer ||
@@ -173,7 +173,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         Image feltImage = felt.AddComponent<Image>();
         CasinoHudStyle.Panel(feltImage, new Color(0.035f, 0.34f, 0.25f, 0.98f));
         feltImage.raycastTarget = false;
-        CreateText("Title", felt.transform, tableDisplayName, new Vector2(0f, 245f), new Vector2(420f, 34f), 22, new Color(0.97f, 0.80f, 0.39f), TextAnchor.MiddleCenter);
+        CreateText("Title", felt.transform, tableDisplayName, new Vector2(0f, 245f), new Vector2(420f, 34f), 27, new Color(0.97f, 0.80f, 0.39f), TextAnchor.MiddleCenter);
         CasinoPixelArt.AddSparkle(felt.transform, new Vector2(-270f, 245f), 18f);
         CasinoPixelArt.AddSparkle(felt.transform, new Vector2(270f, 245f), 18f);
         dealerLabel = CreateText("Dealer Label", felt.transform, "DEALER", new Vector2(0f, 210f), new Vector2(360f, 28f), 17, Color.white, TextAnchor.MiddleCenter);
@@ -197,7 +197,7 @@ public sealed class BlackjackTableView : MonoBehaviour
             bettingSpots[i].Configure(i + 1, font, canvas, shoePosition, chipDenominations);
         }
 
-        messageText = CreateText("Round Prompt", felt.transform, "", new Vector2(0f, -176f), new Vector2(840f, 34f), 17, new Color(1f, 0.86f, 0.47f), TextAnchor.MiddleCenter);
+        messageText = CreateText("Round Prompt", felt.transform, "", new Vector2(0f, -176f), new Vector2(840f, 34f), 20, new Color(1f, 0.86f, 0.47f), TextAnchor.MiddleCenter);
         accuracyText = CreateText("Accuracy", felt.transform, "", new Vector2(0f, -207f), new Vector2(650f, 22f), 12, new Color(0.78f, 0.86f, 0.81f), TextAnchor.MiddleCenter);
 
         selectedChipRow = CreateRectObject("Payout Chips", felt.transform, new Vector2(330f, 155f), new Vector2(220f, 35f)).GetComponent<RectTransform>();
@@ -209,7 +209,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         {
             BlackjackChipDenomination chip = chipDenominations[i];
             int denominationValue = chip.ValuePence;
-            string label = $"{chip.Label} CHIP";
+            string label = chip.Label;
             float positionX = chipStartX + i * 90f;
             denominationButtons[i] = CreateButton(
                 $"Chip {label}",

@@ -9,6 +9,7 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
     private Camera targetCamera;
     private Text indicatorText;
+    private RectTransform badge;
     public CasinoTableAttention Attention => attention;
 
     public void Configure(CasinoTableAttention tableAttention, Canvas worldCanvas, Text text)
@@ -43,6 +44,16 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
         }
 
         targetCamera = Camera.main;
+        indicatorText.enabled = false;
+        GameObject badgeObject = new GameObject("Pixel Attention Badge", typeof(RectTransform), typeof(Image));
+        badgeObject.transform.SetParent(indicatorCanvas.transform, false);
+        badge = badgeObject.GetComponent<RectTransform>();
+        badge.anchorMin = Vector2.zero;
+        badge.anchorMax = Vector2.one;
+        badge.offsetMin = badge.offsetMax = Vector2.zero;
+        Image image = badgeObject.GetComponent<Image>();
+        CasinoPixelArt.SetSprite(image, CasinoPixelArt.Attention, Color.white);
+        image.raycastTarget = false;
         attention.AttentionChanged += SetVisible;
         SetVisible(attention.HasPendingTasks);
     }
@@ -64,11 +75,14 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
         if (targetCamera != null)
         {
-            Vector3 towardCamera = targetCamera.transform.position - indicatorCanvas.transform.position;
-            if (towardCamera.sqrMagnitude > 0.001f)
-            {
-                indicatorCanvas.transform.rotation = Quaternion.LookRotation(towardCamera, Vector3.up);
-            }
+            indicatorCanvas.transform.rotation = targetCamera.transform.rotation;
+        }
+
+        if (badge != null && indicatorCanvas.enabled)
+        {
+            float pulse = 1f + 0.08f * Mathf.Sin(Time.unscaledTime * 5f);
+            badge.localScale = Vector3.one * pulse;
+            badge.anchoredPosition = new Vector2(0f, 5f * Mathf.Sin(Time.unscaledTime * 4f));
         }
     }
 
