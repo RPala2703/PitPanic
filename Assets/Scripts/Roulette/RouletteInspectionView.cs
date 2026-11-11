@@ -25,6 +25,11 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private Text inventoryText;
     private Text assistanceText;
     private Button closeButton;
+    private GameObject extraDetails;
+    private Text detailsToggleLabel;
+    private GameObject summaryArt;
+    private Text summaryMessage;
+    private Text summaryHint;
     private Transform bettingMarkerRoot;
     private readonly Dictionary<int, RectTransform> numberCells = new Dictionary<int, RectTransform>();
     private readonly Dictionary<RouletteBetType, RectTransform> outsideBetCells = new Dictionary<RouletteBetType, RectTransform>();
@@ -66,6 +71,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
         }
 
         panelOpen = true;
+        SetDetailsVisible(false);
         savedCursorLockMode = Cursor.lockState;
         savedCursorVisible = Cursor.visible;
         Cursor.lockState = CursorLockMode.None;
@@ -215,22 +221,52 @@ public sealed class RouletteInspectionView : MonoBehaviour
         assistanceText = CreateText(board.transform, "Assistance Status", "",
             new Vector2(315f, -12f), new Vector2(750f, 32f), 16, new Color(1f, 0.86f, 0.42f), TextAnchor.MiddleLeft);
 
-        GameObject betsPanel = CreatePanel(board.transform, "Current Bets",
+        extraDetails = CreateObject("More Table Details", board.transform);
+        SetRect(extraDetails, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+        GameObject betsPanel = CreatePanel(extraDetails.transform, "Current Bets",
             new Vector2(315f, -142f), new Vector2(750f, 220f));
         CreateText(betsPanel.transform, "Current Bets Title", "AT THE TABLE",
             new Vector2(0f, 82f), new Vector2(690f, 30f), 19, new Color(1f, 0.86f, 0.42f));
         betsText = CreateText(betsPanel.transform, "Bets", "No bets yet.",
             new Vector2(0f, -15f), new Vector2(690f, 150f), 16, Color.white, TextAnchor.UpperLeft);
 
-        GameObject bottomPanel = CreatePanel(board.transform, "Results and Float",
+        GameObject bottomPanel = CreatePanel(extraDetails.transform, "Results and Float",
             new Vector2(315f, -315f), new Vector2(750f, 110f));
         historyText = CreateText(bottomPanel.transform, "Recent Results", "",
             new Vector2(-175f, 0f), new Vector2(330f, 95f), 15, Color.white, TextAnchor.MiddleLeft);
         inventoryText = CreateText(bottomPanel.transform, "Float Inventory", "",
             new Vector2(185f, 0f), new Vector2(330f, 95f), 15, Color.white, TextAnchor.MiddleLeft);
 
+        summaryArt = CreateObject("Table Summary", board.transform);
+        SetRect(summaryArt, new Vector2(0.5f, 0.5f), new Vector2(315f, -192f), new Vector2(750f, 250f));
+        CasinoPixelArt.AddSparkle(summaryArt.transform, new Vector2(-280f, 35f), 36f);
+        CasinoPixelArt.AddSparkle(summaryArt.transform, new Vector2(280f, 35f), 36f);
+        GameObject summaryChip = CreateObject("Lucky Chip", summaryArt.transform);
+        SetRect(summaryChip, new Vector2(0.5f, 0.5f), new Vector2(0f, -90f), new Vector2(48f, 48f));
+        CasinoPixelArt.SetSprite(summaryChip.AddComponent<Image>(), CasinoPixelArt.Chip, CasinoHudStyle.Coral);
+        summaryChip.AddComponent<CasinoPixelSparkle>();
+        summaryMessage = CreateText(summaryArt.transform, "Summary Message", "",
+            new Vector2(0f, 25f), new Vector2(660f, 60f), 30, CasinoHudStyle.Gold);
+        summaryHint = CreateText(summaryArt.transform, "Summary Hint", "",
+            new Vector2(0f, -35f), new Vector2(500f, 35f), 17, Color.white);
+        Button detailToggle = CreateButton(board.transform, "Toggle Details", "MORE INFO  +",
+            new Vector2(395f, 351f), new Vector2(200f, 44f), ToggleDetails);
+        detailsToggleLabel = detailToggle.GetComponentInChildren<Text>();
+        SetDetailsVisible(false);
         prompt.SetActive(false);
         board.SetActive(false);
+    }
+
+    private void ToggleDetails() => SetDetailsVisible(!extraDetails.activeSelf);
+
+    private void SetDetailsVisible(bool visible)
+    {
+        if (extraDetails == null) return;
+        extraDetails.SetActive(visible);
+        summaryArt.SetActive(!visible);
+        participantsText.gameObject.SetActive(visible);
+        if (detailsToggleLabel != null)
+            detailsToggleLabel.text = visible ? "LESS INFO  -" : "MORE INFO  +";
     }
 
     private void Refresh()
@@ -262,6 +298,12 @@ public sealed class RouletteInspectionView : MonoBehaviour
         assistanceText.text = roundController.HasPendingAssistance
             ? "READY FOR THE PIT BOSS!"
             : "THE TABLE IS RUNNING SMOOTHLY";
+        summaryMessage.text = roundController.HasPendingAssistance
+            ? "YOUR HELP IS NEEDED!"
+            : roundController.PhaseLabel.ToUpperInvariant();
+        summaryHint.text = roundController.ParticipantCount == 1
+            ? "1 PLAYER AT THE TABLE"
+            : $"{roundController.ParticipantCount} PLAYERS AT THE TABLE";
 
         IReadOnlyList<RouletteCustomerBet> bets = roundController.CurrentBets.Count > 0
             ? roundController.CurrentBets

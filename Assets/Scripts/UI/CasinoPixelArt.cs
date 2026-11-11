@@ -14,12 +14,14 @@ public static class CasinoPixelArt
     private static Sprite ball;
     private static Sprite card;
     private static Sprite sparkle;
+    private static Sprite attention;
 
     public static Sprite Wheel => wheel != null ? wheel : wheel = MakeWheel();
     public static Sprite Chip => chip != null ? chip : chip = MakeDisc(false);
     public static Sprite Ball => ball != null ? ball : ball = MakeDisc(true);
     public static Sprite Card => card != null ? card : card = MakeCard();
     public static Sprite Sparkle => sparkle != null ? sparkle : sparkle = MakeSparkle();
+    public static Sprite Attention => attention != null ? attention : attention = MakeAttention();
 
     public static void SetSprite(Image image, Sprite sprite, Color color)
     {
@@ -127,6 +129,25 @@ public static class CasinoPixelArt
                 pixels[y * size + x] = new Color32(255, 255, 255, 255);
         }
         return MakeSprite("Casino sparkle pixel art", size, pixels);
+    }
+
+    private static Sprite MakeAttention()
+    {
+        const int size = 32;
+        Color32[] pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            int dx = Mathf.Abs(x * 2 - 31);
+            int dy = Mathf.Abs(y * 2 - 31);
+            if (Mathf.Max(dx, dy) > 27 || dx + dy > 42) continue;
+            bool edge = Mathf.Max(dx, dy) >= 24 || dx + dy >= 38;
+            bool mark = x >= 14 && x <= 17 && ((y >= 12 && y <= 24) || (y >= 6 && y <= 9));
+            pixels[y * size + x] = edge ? new Color32(92, 40, 50, 255)
+                : mark ? new Color32(255, 255, 240, 255)
+                : new Color32(244, 148, 42, 255);
+        }
+        return MakeSprite("Attention badge pixel art", size, pixels);
     }
 
     private static Sprite MakeSprite(string spriteName, int size, Color32[] pixels)

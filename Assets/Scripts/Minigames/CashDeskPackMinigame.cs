@@ -69,9 +69,9 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     public int Count => packedCounts.Length;
     public int this[int index] => index >= 0 && index < packedCounts.Length ? packedCounts[index] : 0;
 
-    protected override string PresentationTitle => "PACK! BUILD THE CASINO FLOAT";
+    protected override string PresentationTitle => "PACK!";
     protected override string PresentationInstructions =>
-        "Choose each exact denomination in order to build the float quickly.";
+        "";
 
     public static int[] GetExactChipComposition(int amountPence, IReadOnlyList<int> chipDenominations)
     {
@@ -313,8 +313,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     private void ShowOrderSelection()
     {
-        SetStatus("FLOAT REQUESTS  •  SELECT A DESTINATION");
-        SetInstruction("Each order is reserved at the register and must be delivered to its named table.");
+        SetStatus("PICK A TABLE!");
+        SetInstruction("Choose a float to pack.");
         CreatePanel("Available Table Floats", new Vector2(0f, -8f), new Vector2(1080f, 560f));
         for (int i = 0; i < availableOrders.Count; i++)
         {
@@ -329,8 +329,6 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
                 () => SelectFloatOrder(index));
         }
 
-        CreateText("Order Instructions", "Each order has its own destination and exact chip count.",
-            new Vector2(0f, -245f), new Vector2(900f, 55f), 20, Color.white);
     }
 
     private void SelectFloatOrder(int index)
@@ -364,7 +362,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         selectedOrder = null;
         BuildPackingLayout();
         SetStatus($"CUSTOMER CASH-OUT  •  {FormatPounds(cashOutAmountPence)}");
-        SetInstruction("Click the next required denomination. Incorrect choices cost time but can be retried.");
+        SetInstruction("Tap the next chip! Wrong chips cost time.");
     }
 
     private void StartPacking(int[] counts)
@@ -379,7 +377,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         cashOutMode = false;
         BuildPackingLayout();
         SetStatus($"PACK FOR {GetShortDestinationLabel(selectedOrder)}  •  {FormatPounds(selectedOrder.TotalPence)}");
-        SetInstruction("Drag the exact chip denominations into the tray. You can click a packed chip to remove it.");
+        SetInstruction("Drag chips into the tray. Tap a packed chip to undo.");
     }
 
     private void BuildPackingLayout()

@@ -41,6 +41,13 @@ logic; cards, chips and title sparkles are original runtime-generated pixel art.
 The wheel, ball, cards and payout chips use the existing game animations, while
 subtle sparkles animate independently of the interaction targets.
 
+Service screens lead with a short action and a stage-specific title that pops
+on transitions. Roulette inspection starts with a concise live summary; MORE
+INFO reveals bets, history and float. Dealer controls keep break and assignment
+actions visible while shortening status copy. A point-filtered, animated orange
+exclamation badge marks each station with outstanding attention requests; it
+remains visible until all reasons for that station are resolved.
+
 ## Regeneration
 
 Choose **Pit Panic > Generate Prototype Scene** to rebuild the scene, or
