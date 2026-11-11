@@ -236,7 +236,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
             new Color(0.025f, 0.12f, 0.09f, 0.96f));
         CasinoHudStyle.Panel(statusPlate.GetComponent<Image>(), new Color(0.10f, 0.30f, 0.31f));
         progressText = CasinoMinigamePresentation.CreateText(
-            statusPlate.transform, "FLICK Progress", "FLICK!  0/0  •  0 REMAINING",
+            statusPlate.transform, "FLICK Progress", "CARDS  0/0",
             new Vector2(-300f, 0f), new Vector2(560f, 54f), 24, Color.white);
         timerText = CasinoMinigamePresentation.CreateText(
             statusPlate.transform, "FLICK Timer", "TIME  20.0",
@@ -554,7 +554,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         if (progressText != null && table != null)
         {
             progressText.text =
-                $"FLICK!  {successfulFlicks}/{requiredFlicks}  •  {table.RemainingFlickCardCount} CARDS LEFT  •  {missedFlicks} MISSES";
+                $"CARDS  {successfulFlicks}/{requiredFlicks}  •  MISSES  {missedFlicks}";
         }
 
         if (timerText != null)

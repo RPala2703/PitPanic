@@ -741,6 +741,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             GameObject stack = CasinoMinigamePresentation.CreateImage(
                 $"{PayoutChipNames[i]} Payout Stack", payoutTray, new Vector2(x, 4f),
                 new Vector2(110f, 70f), PayoutChipColors[i]);
+            CasinoPixelArt.SetSprite(stack.GetComponent<Image>(), CasinoPixelArt.Chip, PayoutChipColors[i]);
             stack.GetComponent<Image>().raycastTarget = false;
             stack.AddComponent<Outline>().effectColor = new Color(1f, 0.89f, 0.48f);
             CasinoMinigamePresentation.CreateText(stack.transform, "Payout Stack Amount",

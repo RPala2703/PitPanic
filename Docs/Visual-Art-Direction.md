@@ -41,8 +41,9 @@ logic; cards, chips and title sparkles are original runtime-generated pixel art.
 The wheel, ball, cards and payout chips use the existing game animations, while
 subtle sparkles animate independently of the interaction targets.
 
-Service screens lead with a short action and a stage-specific title that pops
-on transitions. Roulette inspection starts with a concise live summary; MORE
+Service screens lead with a short action and a stage-specific pixel burst title
+that pops on transitions. PACK! shows the next few cash-out chips rather than
+an entire long sequence, while preserving the exact order. Roulette inspection starts with a concise live summary; MORE
 INFO reveals bets, history and float. Dealer controls keep break and assignment
 actions visible while shortening status copy. A point-filtered, animated orange
 exclamation badge marks each station with outstanding attention requests; it

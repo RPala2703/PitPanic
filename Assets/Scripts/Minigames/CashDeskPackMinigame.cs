@@ -6,7 +6,6 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 {
-    private static Sprite chipSprite;
     private static readonly int[] FloatDenominationsPence = { 500, 1000, 2500, 10000 };
     private static readonly int[] CustomerDenominationsPence = { 2500, 1000, 500 };
     private static readonly string[] ChipNames = { "RED", "BLUE", "GREEN", "BLACK" };
@@ -384,7 +383,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     {
         ClearDynamicLayout();
         CreatePanel("Register Chip Choices", new Vector2(-515f, -5f), new Vector2(500f, 560f));
-        CreateText("Rack Label", "CHIP RACK  •  DRAG TO PACK", new Vector2(-515f, 235f), new Vector2(460f, 38f), 21, new Color(1f, 0.83f, 0.44f));
+        CreateText("Rack Label", cashOutMode ? "TAP THE NEXT CHIP!" : "DRAG CHIPS TO PACK!",
+            new Vector2(-515f, 235f), new Vector2(460f, 38f), 21, new Color(1f, 0.83f, 0.44f));
         float[] chipX = { -625f, -405f, -625f, -405f };
         float[] chipY = { 95f, 95f, -120f, -120f };
         for (int i = 0; i < chipButtons.Length; i++)
@@ -397,12 +397,12 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         RectTransform trayRect = CreateRect("Float Tray Target", hud.transform, new Vector2(0.5f, 0.5f), new Vector2(260f, -5f), new Vector2(950f, 545f));
         floatTrayRect = trayRect;
         Image trayImage = trayRect.gameObject.AddComponent<Image>();
-        trayImage.color = new Color(0.09f, 0.34f, 0.21f, 0.56f);
+        trayImage.color = new Color(0.04f, 0.18f, 0.14f, 0.95f);
         Outline outline = trayRect.gameObject.AddComponent<Outline>();
         outline.effectColor = new Color(0.47f, 1f, 0.6f, 0.95f);
         outline.effectDistance = new Vector2(4f, -4f);
         trayImage.raycastTarget = false;
-        CreateText("Tray Label", "FLOAT TRAY  •  DROP CHIPS HERE",
+        CreateText("Tray Label", cashOutMode ? "CUSTOMER TRAY" : "DROP CHIPS HERE!",
             new Vector2(260f, 225f), new Vector2(880f, 38f), 20, new Color(0.63f, 1f, 0.7f));
         sequenceText = CreateText("Packing Sequence", "", new Vector2(260f, 160f), new Vector2(890f, 94f), 18, Color.white);
         sequenceText.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -415,7 +415,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         for (int i = 0; i < stackCountTexts.Length; i++)
         {
             CreateText($"Tray {ChipNames[i]} Label", $"{ChipNames[i]}  {FormatPounds(FloatDenominationsPence[i])}",
-                new Vector2(stackX[i], 22f), new Vector2(205f, 30f), 16, FloatChipColors[i]);
+                new Vector2(stackX[i], 22f), new Vector2(205f, 30f), 16, Color.white);
             stackCountTexts[i] = CreateText($"Tray {ChipNames[i]} Count", "0/0",
                 new Vector2(stackX[i], -145f), new Vector2(190f, 28f), 16, Color.white);
         }
@@ -436,8 +436,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         UpdatePackProgress();
         if (cashOutMode)
         {
-            CreateButton("Finish Cash Out", "FINISH CUSTOMER CASH-OUT",
-                new Vector2(260f, -282f), new Vector2(430f, 48f), CompleteCashOut);
+            CreateButton("Finish Cash Out", "FINISH!  •  E",
+                new Vector2(260f, -320f), new Vector2(300f, 48f), CompleteCashOut);
         }
     }
 
@@ -471,7 +471,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         chipRect.anchoredPosition = new Vector2(0f, -8f);
         chipRect.sizeDelta = new Vector2(100f, 100f);
         Image chipImage = chipObject.GetComponent<Image>();
-        chipImage.sprite = GetChipSprite();
+        chipImage.sprite = CasinoPixelArt.Chip;
         chipImage.color = FloatChipColors[denominationIndex];
         chipImage.raycastTarget = false;
         Outline chipOutline = chipObject.GetComponent<Outline>();
@@ -624,7 +624,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         cashOutReady = true;
         SetStatus($"CUSTOMER CASH-OUT READY  •  {FormatPounds(cashOutAmountPence)}");
-        SetInstruction("Click FINISH CUSTOMER CASH-OUT or press E.");
+        SetInstruction("Click FINISH! or press E.");
     }
 
     private void CompleteCashOut()
@@ -647,11 +647,24 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         if (cashOutMode)
         {
-            sequenceText.text = BuildPackingSequenceDisplay(packingSequence);
-            sequenceText.fontSize = packingSequence.Length > 10 ? 14 : 17;
+            int previewCount = Mathf.Min(4, packingSequence.Length - sequenceIndex);
+            List<int> preview = new List<int>(previewCount);
+            for (int i = 0; i < previewCount; i++)
+                preview.Add(packingSequence[sequenceIndex + i]);
+            sequenceText.text = previewCount > 0
+                ? "COMING UP  •  " + BuildPackingSequenceDisplay(preview)
+                : "ALL CHIPS PACKED!";
+            sequenceText.fontSize = 19;
             nextChipText.text = sequenceIndex < packingSequence.Length
                 ? $"NEXT  {ChipNames[packingSequence[sequenceIndex]]}  {FormatPounds(FloatDenominationsPence[packingSequence[sequenceIndex]])}"
                 : "SEQUENCE COMPLETE";
+            for (int i = 0; i < sourceChipImages.Length; i++)
+            {
+                if (sourceChipImages[i] != null)
+                    sourceChipImages[i].color = sequenceIndex < packingSequence.Length && packingSequence[sequenceIndex] == i
+                        ? new Color(0.42f, 0.36f, 0.12f, 1f)
+                        : new Color(0.035f, 0.14f, 0.13f, 0.98f);
+            }
             return;
         }
 
@@ -715,7 +728,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     {
         RectTransform chipRect = CreateRect(objectName, hud.transform, new Vector2(0.5f, 0.5f), position, Vector2.one * diameter);
         Image image = chipRect.gameObject.AddComponent<Image>();
-        image.sprite = GetChipSprite();
+        image.sprite = CasinoPixelArt.Chip;
         image.color = FloatChipColors[denominationIndex];
         image.raycastTarget = removable;
         if (removable)
@@ -995,36 +1008,4 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         return $"£{amountPence / 100}.{amountPence % 100:00}";
     }
 
-    private static Sprite GetChipSprite()
-    {
-        if (chipSprite != null)
-        {
-            return chipSprite;
-        }
-
-        const int resolution = 64;
-        Texture2D texture = new Texture2D(resolution, resolution, TextureFormat.RGBA32, false);
-        texture.name = "Casino Float Chip Sprite";
-        texture.filterMode = FilterMode.Bilinear;
-        Vector2 center = new Vector2((resolution - 1) * 0.5f, (resolution - 1) * 0.5f);
-        float radius = resolution * 0.48f;
-        Color[] pixels = new Color[resolution * resolution];
-        for (int y = 0; y < resolution; y++)
-        {
-            for (int x = 0; x < resolution; x++)
-            {
-                float distance = Vector2.Distance(new Vector2(x, y), center);
-                pixels[y * resolution + x] = distance <= radius
-                    ? distance >= radius - 4f || distance <= radius * 0.55f
-                        ? Color.white
-                        : Color.clear
-                    : Color.clear;
-            }
-        }
-
-        texture.SetPixels(pixels);
-        texture.Apply();
-        chipSprite = Sprite.Create(texture, new Rect(0f, 0f, resolution, resolution), new Vector2(0.5f, 0.5f), resolution);
-        return chipSprite;
-    }
 }

@@ -15,6 +15,7 @@ public static class CasinoPixelArt
     private static Sprite card;
     private static Sprite sparkle;
     private static Sprite attention;
+    private static Sprite burst;
 
     public static Sprite Wheel => wheel != null ? wheel : wheel = MakeWheel();
     public static Sprite Chip => chip != null ? chip : chip = MakeDisc(false);
@@ -22,6 +23,7 @@ public static class CasinoPixelArt
     public static Sprite Card => card != null ? card : card = MakeCard();
     public static Sprite Sparkle => sparkle != null ? sparkle : sparkle = MakeSparkle();
     public static Sprite Attention => attention != null ? attention : attention = MakeAttention();
+    public static Sprite Burst => burst != null ? burst : burst = MakeBurst();
 
     public static void SetSprite(Image image, Sprite sprite, Color color)
     {
@@ -148,6 +150,24 @@ public static class CasinoPixelArt
                 : new Color32(244, 148, 42, 255);
         }
         return MakeSprite("Attention badge pixel art", size, pixels);
+    }
+
+    private static Sprite MakeBurst()
+    {
+        const int size = 64;
+        Color32[] pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float dx = x + 0.5f - size * 0.5f;
+            float dy = y + 0.5f - size * 0.5f;
+            float angle = Mathf.Atan2(dy, dx);
+            float radius = Mathf.Sqrt(dx * dx + dy * dy);
+            float edge = 22f + 8f * Mathf.Abs(Mathf.Cos(angle * 6f));
+            if (radius < edge)
+                pixels[y * size + x] = new Color32(255, 255, 255, 255);
+        }
+        return MakeSprite("Arcade burst pixel art", size, pixels);
     }
 
     private static Sprite MakeSprite(string spriteName, int size, Color32[] pixels)
