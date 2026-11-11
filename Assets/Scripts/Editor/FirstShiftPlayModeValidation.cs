@@ -195,6 +195,9 @@ public static class FirstShiftPlayModeValidation
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
             GameObject intro = (GameObject)Get(shift, "intro");
             Check(intro.activeSelf && !shift.IsRunning, "Intro did not follow menu");
+            yield return null;
+            Check(!((Text)Get(FindFirstObjectByType<PitDeskInteraction>(), "promptText")).gameObject.activeSelf,
+                "Pit Desk interaction prompt leaked behind onboarding");
             intro.transform.Find("Back").GetComponent<Button>().onClick.Invoke();
             Check(menu.activeSelf && !intro.activeSelf && Camera.main.cullingMask == 0 &&
                 CasinoSoundscape.Focus == menu.transform && !PlayerPrefs.HasKey("PitPanic.TutorialComplete"),

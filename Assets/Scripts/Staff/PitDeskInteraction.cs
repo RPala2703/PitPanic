@@ -56,7 +56,11 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void Update()
     {
-        if (Time.timeScale == 0) return;
+        if (Time.timeScale == 0)
+        {
+            if (promptText != null) promptText.gameObject.SetActive(false);
+            return;
+        }
         if (!isOpen && (CasinoMinigamePresentation.IsOpen || CasinoPlayerInteractionRouter.IsAnyInspectionOpen()))
         {
             if (promptText != null)
@@ -127,6 +131,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
         promptText = CreateText("Pit Desk Prompt", canvas.transform, new Vector2(0f, -314f), new Vector2(760f, 46f), 20);
         promptText.fontStyle = FontStyle.Bold;
         promptText.text = "E  •  DEALER CREW";
+        promptText.gameObject.SetActive(false);
         CreateButton("Close", panel.transform, "ESC  •  CLOSE", new Vector2(0f, -310f), new Vector2(170f, 38f), Close);
         panel.SetActive(false);
     }
