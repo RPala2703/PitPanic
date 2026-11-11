@@ -19,9 +19,10 @@ in `Assets/Resources/Fonts`.
 
 ## HUD and minigame style
 
-The floor HUD is a compact, top-right task card: the two highest-priority
-tasks lead, followed by a count of remaining work and short dealer and float
-summaries. A gently pulsing warm badge calls attention to pending work; green
+The floor HUD is a compact, top-right task card: the highest-priority task,
+remaining task count and float status stay visible. The + button expands the
+card to show the next task and dealer summary; - collapses it again. A gently
+pulsing warm badge calls attention to pending work; green
 means the floor is clear. Task names and station labels stay short and actionable.
 
 Minigames use dark plum framing, stepped pixel corners and a large coloured title

@@ -1456,7 +1456,7 @@ public static class PitPanicPrototypeGenerator
         if (scaler == null || scaler.uiScaleMode != CanvasScaler.ScaleMode.ScaleWithScreenSize ||
             scaler.referenceResolution != new Vector2(1600f, 900f) || panel == null ||
             panel.anchorMin != Vector2.one || panel.anchorMax != Vector2.one ||
-            panel.sizeDelta != new Vector2(390f, 200f))
+            panel.sizeDelta != new Vector2(350f, 76f))
         {
             return false;
         }
