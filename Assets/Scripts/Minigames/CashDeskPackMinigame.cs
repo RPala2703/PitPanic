@@ -455,6 +455,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         image.color = new Color(0.035f, 0.14f, 0.13f, 0.98f);
         Button button = rect.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
+        CasinoHudStyle.Button(button);
         CasinoChipDragHandle dragHandle = rect.gameObject.AddComponent<CasinoChipDragHandle>();
         dragHandle.Configure(this, hud.transform as RectTransform, denominationIndex, position);
         sourceChipImages[denominationIndex] = image;
@@ -769,11 +770,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     {
         RectTransform panel = CreateRect(panelName, hud.transform, new Vector2(0.5f, 0.5f), position, size);
         Image panelImage = panel.gameObject.AddComponent<Image>();
-        panelImage.color = new Color(0.035f, 0.15f, 0.15f, 0.92f);
+        CasinoHudStyle.Panel(panelImage, new Color(0.05f, 0.20f, 0.18f, 0.96f));
         panelImage.raycastTarget = false;
-        Outline outline = panel.gameObject.AddComponent<Outline>();
-        outline.effectColor = new Color(0.8f, 0.59f, 0.25f, 0.9f);
-        outline.effectDistance = new Vector2(2f, -2f);
     }
 
     private Button CreateButton(string objectName, string label, Vector2 position, Vector2 size, UnityEngine.Events.UnityAction onClick)
@@ -783,6 +781,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         image.color = new Color(0.11f, 0.37f, 0.25f, 0.98f);
         Button button = rect.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
+        CasinoHudStyle.Button(button);
         button.onClick.AddListener(onClick);
         Text buttonText = CreateText($"{objectName} Label", label, Vector2.zero, size - new Vector2(16f, 10f), 22, Color.white);
         buttonText.transform.SetParent(rect, false);

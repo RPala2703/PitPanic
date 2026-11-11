@@ -17,6 +17,22 @@ Silkscreen is copyright 2001 The Silkscreen Project Authors and is distributed
 under the SIL Open Font License 1.1; the licence is included alongside the font
 in `Assets/Resources/Fonts`.
 
+## HUD and minigame style
+
+The floor HUD is a compact, top-right task card: the two highest-priority
+tasks lead, followed by a count of remaining work and short dealer and float
+summaries. A gently pulsing warm badge calls attention to pending work; green
+means the floor is clear. Task names and station labels stay short and actionable.
+
+Minigames use dark plum framing, stepped pixel corners and a large coloured title
+badge. Teal identifies FLICK!, gold roulette service and mint PACK!. Gameplay
+areas remain visually distinct from the frame, with bright, high-contrast
+instructions, large chip targets and tactile hover/press states. The shared
+reference canvas is 1600 x 900; use approximately 30–34 units for titles,
+20–25 for primary status, 16–19 for body and action text, and reserve smaller
+type for dense board labels. Keep suits in the symbol font and preserve point
+filtering on pixel assets.
+
 ## Regeneration
 
 Choose **Pit Panic > Generate Prototype Scene** to rebuild the scene, or

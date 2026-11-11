@@ -234,6 +234,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         GameObject statusPlate = CasinoMinigamePresentation.CreateImage(
             "FLICK Status Plate", gameArea, new Vector2(0f, 250f), new Vector2(1300f, 64f),
             new Color(0.025f, 0.12f, 0.09f, 0.96f));
+        CasinoHudStyle.Panel(statusPlate.GetComponent<Image>(), new Color(0.10f, 0.30f, 0.31f));
         progressText = CasinoMinigamePresentation.CreateText(
             statusPlate.transform, "FLICK Progress", "FLICK!  0/0  •  0 REMAINING",
             new Vector2(-300f, 0f), new Vector2(560f, 54f), 24, Color.white);
@@ -246,6 +247,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
             "FLICK Clickable Card Shoe", gameArea, new Vector2(-535f, 6f), new Vector2(168f, 238f),
             new Color(0.07f, 0.15f, 0.25f));
         shoeRect = shoe.GetComponent<RectTransform>();
+        CasinoHudStyle.Panel(shoe.GetComponent<Image>(), new Color(0.12f, 0.28f, 0.38f));
         Outline shoeOutline = shoe.AddComponent<Outline>();
         shoeOutline.effectColor = new Color(0.91f, 0.70f, 0.24f);
         shoeOutline.effectDistance = new Vector2(4f, -4f);
@@ -258,8 +260,8 @@ public sealed class FlickCardMinigame : CasinoMinigame
         }
         CasinoMinigamePresentation.CreateText(shoe.transform, "Shoe Label", "CARD SHOE",
             new Vector2(0f, 88f), new Vector2(148f, 42f), 20, Color.white);
-        CasinoMinigamePresentation.CreateText(shoe.transform, "Shoe Action", "CLICK + HOLD",
-            new Vector2(0f, -90f), new Vector2(148f, 32f), 13,
+        CasinoMinigamePresentation.CreateText(shoe.transform, "Shoe Action", "HOLD + DRAG",
+            new Vector2(0f, -90f), new Vector2(148f, 32f), 15,
             new Color(1f, 0.85f, 0.42f));
 
         CasinoMinigamePresentation.CreateText(gameArea, "FLICK Feedback", "",
@@ -294,6 +296,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         GameObject targetObject = CasinoMinigamePresentation.CreateImage(
             targetId < 0 ? "Dealer Card Target" : $"Customer {targetId + 1} Card Target",
             gameArea, position, new Vector2(280f, 205f), new Color(0.02f, 0.14f, 0.10f, 0.95f));
+        CasinoHudStyle.Panel(targetObject.GetComponent<Image>(), new Color(0.04f, 0.22f, 0.19f));
         Outline outline = targetObject.AddComponent<Outline>();
         outline.effectColor = new Color(0.24f, 0.64f, 0.44f);
         outline.effectDistance = new Vector2(2f, -2f);

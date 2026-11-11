@@ -56,24 +56,17 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
 
         GameObject board = CreateImage("Minigame Board", root.transform, Vector2.zero,
             new Vector2(1510f, 820f), boardColor, false);
-        Outline border = board.AddComponent<Outline>();
-        border.effectColor = accent;
-        border.effectDistance = new Vector2(4f, -4f);
-        CreateImage("Minigame Header Accent", board.transform, new Vector2(0f, 399f),
-            new Vector2(1440f, 5f), accent);
-        CreateImage("Minigame Footer Accent", board.transform, new Vector2(0f, -398f),
-            new Vector2(1440f, 2f), new Color(accent.r, accent.g, accent.b, 0.62f));
-        CreateText(board.transform, "Minigame Eyebrow", "PIT PANIC  •  LIVE CASINO SERVICE",
-            new Vector2(0f, 381f), new Vector2(760f, 25f), 14, accent);
+        CasinoHudStyle.Panel(board.GetComponent<Image>(), boardColor);
+        GameObject titleBadge = CreateImage("Title Badge", board.transform, new Vector2(0f, 342f),
+            new Vector2(520f, 66f), accent);
+        CasinoHudStyle.Panel(titleBadge.GetComponent<Image>(), accent);
         CreateText(board.transform, "Minigame Title", title,
-            new Vector2(0f, 340f), new Vector2(1350f, 48f), 30, Color.white);
+            new Vector2(0f, 342f), new Vector2(480f, 50f), 32, CasinoHudStyle.Ink);
         CreateText(board.transform, "Minigame Instructions", instructions,
-            new Vector2(0f, 292f), new Vector2(1390f, 38f), 18, new Color(0.88f, 0.96f, 0.92f));
+            new Vector2(0f, 292f), new Vector2(1390f, 38f), 19, new Color(0.94f, 0.97f, 0.92f));
         GameObject area = CreateImage("Minigame Game Area", board.transform, new Vector2(0f, -38f),
             new Vector2(1430f, 620f), gameColor, false);
-        Outline gameAreaOutline = area.AddComponent<Outline>();
-        gameAreaOutline.effectColor = new Color(accent.r, accent.g, accent.b, 0.55f);
-        gameAreaOutline.effectDistance = new Vector2(1f, -1f);
+        CasinoHudStyle.Panel(area.GetComponent<Image>(), gameColor);
         presentation.GameArea = area.transform;
         return presentation;
     }

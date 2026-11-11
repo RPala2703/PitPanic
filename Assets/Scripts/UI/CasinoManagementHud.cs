@@ -34,9 +34,19 @@ public sealed class CasinoManagementHud : MonoBehaviour
     [SerializeField] private Text taskText;
     [SerializeField] private Text dealerText;
     [SerializeField] private Text carryText;
+    [SerializeField] private Image taskBadge;
+    private bool hasTasks;
     private float refreshTimer;
 
     public bool IsConfigured => taskText != null && dealerText != null && carryText != null;
+
+    private void Awake()
+    {
+        if (taskText != null && taskText.transform.parent.TryGetComponent(out Image panel))
+            CasinoHudStyle.Panel(panel, CasinoHudStyle.Ink);
+        if (taskBadge != null)
+            CasinoHudStyle.Panel(taskBadge, taskBadge.color);
+    }
 
     public void Configure(
         CasinoTableAttention[] sources,
@@ -52,6 +62,13 @@ public sealed class CasinoManagementHud : MonoBehaviour
 
     private void Update()
     {
+        if (taskBadge != null)
+        {
+            float pulse = hasTasks ? 0.88f + 0.12f * Mathf.Sin(Time.unscaledTime * 3f) : 1f;
+            taskBadge.color = hasTasks
+                ? new Color(0.53f * pulse, 0.20f * pulse, 0.22f * pulse, 0.98f)
+                : new Color(0.12f, 0.32f, 0.26f, 0.98f);
+        }
         refreshTimer -= Time.unscaledDeltaTime;
         if (refreshTimer > 0f)
         {
@@ -71,42 +88,31 @@ public sealed class CasinoManagementHud : MonoBehaviour
             "Management HUD Panel",
             canvas.transform,
             Vector2.zero,
-            new Vector2(430f, 238f),
-            new Color(0.025f, 0.075f, 0.075f, 0.94f));
+            new Vector2(390f, 200f),
+            CasinoHudStyle.Ink);
+        CasinoHudStyle.Panel(panel.GetComponent<Image>(), CasinoHudStyle.Ink);
         RectTransform panelRect = panel.GetComponent<RectTransform>();
         panelRect.anchorMin = panelRect.anchorMax = new Vector2(1f, 1f);
         panelRect.pivot = new Vector2(1f, 1f);
         panelRect.anchoredPosition = new Vector2(-24f, -24f);
-        Outline panelOutline = panel.AddComponent<Outline>();
-        panelOutline.effectColor = new Color(0.72f, 0.52f, 0.22f, 0.9f);
-        panelOutline.effectDistance = new Vector2(2f, -2f);
-
-        GameObject accent = CasinoMinigamePresentation.CreateImage(
-            "Management HUD Accent",
-            panel.transform,
-            Vector2.zero,
-            new Vector2(430f, 8f),
-            new Color(0.82f, 0.59f, 0.24f));
-        RectTransform accentRect = accent.GetComponent<RectTransform>();
-        accentRect.anchorMin = new Vector2(0f, 1f);
-        accentRect.anchorMax = Vector2.one;
-        accentRect.pivot = new Vector2(0f, 1f);
-        accentRect.sizeDelta = new Vector2(0f, 8f);
-
         Text heading = CreateHudText(panel.transform, "Casino Name",
-            new Vector2(24f, -18f), new Vector2(380f, 34f), 21);
-        heading.text = "PIT PANIC  /  FLOOR STATUS";
-        heading.color = new Color(1f, 0.85f, 0.52f);
+            new Vector2(20f, -12f), new Vector2(350f, 29f), 19);
+        heading.text = "FLOOR TASKS";
+        heading.color = CasinoHudStyle.Gold;
+        GameObject badge = CasinoMinigamePresentation.CreateImage(
+            "Task Badge", panel.transform, new Vector2(0f, 6f), new Vector2(358f, 82f), CasinoHudStyle.Coral);
+        taskBadge = badge.GetComponent<Image>();
+        CasinoHudStyle.Panel(taskBadge, taskBadge.color);
         taskText = CreateHudText(panel.transform, "Active Tasks",
-            new Vector2(24f, -60f), new Vector2(382f, 94f), 16);
+            new Vector2(28f, -47f), new Vector2(334f, 70f), 17);
         taskText.alignment = TextAnchor.UpperLeft;
         taskText.color = new Color(0.94f, 0.97f, 0.92f);
         dealerText = CreateHudText(panel.transform, "Dealer Staffing",
-            new Vector2(24f, -164f), new Vector2(382f, 28f), 15);
+            new Vector2(24f, -138f), new Vector2(342f, 24f), 15);
         dealerText.alignment = TextAnchor.MiddleLeft;
         dealerText.color = new Color(0.76f, 0.88f, 0.86f);
         carryText = CreateHudText(panel.transform, "Float Delivery Status",
-            new Vector2(24f, -196f), new Vector2(382f, 28f), 15);
+            new Vector2(24f, -165f), new Vector2(342f, 24f), 15);
         carryText.alignment = TextAnchor.MiddleLeft;
         carryText.color = new Color(0.85f, 0.90f, 1f);
     }
@@ -138,18 +144,19 @@ public sealed class CasinoManagementHud : MonoBehaviour
                 }
 
                 totalTaskCount += count;
-                if (activeTaskLines.Count < 4)
+                if (activeTaskLines.Count < 2)
                 {
-                    activeTaskLines.Add($"{GetTaskLabel(reason)}  ·  {GetStationLabel(attention.name)}" +
+                    activeTaskLines.Add($"{GetTaskLabel(reason)}: {GetStationLabel(attention.name)}" +
                                         (count > 1 ? $"  ×{count}" : string.Empty));
                     displayedTaskCount += count;
                 }
             }
         }
 
-        if (totalTaskCount == 0)
+        hasTasks = totalTaskCount > 0;
+        if (!hasTasks)
         {
-            taskText.text = "ALL STATIONS CLEAR  •  GOOD WORK";
+            taskText.text = "ALL CLEAR!\nKeep the casino smiling.";
             taskText.color = new Color(0.66f, 0.96f, 0.76f);
         }
         else
@@ -167,7 +174,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
 
             if (totalTaskCount > displayedTaskCount)
             {
-                lines.Append("\n+ ").Append(totalTaskCount - displayedTaskCount).Append(" more active");
+                lines.Append("\n+ ").Append(totalTaskCount - displayedTaskCount).Append(" more");
             }
 
             taskText.text = lines.ToString();
@@ -213,7 +220,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
             }
         }
 
-        dealerText.text = $"DEALERS  •  READY {ready}   NEEDS BREAK {needsBreak}   MOVING {inTransit}";
+        dealerText.text = $"DEALERS  {ready} READY  •  {needsBreak} BREAK  •  {inTransit} MOVING";
     }
 
     private void UpdateFloatSummary()
@@ -225,8 +232,8 @@ public sealed class CasinoManagementHud : MonoBehaviour
 
         CasinoFloatRefillOrder order = floatCarrier != null ? floatCarrier.CurrentOrder : null;
         carryText.text = order == null
-            ? "FLOAT  •  NOT CARRYING"
-            : $"FLOAT  •  DELIVER TO {order.Destination.DisplayName}  (£{order.TotalPence / 100}.{order.TotalPence % 100:00})";
+            ? "FLOAT  •  HANDS FREE"
+            : $"FLOAT TO {order.Destination.DisplayName}  •  £{order.TotalPence / 100}.{order.TotalPence % 100:00}";
         carryText.color = order == null
             ? new Color(0.74f, 0.80f, 0.78f)
             : new Color(0.77f, 0.90f, 1f);
@@ -258,14 +265,14 @@ public sealed class CasinoManagementHud : MonoBehaviour
         switch (reason)
         {
             case TableAttentionReason.DealerExhausted: return "DEALER EXHAUSTED";
-            case TableAttentionReason.DealerBreakRequired: return "BREAK REQUEST";
+            case TableAttentionReason.DealerBreakRequired: return "BREAK NEEDED";
             case TableAttentionReason.TableUnstaffed: return "TABLE UNSTAFFED";
             case TableAttentionReason.PitBossApproval: return "APPROVAL NEEDED";
-            case TableAttentionReason.FlickAssistanceRequired: return "FLICK! TASK";
-            case TableAttentionReason.RouletteSpinRequired: return "SPIN! TASK";
-            case TableAttentionReason.RouletteSweepRequired: return "SWEEP! TASK";
-            case TableAttentionReason.PayoutRequired: return "PAY! TASK";
-            case TableAttentionReason.CashDeskPackRequired: return "PACK! TASK";
+            case TableAttentionReason.FlickAssistanceRequired: return "FLICK!";
+            case TableAttentionReason.RouletteSpinRequired: return "SPIN!";
+            case TableAttentionReason.RouletteSweepRequired: return "SWEEP!";
+            case TableAttentionReason.PayoutRequired: return "PAY!";
+            case TableAttentionReason.CashDeskPackRequired: return "PACK!";
             case TableAttentionReason.FloatRefillRequired: return "FLOAT LOW";
             case TableAttentionReason.DealerReadyForAssignment: return "DEALER READY";
             case TableAttentionReason.StaffRotationRequired: return "STAFFING NEEDED";
