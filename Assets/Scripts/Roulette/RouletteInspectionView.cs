@@ -177,51 +177,57 @@ public sealed class RouletteInspectionView : MonoBehaviour
 
         board = CreateObject("Roulette Inspection Board", canvas.transform);
         SetRect(board, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1480f, 800f));
-        board.AddComponent<Image>().color = new Color(0.025f, 0.12f, 0.09f, 0.99f);
+        Image boardImage = board.AddComponent<Image>();
+        CasinoHudStyle.Panel(boardImage, CasinoHudStyle.Ink);
+        GameObject titleBadge = CreatePanel(board.transform, "Title Badge",
+            new Vector2(0f, 352f), new Vector2(420f, 56f));
+        CasinoHudStyle.Panel(titleBadge.GetComponent<Image>(), new Color(0.48f, 0.29f, 0.22f));
         CreateText(board.transform, "Heading", "ROULETTE",
-            new Vector2(0f, 352f), new Vector2(820f, 54f), 34, new Color(1f, 0.86f, 0.42f));
+            new Vector2(0f, 352f), new Vector2(390f, 50f), 32, new Color(1f, 0.86f, 0.42f));
+        CasinoPixelArt.AddSparkle(board.transform, new Vector2(-260f, 352f), 24f);
+        CasinoPixelArt.AddSparkle(board.transform, new Vector2(260f, 352f), 24f);
         closeButton = CreateButton(board.transform, "Close", "CLOSE  •  ESC",
             new Vector2(608f, 351f), new Vector2(190f, 48f), Close);
 
         GameObject wheelPanel = CreatePanel(board.transform, "Wheel Panel",
-            new Vector2(-375f, 92f), new Vector2(650f, 430f));
-        CreateText(wheelPanel.transform, "Wheel Title", "EUROPEAN SINGLE ZERO",
-            new Vector2(0f, 180f), new Vector2(500f, 32f), 18, new Color(1f, 0.86f, 0.42f));
+            new Vector2(120f, 165f), new Vector2(360f, 310f));
+        CreateText(wheelPanel.transform, "Wheel Title", "LUCKY WHEEL",
+            new Vector2(0f, 130f), new Vector2(300f, 30f), 19, new Color(1f, 0.86f, 0.42f));
         CreateWheel(wheelPanel.transform);
         resultText = CreateText(wheelPanel.transform, "Winning Result", "NO RESULT YET",
-            new Vector2(0f, -175f), new Vector2(550f, 36f), 20, Color.white);
+            new Vector2(0f, -130f), new Vector2(330f, 30f), 17, Color.white);
 
         GameObject layoutPanel = CreatePanel(board.transform, "Layout Panel",
-            new Vector2(-375f, -245f), new Vector2(650f, 260f));
+            new Vector2(-405f, -10f), new Vector2(590f, 660f));
         CreateText(layoutPanel.transform, "Layout Title", "BETTING LAYOUT",
-            new Vector2(0f, 108f), new Vector2(510f, 26f), 16, new Color(1f, 0.86f, 0.42f));
+            new Vector2(0f, 290f), new Vector2(510f, 34f), 22, new Color(1f, 0.86f, 0.42f));
         CreateBettingLayout(layoutPanel.transform);
         bettingMarkerRoot = layoutPanel.transform;
 
         GameObject detailsPanel = CreatePanel(board.transform, "Dealer and Round Details",
-            new Vector2(340f, 196f), new Vector2(680f, 222f));
+            new Vector2(510f, 165f), new Vector2(380f, 310f));
         dealerText = CreateText(detailsPanel.transform, "Dealer Status", "",
-            new Vector2(0f, 68f), new Vector2(630f, 58f), 17, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(0f, 94f), new Vector2(340f, 80f), 17, Color.white, TextAnchor.MiddleLeft);
         phaseText = CreateText(detailsPanel.transform, "Round Phase", "",
-            new Vector2(0f, 0f), new Vector2(630f, 48f), 17, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(0f, 4f), new Vector2(340f, 70f), 17, Color.white, TextAnchor.MiddleLeft);
         participantsText = CreateText(detailsPanel.transform, "Participants", "",
-            new Vector2(0f, -68f), new Vector2(630f, 58f), 16, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(0f, -88f), new Vector2(340f, 80f), 16, Color.white, TextAnchor.MiddleLeft);
         assistanceText = CreateText(board.transform, "Assistance Status", "",
-            new Vector2(340f, 60f), new Vector2(640f, 34f), 15, new Color(1f, 0.86f, 0.42f), TextAnchor.MiddleLeft);
+            new Vector2(315f, -12f), new Vector2(750f, 32f), 16, new Color(1f, 0.86f, 0.42f), TextAnchor.MiddleLeft);
 
         GameObject betsPanel = CreatePanel(board.transform, "Current Bets",
-            new Vector2(340f, -104f), new Vector2(680f, 170f));
-        CreateText(betsPanel.transform, "Current Bets Title", "CURRENT / LAST ROUND BETS",
-            new Vector2(0f, 58f), new Vector2(620f, 28f), 17, new Color(1f, 0.86f, 0.42f));
+            new Vector2(315f, -142f), new Vector2(750f, 220f));
+        CreateText(betsPanel.transform, "Current Bets Title", "AT THE TABLE",
+            new Vector2(0f, 82f), new Vector2(690f, 30f), 19, new Color(1f, 0.86f, 0.42f));
         betsText = CreateText(betsPanel.transform, "Bets", "No bets yet.",
-            new Vector2(0f, -10f), new Vector2(620f, 110f), 15, Color.white, TextAnchor.UpperLeft);
+            new Vector2(0f, -15f), new Vector2(690f, 150f), 16, Color.white, TextAnchor.UpperLeft);
 
         GameObject bottomPanel = CreatePanel(board.transform, "Results and Float",
-            new Vector2(340f, -280f), new Vector2(680f, 140f));
+            new Vector2(315f, -315f), new Vector2(750f, 110f));
         historyText = CreateText(bottomPanel.transform, "Recent Results", "",
-            new Vector2(-140f, 0f), new Vector2(330f, 100f), 15, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(-175f, 0f), new Vector2(330f, 95f), 15, Color.white, TextAnchor.MiddleLeft);
         inventoryText = CreateText(bottomPanel.transform, "Float Inventory", "",
-            new Vector2(170f, 0f), new Vector2(300f, 100f), 15, Color.white, TextAnchor.MiddleLeft);
+            new Vector2(185f, 0f), new Vector2(330f, 95f), 15, Color.white, TextAnchor.MiddleLeft);
 
         prompt.SetActive(false);
         board.SetActive(false);
@@ -236,10 +242,10 @@ public sealed class RouletteInspectionView : MonoBehaviour
 
         AIDealer dealer = roundController.AssignedDealer;
         dealerText.text = dealer == null || !roundController.IsDealerStaffed
-            ? "DEALER  •  UNSTAFFED\nRoulette is waiting for an assigned dealer."
-            : $"DEALER  •  {dealer.DealerId}  •  {dealer.Energy:0}% ENERGY  •  FATIGUE {100f - dealer.Energy:0}%\nSTATUS  •  {dealer.StatusLabel}";
-        phaseText.text = $"PHASE  •  {roundController.PhaseLabel}\n" +
-                         $"PARTICIPANTS  •  {roundController.ParticipantCount}";
+            ? "NEEDS A DEALER!"
+            : $"DEALER  •  {dealer.DealerId}\nENERGY  •  {dealer.Energy:0}%\n{dealer.StatusLabel}";
+        phaseText.text = $"{roundController.PhaseLabel}\n" +
+                         $"PLAYERS  •  {roundController.ParticipantCount}";
 
         List<string> customerNames = new List<string>();
         foreach (CasinoCustomerAI customer in roundController.SeatedCustomers)
@@ -251,11 +257,11 @@ public sealed class RouletteInspectionView : MonoBehaviour
         }
 
         participantsText.text = customerNames.Count == 0
-            ? "CUSTOMERS  •  None currently playing"
-            : $"CUSTOMERS  •  {string.Join(", ", customerNames)}";
+            ? "NO PLAYERS YET"
+            : $"PLAYING  •  {string.Join(", ", customerNames)}";
         assistanceText.text = roundController.HasPendingAssistance
-            ? "ASSISTANCE  •  SPIN! / SWEEP! / PAY! TASK PENDING"
-            : "ASSISTANCE  •  No pit boss task pending";
+            ? "READY FOR THE PIT BOSS!"
+            : "THE TABLE IS RUNNING SMOOTHLY";
 
         IReadOnlyList<RouletteCustomerBet> bets = roundController.CurrentBets.Count > 0
             ? roundController.CurrentBets
@@ -331,44 +337,27 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private static void CreateWheel(Transform parent)
     {
         GameObject wheel = CreateObject("Inspection Wheel", parent);
-        SetRect(wheel, new Vector2(0f, 5f), Vector2.zero, new Vector2(310f, 310f));
-        wheel.AddComponent<Image>().color = new Color(0.08f, 0.15f, 0.10f);
-        CreateText(wheel.transform, "Wheel Center", "0\nEUROPEAN",
-            Vector2.zero, new Vector2(150f, 92f), 24, new Color(1f, 0.9f, 0.5f));
-
-        for (int i = 0; i < 37; i++)
-        {
-            int number = (i + 1) % 37;
-            float angle = (90f - i * 360f / 37f) * Mathf.Deg2Rad;
-            Vector2 position = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 125f;
-            GameObject pocket = CreateObject($"Wheel Pocket {number}", wheel.transform);
-            SetRect(pocket, new Vector2(0.5f, 0.5f), position, new Vector2(32f, 24f));
-            Image image = pocket.AddComponent<Image>();
-            image.color = number == 0
-                ? new Color(0.12f, 0.52f, 0.27f)
-                : EuropeanRouletteRules.IsRed(number)
-                    ? new Color(0.68f, 0.12f, 0.12f)
-                    : new Color(0.04f, 0.05f, 0.055f);
-            CreateText(pocket.transform, "Number", number.ToString(),
-                Vector2.zero, new Vector2(32f, 24f), 11, Color.white);
-        }
+        SetRect(wheel, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(235f, 235f));
+        Image wheelImage = wheel.AddComponent<Image>();
+        CasinoPixelArt.SetSprite(wheelImage, CasinoPixelArt.Wheel, Color.white);
+        wheelImage.raycastTarget = false;
     }
 
     private void CreateBettingLayout(Transform parent)
     {
-        const float zeroX = -125f;
-        Vector2 firstCell = new Vector2(-48f, 73f);
-        const float columnSpacing = 46f;
-        const float rowSpacing = 14f;
+        const float zeroX = -195f;
+        Vector2 firstCell = new Vector2(-100f, 225f);
+        const float columnSpacing = 100f;
+        const float rowSpacing = 37f;
         for (int number = 0; number <= 36; number++)
         {
             Vector2 position = number == 0
-                ? new Vector2(zeroX, -6f)
+                ? new Vector2(zeroX, firstCell.y - rowSpacing * 5.5f)
                 : RouletteBettingLayout.GetNumberCellPosition(
                     number, firstCell, columnSpacing, rowSpacing);
             GameObject cell = CreateObject($"Layout Number {number}", parent);
             SetRect(cell, new Vector2(0.5f, 0.5f), position,
-                number == 0 ? new Vector2(28f, 196f) : new Vector2(40f, 13f));
+                number == 0 ? new Vector2(85f, 442f) : new Vector2(96f, 34f));
             Image image = cell.AddComponent<Image>();
             image.color = number == 0
                 ? new Color(0.12f, 0.52f, 0.27f)
@@ -376,7 +365,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
                     ? new Color(0.68f, 0.12f, 0.12f)
                     : new Color(0.04f, 0.05f, 0.055f);
             CreateText(cell.transform, "Number", number.ToString(), Vector2.zero,
-                new Vector2(number == 0 ? 26f : 38f, 13f), 9, Color.white);
+                new Vector2(number == 0 ? 80f : 90f, 32f), 20, Color.white);
             numberCells[number] = cell.GetComponent<RectTransform>();
         }
 
@@ -388,13 +377,13 @@ public sealed class RouletteInspectionView : MonoBehaviour
             RouletteBetType.Even
         };
         string[] labels = { "RED", "BLACK", "ODD", "EVEN" };
-        Vector2 outsideStart = new Vector2(-102f, -112f);
+        Vector2 outsideStart = new Vector2(-195f, -260f);
         for (int i = 0; i < types.Length; i++)
         {
             Vector2 position = RouletteBettingLayout.GetOutsideBetPosition(
-                types[i], outsideStart, 70f);
+                types[i], outsideStart, 125f);
             GameObject area = CreateObject($"Outside Bet {labels[i]}", parent);
-            SetRect(area, new Vector2(0.5f, 0.5f), position, new Vector2(66f, 24f));
+            SetRect(area, new Vector2(0.5f, 0.5f), position, new Vector2(120f, 40f));
             Image image = area.AddComponent<Image>();
             image.color = types[i] == RouletteBetType.Red
                 ? new Color(0.68f, 0.12f, 0.12f)
@@ -402,7 +391,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
                     ? new Color(0.04f, 0.05f, 0.055f)
                     : new Color(0.11f, 0.37f, 0.24f);
             CreateText(area.transform, "Outside Bet Label", labels[i], Vector2.zero,
-                new Vector2(64f, 22f), 10, Color.white);
+                new Vector2(116f, 36f), 17, Color.white);
             outsideBetCells[types[i]] = area.GetComponent<RectTransform>();
         }
     }
@@ -454,6 +443,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
             image.color = bet.IsWinning
                 ? new Color(0.93f, 0.72f, 0.16f)
                 : new Color(0.21f, 0.22f, 0.22f);
+            CasinoPixelArt.SetSprite(image, CasinoPixelArt.Chip, image.color);
             image.raycastTarget = false;
             CreateText(marker.transform, "Bet Marker Amount",
                 RouletteRoundController.FormatPounds(bet.Bet.StakePence),
@@ -466,7 +456,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
         GameObject panel = CreateObject(objectName, parent);
         SetRect(panel, new Vector2(0.5f, 0.5f), position, size);
         Image image = panel.AddComponent<Image>();
-        image.color = new Color(0.055f, 0.24f, 0.17f, 0.98f);
+        CasinoHudStyle.Panel(image, new Color(0.055f, 0.24f, 0.17f, 0.98f));
         image.raycastTarget = false;
         return panel;
     }
@@ -510,6 +500,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         Image image = buttonObject.AddComponent<Image>();
         image.color = new Color(0.42f, 0.26f, 0.10f);
         Button button = buttonObject.AddComponent<Button>();
+        button.targetGraphic = image;
+        CasinoHudStyle.Button(button);
         button.onClick.AddListener(onClick);
         CreateText(buttonObject.transform, "Label", label, Vector2.zero, size, 15, Color.white);
         return button;

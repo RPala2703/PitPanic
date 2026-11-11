@@ -14,12 +14,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         Pay
     }
 
-    private static readonly int[] EuropeanWheelOrder =
-    {
-        0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8,
-        23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12,
-        35, 3, 26
-    };
+    private static readonly int[] EuropeanWheelOrder = CasinoPixelArt.WheelOrder;
 
     private static readonly HashSet<int> RedPockets = new HashSet<int>
     {
@@ -390,26 +385,26 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     private void BuildPopup()
     {
         statusHeader = CasinoMinigamePresentation.CreateImage(
-            "Roulette Popup Status", gameArea, new Vector2(0f, 252f), new Vector2(1310f, 62f),
+            "Roulette Popup Status", gameArea, new Vector2(0f, 270f), new Vector2(1310f, 52f),
             new Color(0.025f, 0.12f, 0.09f, 0.96f));
         CasinoHudStyle.Panel(statusHeader.GetComponent<Image>(), new Color(0.26f, 0.20f, 0.19f));
         statusText = CasinoMinigamePresentation.CreateText(
             statusHeader.transform, "Roulette Status", "SPIN THE WHEEL",
-            new Vector2(0f, 0f), new Vector2(1250f, 54f), 25,
+            new Vector2(0f, 0f), new Vector2(1250f, 46f), 25,
             new Color(1f, 0.87f, 0.44f));
         instructionText = CasinoMinigamePresentation.CreateText(
             gameArea, "Roulette Instructions", "",
-            new Vector2(0f, -274f), new Vector2(1300f, 42f), 18, Color.white);
+            new Vector2(0f, -286f), new Vector2(1300f, 38f), 18, Color.white);
         BuildWheel();
         sweepStageRoot = CreateFullScreenStage("Roulette Sweep Stage");
         sweepStageRoot.gameObject.SetActive(false);
-        BuildBettingLayout(sweepStageRoot, new Vector2(300f, -5f), 460f, 430f,
+        BuildBettingLayout(sweepStageRoot, new Vector2(-130f, -5f), 560f, 480f,
             sweepNumberCells, sweepOutsideCells, sweepPocketOutlines, false);
         BuildSweepTray();
         BuildPayoutStage();
         resultText = CasinoMinigamePresentation.CreateText(
             sweepStageRoot, "Roulette Result", "",
-            new Vector2(660f, 190f), new Vector2(180f, 44f), 23,
+            new Vector2(410f, 190f), new Vector2(230f, 44f), 23,
             new Color(1f, 0.86f, 0.36f));
     }
 
@@ -425,54 +420,32 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         spinStageRoot = spinRoot.transform;
 
         GameObject wheelObject = CasinoMinigamePresentation.CreateImage(
-            "Interactive Roulette Wheel", spinStageRoot, new Vector2(-350f, 0f),
-            new Vector2(470f, 470f), new Color(0.11f, 0.075f, 0.035f));
+            "Interactive Roulette Wheel", spinStageRoot, Vector2.zero,
+            new Vector2(420f, 420f), Color.clear);
         wheelHitArea = wheelObject.GetComponent<RectTransform>();
-        Outline outerOutline = wheelObject.AddComponent<Outline>();
-        outerOutline.effectColor = new Color(0.82f, 0.61f, 0.22f);
-        outerOutline.effectDistance = new Vector2(6f, -6f);
 
         GameObject ring = CasinoMinigamePresentation.CreateImage(
             "Numbered European Pockets", wheelObject.transform, Vector2.zero,
-            new Vector2(400f, 400f), new Color(0.07f, 0.10f, 0.08f));
+            new Vector2(420f, 420f), Color.white);
+        CasinoPixelArt.SetSprite(ring.GetComponent<Image>(), CasinoPixelArt.Wheel, Color.white);
         wheelRing = ring.GetComponent<RectTransform>();
         for (int i = 0; i < EuropeanWheelOrder.Length; i++)
         {
             int number = EuropeanWheelOrder[i];
             float angle = 90f - i * (360f / EuropeanWheelOrder.Length);
             float radians = angle * Mathf.Deg2Rad;
-            Vector2 position = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * 166f;
-            Color color = number == 0
-                ? new Color(0.11f, 0.52f, 0.28f)
-                : IsRedPocket(number)
-                    ? new Color(0.70f, 0.13f, 0.12f)
-                    : new Color(0.055f, 0.065f, 0.07f);
-            GameObject pocket = CasinoMinigamePresentation.CreateImage(
-                $"Pocket {number}", wheelRing, position, new Vector2(36f, 29f), color);
-            Outline pocketOutline = pocket.AddComponent<Outline>();
-            pocketOutline.effectColor = new Color(0.91f, 0.77f, 0.37f, 0.9f);
-            pocketOutline.effectDistance = new Vector2(1f, -1f);
-            CasinoMinigamePresentation.CreateText(pocket.transform, "Pocket Number",
-                number.ToString(), Vector2.zero, new Vector2(34f, 27f), 13, Color.white);
+            Vector2 position = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * 141f;
+            CasinoMinigamePresentation.CreateText(wheelRing, $"Pocket {number}",
+                number.ToString(), position, new Vector2(24f, 18f), 10, Color.white);
         }
 
-        GameObject center = CasinoMinigamePresentation.CreateImage(
-            "Roulette Wheel Center", wheelObject.transform, Vector2.zero,
-            new Vector2(142f, 142f), new Color(0.12f, 0.37f, 0.24f));
-        Outline centerOutline = center.AddComponent<Outline>();
-        centerOutline.effectColor = new Color(0.82f, 0.61f, 0.22f);
-        centerOutline.effectDistance = new Vector2(4f, -4f);
-        CasinoMinigamePresentation.CreateText(center.transform, "Wheel Center Label",
-            "PIT\nPANIC", Vector2.zero, new Vector2(124f, 80f), 21,
-            new Color(1f, 0.89f, 0.56f));
-
         GameObject ballObject = CasinoMinigamePresentation.CreateImage(
-            "Roulette Ball", spinStageRoot, new Vector2(-350f, 218f),
+            "Roulette Ball", spinStageRoot, new Vector2(0f, 195f),
             new Vector2(22f, 22f), Color.white);
+        CasinoPixelArt.SetSprite(ballObject.GetComponent<Image>(), CasinoPixelArt.Ball, Color.white);
         ball = ballObject.GetComponent<RectTransform>();
-        ballObject.AddComponent<Outline>().effectColor = Color.black;
         CasinoMinigamePresentation.CreateText(spinStageRoot, "Wheel Drag Hint",
-            "DRAG TO SPIN", new Vector2(-350f, -245f), new Vector2(360f, 36f), 17,
+            "DRAG TO SPIN!", new Vector2(0f, -245f), new Vector2(360f, 36f), 19,
             new Color(1f, 0.86f, 0.36f));
     }
 
@@ -489,6 +462,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         GameObject panel = CasinoMinigamePresentation.CreateImage(
             compact ? "Payout Betting Layout" : "Roulette Betting Layout",
             root, center, new Vector2(width, height), new Color(0.025f, 0.29f, 0.18f));
+        CasinoHudStyle.Panel(panel.GetComponent<Image>(), new Color(0.06f, 0.31f, 0.24f));
         Outline panelOutline = panel.AddComponent<Outline>();
         panelOutline.effectColor = new Color(0.64f, 0.53f, 0.27f);
         panelOutline.effectDistance = new Vector2(3f, -3f);
@@ -497,12 +471,12 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             new Vector2(width - 20f, 30f), 17,
             new Color(1f, 0.85f, 0.42f));
 
-        float zeroX = compact ? -158f : -190f;
-        float firstCellX = compact ? -104f : -120f;
-        float firstCellY = compact ? 122f : 130f;
-        float columnSpacing = compact ? 39f : 49f;
-        float rowSpacing = compact ? 22f : 24f;
-        Vector2 zeroPosition = new Vector2(zeroX, -8f);
+        float rowSpacing = compact ? 27f : 31f;
+        float columnSpacing = compact ? 68f : 88f;
+        float firstCellX = -columnSpacing;
+        float firstCellY = compact ? 147f : 170f;
+        float zeroX = firstCellX - (compact ? 65f : 82f);
+        Vector2 zeroPosition = new Vector2(zeroX, firstCellY - rowSpacing * 5.5f);
         for (int number = 0; number <= 36; number++)
         {
             Vector2 position = number == 0
@@ -510,8 +484,8 @@ public sealed class RouletteTableMinigame : CasinoMinigame
                 : RouletteBettingLayout.GetNumberCellPosition(
                     number, new Vector2(firstCellX, firstCellY), columnSpacing, rowSpacing);
             Vector2 size = number == 0
-                ? new Vector2(compact ? 38f : 46f, compact ? 292f : 320f)
-                : new Vector2(compact ? 35f : 43f, compact ? 19f : 22f);
+                ? new Vector2(compact ? 54f : 70f, rowSpacing * 12f - 2f)
+                : new Vector2(columnSpacing - 3f, rowSpacing - 3f);
             Color color = number == 0
                 ? new Color(0.11f, 0.52f, 0.28f)
                 : IsRedPocket(number)
@@ -533,10 +507,10 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             }
 
             CasinoMinigamePresentation.CreateText(pocket.transform, "Betting Number",
-                number.ToString(), Vector2.zero, size, compact ? 11 : 13, Color.white);
+                number.ToString(), Vector2.zero, size, compact ? 15 : 17, Color.white);
         }
-        Vector2 outsideStart = new Vector2(compact ? -95f : -112f, -height * 0.5f + 30f);
-        float outsideSpacing = compact ? 62f : 73f;
+        Vector2 outsideStart = new Vector2(compact ? -135f : -165f, -height * 0.5f + 25f);
+        float outsideSpacing = compact ? 90f : 110f;
         RouletteBetType[] outsideTypes =
         {
             RouletteBetType.Red,
@@ -551,23 +525,24 @@ public sealed class RouletteTableMinigame : CasinoMinigame
                 outsideTypes[i], outsideStart, outsideSpacing);
             GameObject outside = CasinoMinigamePresentation.CreateImage(
                 $"Outside Bet {outsideLabels[i]}", panel.transform, position,
-                new Vector2(compact ? 55f : 66f, compact ? 30f : 34f),
+                new Vector2(outsideSpacing - 4f, compact ? 30f : 34f),
                 GetBetAreaColor(outsideTypes[i]));
             Outline outsideOutline = outside.AddComponent<Outline>();
             outsideOutline.effectColor = new Color(1f, 0.84f, 0.36f);
             outsideOutline.effectDistance = new Vector2(1f, -1f);
             outsideCells[outsideTypes[i]] = outside.GetComponent<RectTransform>();
             CasinoMinigamePresentation.CreateText(outside.transform, "Outside Bet Label",
-                outsideLabels[i], Vector2.zero, new Vector2(compact ? 54f : 64f, 30f),
-                compact ? 9 : 11, Color.white);
+                outsideLabels[i], Vector2.zero, new Vector2(outsideSpacing - 6f, 30f),
+                compact ? 14 : 16, Color.white);
         }
     }
 
     private void BuildSweepTray()
     {
         GameObject tray = CasinoMinigamePresentation.CreateImage(
-            "Roulette Dealer Collection Tray", sweepStageRoot, new Vector2(660f, 30f),
-            new Vector2(190f, 240f), new Color(0.16f, 0.35f, 0.22f));
+            "Roulette Dealer Collection Tray", sweepStageRoot, new Vector2(410f, 10f),
+            new Vector2(260f, 240f), new Color(0.16f, 0.35f, 0.22f));
+        CasinoHudStyle.Panel(tray.GetComponent<Image>(), new Color(0.18f, 0.39f, 0.29f));
         trayHitArea = tray.GetComponent<RectTransform>();
         Outline trayOutline = tray.AddComponent<Outline>();
         trayOutline.effectColor = new Color(1f, 0.83f, 0.23f);
@@ -591,12 +566,12 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         stageRect.offsetMax = Vector2.zero;
         payoutStageRoot = stageRoot.transform;
         stageRoot.SetActive(false);
-        BuildBettingLayout(payoutStageRoot, new Vector2(-505f, 0f), 460f, 430f,
+        BuildBettingLayout(payoutStageRoot, new Vector2(-485f, 0f), 460f, 430f,
             payoutNumberCells, payoutOutsideCells, payoutPocketOutlines, true);
 
         GameObject panel = CasinoMinigamePresentation.CreateImage(
-            "Roulette Payout Panel", payoutStageRoot, new Vector2(260f, 0f),
-            new Vector2(1010f, 550f), new Color(0.025f, 0.15f, 0.11f, 0.99f));
+            "Roulette Payout Panel", payoutStageRoot, new Vector2(225f, 0f),
+            new Vector2(950f, 550f), new Color(0.025f, 0.15f, 0.11f, 0.99f));
         CasinoHudStyle.Panel(panel.GetComponent<Image>(), new Color(0.045f, 0.19f, 0.15f));
         CasinoMinigamePresentation.CreateText(panel.transform, "Payout Heading",
             "PAY!  •  PAY THE WINNERS", new Vector2(0f, 244f),
@@ -631,7 +606,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
 
         payoutTray = CasinoMinigamePresentation.CreateImage(
             "Payout Chip Tray", panel.transform, new Vector2(190f, -165f),
-            new Vector2(600f, 65f), new Color(0.07f, 0.3f, 0.19f, 0.98f))
+            new Vector2(570f, 65f), new Color(0.07f, 0.3f, 0.19f, 0.98f))
             .GetComponent<RectTransform>();
         CasinoMinigamePresentation.CreateText(panel.transform, "Payout Tray Label",
             "PAYOUT TRAY", new Vector2(-215f, -160f), new Vector2(150f, 30f),
@@ -663,6 +638,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             $"{PayoutChipNames[denominationIndex]} Payout Chip",
             buttonObject.transform, new Vector2(0f, 12f), new Vector2(88f, 88f),
             PayoutChipColors[denominationIndex]);
+        CasinoPixelArt.SetSprite(chip.GetComponent<Image>(), CasinoPixelArt.Chip, PayoutChipColors[denominationIndex]);
         chip.GetComponent<Image>().raycastTarget = false;
         chip.AddComponent<Outline>().effectColor = new Color(1f, 0.9f, 0.55f);
         CasinoMinigamePresentation.CreateText(chip.transform, "Payout Chip Value",
@@ -1198,6 +1174,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             GameObject chipObject = CasinoMinigamePresentation.CreateImage(
                 $"{(protectedChip ? "Winning" : "Losing")} Roulette Bet {customerBet.BetId}",
                 sweepStageRoot, home, new Vector2(40f, 38f), chipColor);
+            CasinoPixelArt.SetSprite(chipObject.GetComponent<Image>(), CasinoPixelArt.Chip, chipColor);
             Outline chipOutline = chipObject.AddComponent<Outline>();
             chipOutline.effectColor = protectedChip
                 ? new Color(1f, 0.88f, 0.22f)
@@ -1295,6 +1272,8 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             GameObject chipObject = CasinoMinigamePresentation.CreateImage(
                 $"Winning Roulette Bet {customerBet.BetId}", payoutStageRoot,
                 home, new Vector2(40f, 38f), new Color(0.73f, 0.57f, 0.19f));
+            CasinoPixelArt.SetSprite(chipObject.GetComponent<Image>(), CasinoPixelArt.Chip,
+                new Color(0.73f, 0.57f, 0.19f));
             Outline outline = chipObject.AddComponent<Outline>();
             outline.effectColor = new Color(1f, 0.91f, 0.28f);
             outline.effectDistance = new Vector2(4f, -4f);
@@ -1379,8 +1358,11 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         }
 
         float radians = ballAngle * Mathf.Deg2Rad;
-        ball.anchoredPosition = new Vector2(-350f, 0f) +
-                                new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * 218f;
+        float progress = stage == RouletteStage.Spinning
+            ? 1f - Mathf.Clamp01(spinTimer / Mathf.Max(0.1f, spinSeconds))
+            : stage == RouletteStage.Spin ? 0f : 1f;
+        float radius = Mathf.Lerp(195f, 155f, progress);
+        ball.anchoredPosition = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * radius;
     }
 
     private void SetStatus(string value)

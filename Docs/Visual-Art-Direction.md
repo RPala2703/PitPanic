@@ -34,6 +34,13 @@ reference canvas is 1600 x 900; use approximately 30–34 units for titles,
 type for dense board labels. Keep suits in the symbol font and preserve point
 filtering on pixel assets.
 
+Roulette inspection now gives the betting grid most of the table space, and the
+SWEEP! and PAY! grids use larger number cells. Roulette screens share an original
+point-filtered pixel wheel, with the same European pocket order as the spin
+logic; cards, chips and title sparkles are original runtime-generated pixel art.
+The wheel, ball, cards and payout chips use the existing game animations, while
+subtle sparkles animate independently of the interaction targets.
+
 ## Regeneration
 
 Choose **Pit Panic > Generate Prototype Scene** to rebuild the scene, or

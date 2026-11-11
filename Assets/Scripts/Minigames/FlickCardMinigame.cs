@@ -253,10 +253,13 @@ public sealed class FlickCardMinigame : CasinoMinigame
         shoeOutline.effectDistance = new Vector2(4f, -4f);
         for (int i = 0; i < 3; i++)
         {
-            CasinoMinigamePresentation.CreateImage(
+            GameObject stackedCard = CasinoMinigamePresentation.CreateImage(
                 $"Shoe Card Stack {i + 1}", shoe.transform,
                 new Vector2((i - 1) * 7f, -5f - i * 4f), new Vector2(78f, 104f),
                 i == 2 ? new Color(0.92f, 0.92f, 0.84f) : new Color(0.16f, 0.30f, 0.44f));
+            Image cardImage = stackedCard.GetComponent<Image>();
+            CasinoPixelArt.SetSprite(cardImage, CasinoPixelArt.Card, cardImage.color);
+            cardImage.preserveAspect = false;
         }
         CasinoMinigamePresentation.CreateText(shoe.transform, "Shoe Label", "CARD SHOE",
             new Vector2(0f, 88f), new Vector2(148f, 42f), 20, Color.white);
@@ -369,6 +372,9 @@ public sealed class FlickCardMinigame : CasinoMinigame
         GameObject cardObject = CasinoMinigamePresentation.CreateImage(
             hidden ? "Face Down Playing Card" : $"Playing Card {FormatCard(card)}",
             parent, Vector2.zero, size, hidden ? new Color(0.12f, 0.25f, 0.39f) : new Color(0.98f, 0.97f, 0.91f));
+        Image cardImage = cardObject.GetComponent<Image>();
+        CasinoPixelArt.SetSprite(cardImage, CasinoPixelArt.Card, cardImage.color);
+        cardImage.preserveAspect = false;
         Outline outline = cardObject.AddComponent<Outline>();
         outline.effectColor = new Color(0.07f, 0.10f, 0.09f, 0.9f);
         outline.effectDistance = new Vector2(2f, -2f);
