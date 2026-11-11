@@ -297,8 +297,9 @@ public sealed class PitDeskInteraction : MonoBehaviour
     {
         GameObject textObject = CreateRect(objectName, parent, new Vector2(0.5f, 0.5f), position, size);
         Text text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = CasinoPixelFont.Default;
         text.fontSize = fontSize;
+        CasinoPixelFont.Fit(text, fontSize);
         text.color = Color.white;
         text.alignment = TextAnchor.MiddleCenter;
         text.horizontalOverflow = HorizontalWrapMode.Wrap;

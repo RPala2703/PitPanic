@@ -84,9 +84,11 @@ public static class PitPanicArtPrefabLibrary
         for (int i = 0; i < Species.Length; i++)
         {
             int index = i;
-            EnsurePrefab($"{CharacterFolder}/Character_{Species[i]}V2.prefab",
+            PitPanicPixelArt.CharacterFrames(Species[i]);
+            EnsurePrefab($"{CharacterFolder}/Character_{Species[i]}Pixel.prefab",
                 root => BuildCharacter(root, Species[index], MaterialForSpecies(index), suits[index % suits.Length],
                     cream, gold, white, pink, dark, tigerStripe, brown));
+            EnsurePixelTextureBinding($"{CharacterFolder}/Character_{Species[i]}Pixel.prefab");
         }
 
         EnsurePrefab($"{CasinoFolder}/BlackjackTableHeroArtV4.prefab", root =>
@@ -109,7 +111,7 @@ public static class PitPanicArtPrefabLibrary
 
     public static GameObject GetCharacterPrefab(CasinoAnimalSpecies species)
     {
-        string path = $"{CharacterFolder}/Character_{species}V2.prefab";
+        string path = $"{CharacterFolder}/Character_{species}Pixel.prefab";
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (prefab == null)
         {
@@ -119,13 +121,34 @@ public static class PitPanicArtPrefabLibrary
         return prefab;
     }
 
+    private static void EnsurePixelTextureBinding(string path)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        SpriteRenderer sprite = prefab != null ? prefab.GetComponentInChildren<SpriteRenderer>(true) : null;
+        if (sprite == null)
+            throw new InvalidOperationException($"Pixel character prefab has no sprite renderer: {path}");
+        if (sprite.GetComponent<PixelSpriteTextureBinding>() != null)
+            return;
+
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            root.GetComponentInChildren<SpriteRenderer>(true).gameObject.AddComponent<PixelSpriteTextureBinding>();
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
     public static GameObject[] GetCustomerCharacterPrefabs()
     {
         GameObject[] prefabs = new GameObject[Species.Length];
         for (int i = 0; i < Species.Length; i++)
         {
             prefabs[i] = AssetDatabase.LoadAssetAtPath<GameObject>(
-                $"{CharacterFolder}/Character_{Species[i]}V2.prefab");
+                $"{CharacterFolder}/Character_{Species[i]}Pixel.prefab");
         }
 
         return prefabs;
@@ -252,9 +275,22 @@ public static class PitPanicArtPrefabLibrary
         Part(PrimitiveType.Sphere, "Uniform Button 2", bodyRig, new Vector3(0f, 0.98f, 0.56f),
             new Vector3(0.035f, 0.035f, 0.025f), gold);
 
-        CasinoCharacterVisual visual = root.AddComponent<CasinoCharacterVisual>();
         SnapFeaturesToSurface(headRig, bodyRig);
-        visual.Configure(species, bodyRig, animatedHead, tailRig, torso.GetComponent<Renderer>());
+        foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>())
+        {
+            renderer.enabled = false;
+        }
+
+        GameObject spriteObject = new GameObject("Pixel Sprite");
+        spriteObject.transform.SetParent(root.transform, false);
+        spriteObject.transform.localPosition = new Vector3(0f, 0.04f, 0f);
+        SpriteRenderer sprite = spriteObject.AddComponent<SpriteRenderer>();
+        Sprite[] frames = PitPanicPixelArt.CharacterFrames(species);
+        sprite.sprite = frames[0];
+        PixelCharacterVisual pixel = root.AddComponent<PixelCharacterVisual>();
+        pixel.Configure(sprite, frames);
+        CasinoCharacterVisual visual = root.AddComponent<CasinoCharacterVisual>();
+        visual.Configure(species, bodyRig, animatedHead, tailRig, sprite);
         visual.ConfigureArms(leftArm, rightArm);
     }
 

@@ -150,7 +150,7 @@ public sealed class BlackjackCardView : MonoBehaviour
         rect.anchoredPosition = position;
         rect.sizeDelta = size;
         Text text = textObject.AddComponent<Text>();
-        text.font = font;
+        text.font = objectName == "Suit" ? CasinoPixelFont.Symbols : font;
         text.fontSize = fontSize;
         text.alignment = alignment;
         text.raycastTarget = false;

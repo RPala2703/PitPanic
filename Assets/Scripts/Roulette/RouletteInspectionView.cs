@@ -277,8 +277,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
                 if (customerBet.IsSettled)
                 {
                     line += customerBet.GrossReturnPence > 0
-                        ? $"  →  WON {RouletteRoundController.FormatPounds(customerBet.GrossReturnPence)}"
-                        : "  →  LOST";
+                        ? $"  >  WON {RouletteRoundController.FormatPounds(customerBet.GrossReturnPence)}"
+                        : "  >  LOST";
                 }
 
                 if (customerBet.IsWinning)
@@ -484,9 +484,10 @@ public sealed class RouletteInspectionView : MonoBehaviour
         GameObject textObject = CreateObject(objectName, parent);
         SetRect(textObject, new Vector2(0.5f, 0.5f), position, size);
         Text text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = CasinoPixelFont.Default;
         text.text = value;
         text.fontSize = fontSize;
+        CasinoPixelFont.Fit(text, fontSize);
         text.fontStyle = FontStyle.Bold;
         text.color = color;
         text.alignment = alignment;

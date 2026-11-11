@@ -121,6 +121,7 @@ public sealed class BlackjackHandView : MonoBehaviour
         Text text = rect.gameObject.AddComponent<Text>();
         text.font = font;
         text.fontSize = fontSize;
+        CasinoPixelFont.Fit(text, fontSize);
         text.color = Color.white;
         text.alignment = alignment;
         text.raycastTarget = false;

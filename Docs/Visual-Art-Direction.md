@@ -1,54 +1,36 @@
-# Pit Panic visual direction
+# Pit Panic pixel-art direction
 
-## Art direction
+The current scene is a pixel-art pass with a warm casino palette, dark outlines,
+point-filtered sprites and an orthographic overhead camera. The sprites are
+original and inspired by the readability of character-led pixel games, not
+their assets.
 
-Pit Panic is a friendly, stylised animal casino with readable silhouettes and a warm, premium-playful finish. The art is original to this project and uses rounded proportions, clear facial features, and strong species shapes rather than realistic humans or copied character designs.
+`Assets/Art/Pixel` contains the project's generated PNG sprites. The pit boss,
+dealers and customers have four facing directions and two walking frames.
+Blackjack, roulette, the desks, the break room and the carpet have pixel surfaces;
+the roulette wheel sprite follows the existing spinning wheel transform. Columns
+and entrances use camera-facing pixel sprites. Blackjack table cards, bet chips,
+roulette chips and the carried float tray use point-filtered runtime sprites.
+Minigame panels use a matching palette and the Silkscreen pixel font. Card suit
+symbols use Unity's built-in font because Silkscreen does not include them.
+Silkscreen is copyright 2001 The Silkscreen Project Authors and is distributed
+under the SIL Open Font License 1.1; the licence is included alongside the font
+in `Assets/Resources/Fonts`.
 
-| Use | Colour |
-| --- | --- |
-| Table felt | Emerald `#0B6048` |
-| Carpet and upholstery | Burgundy `#542333` |
-| Wood | Walnut `#59351F` |
-| Metal and trim | Warm brass `#D5A747` |
-| UI panels | Deep green `#092C25` |
-| UI copy | Warm ivory `#F5E8C8` |
+## Regeneration
 
-Maintain the existing overhead camera, open walkways, and bright enough exposure to keep station objectives readable. Props and lighting must not obscure paths, character silhouettes, or attention indicators.
+Choose **Pit Panic > Generate Prototype Scene** to rebuild the scene, or
+**Pit Panic > Run Prototype Validation** to regenerate it and check the gameplay
+wiring and pixel sprites. The generator creates missing pixel assets and pixel
+character prefabs without overwriting existing ones. PNG import settings use
+point filtering, no mipmaps and no compression. Existing PNGs can be edited in a
+pixel-art editor; keep their dimensions, pivots and import settings.
 
-For gameplay-value clarity, the blue cash-desk float chip is £10; blackjack and roulette payout chips retain their existing £2.50 value so exact blackjack payouts remain representable.
+Gameplay continues to use the existing X/Z-plane colliders, navigation and
+interaction scripts. Legacy render meshes are hidden where replaced, but kept
+in the hierarchy to preserve gameplay references. The 3D world-space movement
+and minigame logic have not been rewritten.
 
-## Prefab and regeneration policy
-
-- `Assets/Prefabs/Characters` contains reusable animal character prefabs.
-- `Assets/Prefabs/Casino` contains reusable station-art prefabs, including rounded custom-mesh table shells and a segmented 37-pocket roulette wheel.
-- `Assets/Materials/PitPanic/Art` and `Assets/Art/Textures` contain reusable art materials and procedural prototype textures.
-- `Assets/Scenes/PitPanicPrototype.unity` contains gameplay roots, colliders, navigation, interaction zones, and references. Render-only prefab children are grouped under `VisualRoot`.
-- The scene generator creates only *missing* starter prefabs. It must not replace existing prefab assets; artists can replace or edit those assets without changing gameplay code.
-- Gameplay anchors (dealer, customer, bet, interaction, attention, and navigation positions) stay separate from render-only meshes.
-
-## Current asset status
-
-The project currently has no licensed animal meshes, authored animation clips, custom font, or original audio recordings. The generated animal prefabs and casino props are an intentionally cohesive greybox art pass built from reusable custom meshes, mesh primitives, and project-authored materials; they are not presented as final bespoke character art. Each species has a distinct silhouette and face for prototype readability. The latest presentation pass uses a restrained burgundy carpet, lighter neutral fill lighting, brass-backed station signs, a compact task/staffing HUD, and shared minigame panels with activity-specific accent colours.
-
-### Bespoke asset manifest
-
-| Asset | Needed | Notes |
-| --- | --- | --- |
-| Animal character set | 10 game-ready low-poly models: penguin, tiger, pig, fox, rabbit, bear, dog, cat, raccoon, elephant | Consistent scale, separate head/body/accessory bones, clean silhouettes from the fixed camera, commercial-use rights |
-| Character animation set | Idle, walk, turn, sit/stand, dealer work, celebrate, disappointed, impatient, rest, carry tray | Shared rig where practical; readable short loops |
-| Casino station set | Blackjack table, roulette table/wheel, cashier counter, pit desk, break-room furniture | Separate render meshes from Unity gameplay anchors/colliders |
-| Card and chip artwork | Four card suits/ranks and reversible card backs; four denomination chip faces | Original vector/texture source files and transparent exports |
-| UI type and icon set | Display and body fonts, animal portraits, station/task icons | Include redistribution/commercial licence evidence |
-| Audio set | Ambience/music, cards, chips, wheel, UI, steps, reactions, success/failure, delivery | Licensed or recorded originals, normalized and non-repetitive |
-| VFX set | Card/chip trails, pocket highlight, task ping, payout/delivery feedback | Small, lightweight URP effects; avoid gameplay-obscuring bloom |
-
-Record the source, creator, licence, and import settings for every third-party asset before adding it to the project. No external or unlicensed assets are bundled with the current prototype.
-
-## Visual cleanup pass
-
-- Character face and torso details are snapped to the head and torso surfaces (`SnapFeaturesToSurface`), characters use `Character_<Species>V2` prefabs, and arms have pivots used for dealer deal, pay and collect gestures.
-- The player turns smoothly towards the movement direction and keeps its last facing when idle.
-- Pendant light fixtures were replaced by invisible soft fill lights so no glowing discs appear from the overhead camera.
-- Roulette has a coloured betting layout beside the wheel; labels are compact (BJ1, BJ2, ROULETTE, CASHIER, PIT DESK, BREAK ROOM).
-- `BlackjackFloorActivity` mirrors each round on the table with 3D cards, chip stacks, payouts and collection. It reads round state only.
-- Verified by Unity batch-mode generation and validation only; Play Mode screenshots have not been reviewed, and the art remains primitive greybox.
+Play Mode still needs a visual and gameplay review: character occlusion, sprite
+scale, frame animation, roulette and blackjack activity, task indicators and
+all minigames should be checked at the intended window resolutions.

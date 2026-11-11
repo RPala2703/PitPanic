@@ -167,10 +167,11 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         rect.anchoredPosition = position;
         rect.sizeDelta = size;
         Text text = textObject.GetComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = CasinoPixelFont.Default;
         text.text = value;
         text.fontSize = fontSize;
-        text.fontStyle = FontStyle.Bold;
+        text.fontStyle = FontStyle.Normal;
+        CasinoPixelFont.Fit(text, fontSize);
         text.color = color;
         text.alignment = alignment;
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -199,20 +200,20 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
     {
         if (title.Contains("FLICK"))
         {
-            return (new Color(0.36f, 0.88f, 0.91f), new Color(0.025f, 0.085f, 0.105f, 0.99f),
-                new Color(0.035f, 0.18f, 0.20f, 1f));
+            return (new Color(0.46f, 0.86f, 0.82f), new Color(0.12f, 0.09f, 0.17f, 0.99f),
+                new Color(0.18f, 0.24f, 0.27f, 1f));
         }
 
         if (title.Contains("SPIN") || title.Contains("SWEEP") || title.Contains("PAY"))
         {
-            return (new Color(1f, 0.63f, 0.29f), new Color(0.12f, 0.055f, 0.075f, 0.99f),
-                new Color(0.22f, 0.09f, 0.12f, 1f));
+            return (new Color(0.97f, 0.72f, 0.28f), new Color(0.12f, 0.09f, 0.17f, 0.99f),
+                new Color(0.27f, 0.14f, 0.22f, 1f));
         }
 
         if (title.Contains("PACK"))
         {
-            return (new Color(0.55f, 0.91f, 0.62f), new Color(0.035f, 0.10f, 0.075f, 0.99f),
-                new Color(0.05f, 0.19f, 0.13f, 1f));
+            return (new Color(0.49f, 0.84f, 0.61f), new Color(0.12f, 0.09f, 0.17f, 0.99f),
+                new Color(0.12f, 0.29f, 0.24f, 1f));
         }
 
         return (new Color(0.83f, 0.64f, 0.30f), new Color(0.035f, 0.12f, 0.105f, 0.99f),

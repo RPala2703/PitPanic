@@ -484,23 +484,12 @@ public sealed class RouletteRoundController : MonoBehaviour
         int chipCount = Mathf.Clamp(customerBet.Bet.StakePence / 500, 1, 5);
         for (int i = 0; i < chipCount; i++)
         {
-            GameObject chip = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            chip.name = $"Roulette Bet Chip {customerBet.Customer.name} {i + 1}";
+            GameObject chip = new GameObject($"Roulette Bet Chip {customerBet.Customer.name} {i + 1}");
             chip.transform.SetParent(chipContainer, false);
             chip.transform.localPosition = localPosition + new Vector3((i % 3 - 1) * 0.12f, 0.055f + (i / 3) * 0.05f, (i / 3) * 0.1f);
-            chip.transform.localScale = new Vector3(0.18f, 0.045f, 0.18f);
-            Collider collider = chip.GetComponent<Collider>();
-            if (collider != null)
-            {
-                Destroy(collider);
-            }
-
-            Renderer renderer = chip.GetComponent<Renderer>();
-            MaterialPropertyBlock block = new MaterialPropertyBlock();
-            renderer.GetPropertyBlock(block);
-            block.SetColor("_BaseColor", color);
-            block.SetColor("_Color", color);
-            renderer.SetPropertyBlock(block);
+            SpriteRenderer renderer = PixelWorldProps.CreateSurface(chip.transform, "Pixel Roulette Chip",
+                PixelWorldProps.Chip, new Vector2(0.18f, 0.18f), -7);
+            renderer.color = color;
             tableChips.Add(chip);
         }
     }

@@ -66,9 +66,10 @@ public static class CasinoMinigameHud
         rect.anchoredPosition = anchoredPosition;
         rect.sizeDelta = size;
         Text text = textObject.GetComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = CasinoPixelFont.Default;
         text.fontSize = fontSize;
-        text.fontStyle = FontStyle.Bold;
+        text.fontStyle = FontStyle.Normal;
+        CasinoPixelFont.Fit(text, fontSize);
         text.color = Color.white;
         text.alignment = TextAnchor.MiddleCenter;
         text.raycastTarget = false;
