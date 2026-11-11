@@ -630,18 +630,18 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             new Vector2(220f, 36f), 16, Color.white);
 
         payoutTray = CasinoMinigamePresentation.CreateImage(
-            "Payout Chip Tray", panel.transform, new Vector2(190f, -185f),
-            new Vector2(600f, 100f), new Color(0.07f, 0.3f, 0.19f, 0.98f))
+            "Payout Chip Tray", panel.transform, new Vector2(190f, -165f),
+            new Vector2(600f, 65f), new Color(0.07f, 0.3f, 0.19f, 0.98f))
             .GetComponent<RectTransform>();
         CasinoMinigamePresentation.CreateText(panel.transform, "Payout Tray Label",
-            "PAYOUT TRAY", new Vector2(-170f, -160f), new Vector2(170f, 30f),
+            "PAYOUT TRAY", new Vector2(-215f, -160f), new Vector2(150f, 30f),
             16, new Color(0.68f, 1f, 0.72f));
         selectedAmountText = CasinoMinigamePresentation.CreateText(
             panel.transform, "Selected Payout Total", "SELECTED £0.00",
             new Vector2(235f, 144f), new Vector2(440f, 40f), 23, Color.white);
         payoutFeedbackText = CasinoMinigamePresentation.CreateText(
             panel.transform, "Payout Feedback", "", new Vector2(0f, -220f),
-            new Vector2(760f, 32f), 16, new Color(1f, 0.83f, 0.4f));
+            new Vector2(340f, 42f), 16, new Color(1f, 0.83f, 0.4f));
         CreatePayButton(panel.transform, "Undo Payout Chip", "UNDO STACK",
             new Vector2(-310f, -225f), new Vector2(170f, 46f), UndoPayoutAction);
         payoutConfirmButton = CreatePayButton(panel.transform, "Confirm Payout",
