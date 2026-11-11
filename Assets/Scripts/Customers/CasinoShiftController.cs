@@ -158,6 +158,8 @@ public sealed class CasinoShiftController : MonoBehaviour
         if (!ending)
         {
             remaining = Mathf.Max(0f, remaining - Time.deltaTime);
+            CasinoSoundscape.SetIntensity(1 - remaining / shiftSeconds);
+            spawner.SetShiftProgress(1 - remaining / shiftSeconds);
             spawner.SetFinale(remaining <= 60f);
             if (remaining <= 0f)
             {

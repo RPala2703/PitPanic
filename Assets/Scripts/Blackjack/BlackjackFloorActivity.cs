@@ -30,6 +30,7 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
         public float Duration;
         public bool DestroyOnArrival;
         public bool Arrived;
+        public CasinoSoundCue Sound = CasinoSoundCue.Chip;
     }
 
     private sealed class CardVisual
@@ -134,6 +135,8 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
             {
                 visuals.BetPlaced = true;
                 SpawnBetStack(hand, visuals);
+                hand.Customer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
+                    CasinoGesture.Pay, container.TransformPoint(HandAnchor(hand)), .8f);
             }
 
             while (visuals.Cards.Count < hand.Cards.Count)
@@ -234,8 +237,9 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
             From = ShoeLocal,
             To = targetLocal,
             Rotation = Quaternion.Euler(0f, (targetLocal.x * 7f) % 12f, 0f),
-            Start = Time.time,
-            Duration = 0.45f
+            Start = Time.time + .2f,
+            Duration = 0.45f,
+            Sound = CasinoSoundCue.Card
         };
         cardObject.transform.localPosition = ShoeLocal;
         movers.Add(mover);
@@ -288,7 +292,7 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
                 From = origin,
                 To = anchor + new Vector3(0f, 0.012f + i * 0.026f, 0f),
                 Rotation = Quaternion.identity,
-                Start = Time.time + i * 0.07f,
+                Start = Time.time + .2f + i * 0.07f,
                 Duration = 0.4f
             };
             movers.Add(mover);
@@ -351,6 +355,7 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
             mover.Transform.localRotation = Quaternion.Slerp(Quaternion.identity, mover.Rotation, eased);
             if (t >= 1f)
             {
+                CasinoSoundscape.Play(mover.Sound, mover.Transform.position);
                 mover.Arrived = true;
                 if (mover.DestroyOnArrival)
                 {

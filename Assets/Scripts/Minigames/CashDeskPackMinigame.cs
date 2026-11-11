@@ -240,6 +240,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         if (availableOrders.Count > 0)
         {
+            cashOutMode = false;
             ShowOrderSelection();
         }
         else if (cashOutMode)
@@ -506,6 +507,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         if (!TryAdvancePackingSequence(packingSequence, sequenceIndex, denominationIndex, out int nextIndex))
         {
+            CasinoSoundscape.Play(CasinoSoundCue.Mistake, transform.position);
             timeRemaining = Mathf.Max(0f, timeRemaining - 0.5f);
             int expectedDenomination = packingSequence[sequenceIndex];
             SetStatus($"WRONG CHIP  •  {timeRemaining:0.0}s LEFT");
@@ -515,6 +517,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         }
 
         packedCounts[denominationIndex]++;
+        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position);
         packedCount++;
         sequenceIndex = nextIndex;
         SetStatus("CORRECT CHIP  •  KEEP THE SEQUENCE MOVING");

@@ -305,6 +305,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void BeginRound()
     {
+        AssignedDealer?.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+            CasinoAnimationPose.Shuffle, transform.position, .9f);
         if (!IsDealerStaffed)
         {
             return;

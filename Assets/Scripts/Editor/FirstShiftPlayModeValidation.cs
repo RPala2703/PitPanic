@@ -20,6 +20,8 @@ public static class FirstShiftPlayModeValidation
             throw new InvalidOperationException("Run the shift validation in a batch-mode editor.");
         SessionState.SetInt("PitPanic.OldTutorial", PlayerPrefs.GetInt("PitPanic.TutorialComplete", -1));
         SessionState.SetInt("PitPanic.OldUnlocked", PlayerPrefs.GetInt("PitPanic.UnlockedShift", -1));
+        foreach (string channel in new[] { "Music", "Ambience", "Effects" })
+            SessionState.SetFloat("PitPanic.Old" + channel, PlayerPrefs.GetFloat("PitPanic." + channel + "Volume", -1));
         PlayerPrefs.DeleteKey("PitPanic.TutorialComplete");
         PlayerPrefs.DeleteKey("PitPanic.UnlockedShift");
         EditorSceneManager.OpenScene("Assets/Scenes/PitPanicPrototype.unity");
@@ -79,6 +81,12 @@ public static class FirstShiftPlayModeValidation
         {
             RestoreKey("PitPanic.TutorialComplete", SessionState.GetInt("PitPanic.OldTutorial", -1));
             RestoreKey("PitPanic.UnlockedShift", SessionState.GetInt("PitPanic.OldUnlocked", -1));
+            foreach (string channel in new[] { "Music", "Ambience", "Effects" })
+            {
+                float value = SessionState.GetFloat("PitPanic.Old" + channel, -1);
+                if (value < 0) PlayerPrefs.DeleteKey("PitPanic." + channel + "Volume");
+                else PlayerPrefs.SetFloat("PitPanic." + channel + "Volume", value);
+            }
             PlayerPrefs.Save();
         }
 
@@ -141,6 +149,32 @@ public static class FirstShiftPlayModeValidation
             menu.transform.Find("Settings").GetComponent<Button>().onClick.Invoke();
             GameObject settings = menu.transform.Find("Settings panel").gameObject;
             Check(settings.activeSelf && Time.timeScale == 0, "Settings did not preserve title pause");
+            foreach (string channel in new[] { "Music", "Ambience", "Effects" })
+            {
+                Slider slider = settings.transform.Find(channel + " volume").GetComponent<Slider>();
+                Check(slider != null && slider.minValue == 0 && slider.maxValue == 1,
+                    "Missing separate audio control: " + channel);
+                float original = slider.value;
+                slider.value = .37f;
+                Check(Mathf.Approximately(PlayerPrefs.GetFloat("PitPanic." + channel + "Volume"), .37f),
+                    "Audio slider did not persist its channel");
+                slider.value = original;
+            }
+            CasinoSoundscape sound = FindFirstObjectByType<CasinoSoundscape>();
+            Check(sound != null, "Soundscape was not initialized");
+            foreach (AudioClip cue in (AudioClip[])Get(sound, "cues"))
+            {
+                Check(cue != null && cue.samples > 0, "A sound cue is missing");
+                float[] samples = new float[cue.samples];
+                Check(cue.GetData(samples, 0), "Sound cue data was unreadable");
+                float peak = 0;
+                foreach (float sample in samples)
+                {
+                    Check(!float.IsNaN(sample) && !float.IsInfinity(sample), "Invalid sound sample");
+                    peak = Mathf.Max(peak, Mathf.Abs(sample));
+                }
+                Check(peak > .01f && peak <= 1f, "Sound cue was silent or clipped");
+            }
             settings.transform.Find("Back").GetComponent<Button>().onClick.Invoke();
             Check(!settings.activeSelf, "Settings Back failed");
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
@@ -151,6 +185,8 @@ public static class FirstShiftPlayModeValidation
             Check(Camera.main.cullingMask != 0, "Gameplay camera did not resume");
             Check(player.GetComponentInChildren<CasinoCharacterVisual>().Species == CasinoAnimalSpecies.Penguin,
                 "Playable pit boss is not a penguin");
+            foreach (PixelCharacterVisual visual in FindObjectsByType<PixelCharacterVisual>(FindObjectsSortMode.None))
+                Check(visual.HasFrameAnimation, "Actor has no multi-frame action atlas: " + visual.name);
             foreach (AIDealer dealer in manager.Dealers)
                 Check(dealer.DealerId == dealer.GetComponentInChildren<CasinoCharacterVisual>().Species.ToString(),
                     "Dealer name does not match animal");

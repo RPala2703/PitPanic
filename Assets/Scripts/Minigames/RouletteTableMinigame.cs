@@ -687,6 +687,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         }
 
         selectedPayoutCounts[denominationIndex] += payoutQuantity;
+        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position);
         selectedPayoutPence += PayoutDenominationsPence[denominationIndex] * payoutQuantity;
         payoutActions.Add(new[] { denominationIndex, payoutQuantity });
         RenderPayoutSelection();
@@ -1072,6 +1073,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         }
 
         stage = RouletteStage.Spinning;
+        CasinoSoundscape.Play(CasinoSoundCue.Roulette, transform.position);
         spinTimer = Mathf.Max(0.1f, spinSeconds);
         wheelStartAngle = wheelRing.localEulerAngles.z;
         int pocketIndex = System.Array.IndexOf(EuropeanWheelOrder, winningNumber);

@@ -519,6 +519,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         waitingForFlight = false;
         flyingCard = null;
         RenderHands();
+        CasinoSoundscape.Play(CasinoSoundCue.Card, transform.position);
         if (table.RemainingFlickCardCount == 0)
         {
             SetFeedback("ALL OPENING CARDS DEALT!");

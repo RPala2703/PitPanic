@@ -26,7 +26,7 @@ public sealed class AIDealer : MonoBehaviour
     [SerializeField] private Transform pitDeskPosition;
     [SerializeField] private CasinoDealerStation initialAssignedStation;
     [SerializeField, Min(0f)] private float energyDrainPerSecond = 0.5f;
-    [SerializeField, Min(0f)] private float energyRecoveryPerSecond = 0.38f;
+    [SerializeField, Min(0f)] private float energyRecoveryPerSecond = 1.5f;
     [SerializeField, Range(0f, 100f)] private float tiredThreshold = 30f;
     [SerializeField, Range(0f, 100f)] private float exhaustedThreshold = 12f;
     [SerializeField, Range(90f, 100f)] private float fullRestThreshold = 97f;
@@ -329,6 +329,7 @@ public sealed class AIDealer : MonoBehaviour
         }
 
         state = DealerDutyState.NeedsBreak;
+        CasinoSoundscape.Play(CasinoSoundCue.Warning, transform.position);
         AssignedStation?.RequestDealerBreakAttention();
     }
 

@@ -97,7 +97,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         customerHitThreshold = UnityEngine.Random.Range(16f, 18f);
         colorBlock = new MaterialPropertyBlock();
         patience.PatienceExpired += OnPatienceExpired;
-        SetBodyColor(color);
+        SetBodyColor(bodyRenderer is SpriteRenderer ? Color.white : color);
         state = CustomerState.Wandering;
         SetNextDecisionTime();
     }
@@ -485,7 +485,9 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
 
         float frustration = 1f - patience.Normalized;
-        SetBodyColor(Color.Lerp(baseColor, new Color(0.88f, 0.12f, 0.08f), frustration * 0.8f));
+        SetBodyColor(bodyRenderer is SpriteRenderer
+            ? Color.Lerp(Color.white, new Color(1f, .8f, .75f), frustration * .35f)
+            : Color.Lerp(baseColor, new Color(0.88f, 0.12f, 0.08f), frustration * 0.8f));
     }
 
     private void SetBodyColor(Color color)

@@ -8,6 +8,8 @@ using UnityEngine.UI;
 public sealed class CasinoPresentationCapture : MonoBehaviour
 {
     private string directory;
+    private int oldTutorial;
+    private bool watch;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void StartCapture()
@@ -18,6 +20,8 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         Application.runInBackground = true;
         CasinoPresentationCapture capture = new GameObject("Presentation Capture").AddComponent<CasinoPresentationCapture>();
         capture.directory = args[index + 1];
+        capture.watch = Array.IndexOf(args, "--pit-watch") >= 0;
+        capture.oldTutorial = PlayerPrefs.GetInt("PitPanic.TutorialComplete", -1);
         Directory.CreateDirectory(capture.directory);
     }
 
@@ -32,7 +36,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "intro.png"));
         yield return new WaitForSecondsRealtime(1);
         foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
-            if (button.name == "Begin" && button.transform.parent.name == "Introduction")
+            if (button.name == (watch ? "Skip" : "Begin") && button.transform.parent.name == "Introduction")
             {
                 button.onClick.Invoke();
                 break;
@@ -40,6 +44,20 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         yield return new WaitForSecondsRealtime(3);
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "casino.png"));
         yield return new WaitForSecondsRealtime(1);
+        if (watch)
+        {
+            for (int i = 0; i < 12; i++)
+            {
+                yield return new WaitForSecondsRealtime(5);
+                ScreenCapture.CaptureScreenshot(Path.Combine(directory, $"watch-{i:00}.png"));
+            }
+            if (oldTutorial < 0) PlayerPrefs.DeleteKey("PitPanic.TutorialComplete");
+            else PlayerPrefs.SetInt("PitPanic.TutorialComplete", oldTutorial);
+            PlayerPrefs.Save();
+            yield return new WaitForSecondsRealtime(1);
+            Application.Quit();
+            yield break;
+        }
         CasinoPlayerController player = FindFirstObjectByType<CasinoPlayerController>();
         RouletteInspectionView roulette = FindFirstObjectByType<RouletteInspectionView>();
         MoveToTable(player, roulette.transform);
@@ -74,6 +92,14 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         controller.enabled = false;
         player.transform.position = new Vector3(table.position.x, player.transform.position.y, table.position.z - 2.5f);
         controller.enabled = true;
+    }
+
+    private void OnDestroy()
+    {
+        if (!watch) return;
+        if (oldTutorial < 0) PlayerPrefs.DeleteKey("PitPanic.TutorialComplete");
+        else PlayerPrefs.SetInt("PitPanic.TutorialComplete", oldTutorial);
+        PlayerPrefs.Save();
     }
 }
 #endif

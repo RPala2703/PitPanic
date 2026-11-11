@@ -18,7 +18,8 @@ player can practise assigning cover and sending a dealer on break.
 Dealers lose 0.5 energy per second during active service and half that while
 waiting at a table. From full energy, the 30% break warning arrives after
 about 2 minutes 20 seconds of busy work, or 4 minutes 40 seconds of idle duty.
-Break recovery remains unchanged, so rotating cover matters during the shift.
+Break recovery is 1.5 energy per second: about 45 seconds from the break-warning
+threshold to ready. This keeps rotating three tables with one reserve feasible.
 
 The shift duration defaults to nine minutes and can be changed on the
 **First Shift Controller** in the scene. When time runs out, arrivals stop and
@@ -85,3 +86,40 @@ Capture mode records the title, introduction, casino and table interfaces, then 
 exists in Editor/development builds and is inactive without the explicit flag.
 It keeps rendering when unfocused, and does not complete or save tutorial progress.
 The screenshots are rendered frames, not evidence of human playtesting.
+
+## Living casino animation and audio
+
+The existing `PixelCharacterVisual` selects the shared eight-frame action atlas,
+not a second Animator. Each of the ten species has four directions for idle,
+walking, dealing, collecting, paying, celebration, disappointment, tiredness,
+rest, carrying, sitting, examining cards and shuffling. Sitting is played in
+reverse when standing. Service reaches include anticipation and follow-through;
+navigation and accounting remain authoritative. The generator checks exact
+atlas dimensions, point filtering and at least four distinct drawn poses in
+each eight-frame front-facing action (held poses are intentional).
+
+Blackjack card/chip arrival cues come from its physical mover, with a short
+anticipation delay before launch. Roulette bets and winnings travel on the
+floor without changing settlement accounting. Customer reaction states follow
+actual round outcomes, and tired/rest states follow dealer duty.
+Customer sprite palettes are kept intact rather than tinting the whole animal
+blue/red to represent an outfit; impatience uses a restrained warm tint.
+
+`CasinoSoundscape` synthesizes original music, chatter and effects locally.
+There are no downloaded recordings or external audio licensing dependencies.
+Settings provides separately persisted **Music**, **Ambience** and **Effects**
+sliders alongside the master mute. Card, chip, footstep, roulette, outcome,
+task-result and warning sounds use a bounded voice pool and cue rate limits.
+The original melody runs slightly faster toward the end of a shift.
+
+Customer arrivals ramp from about 17 seconds apart to 9 seconds, then about
+7 seconds in the finale, retaining the existing customer cap and task scheduler.
+Customer patience is 45 seconds and dealer recovery is about 45 seconds from
+the tired threshold to ready. Profit accounting, physical float requirements,
+fatigue drain and progression rules are unchanged by this pass.
+
+Add `--pit-watch` to capture mode to run a minute of normal autonomous casino
+activity and save twelve spaced watch frames. It temporarily skips training,
+restores the tutorial preference before exiting normally, and does not finish
+a shift. Automated captures and synthetic-input shift tests do not assess
+human enjoyment, audio mix quality or a nine-minute natural playthrough.

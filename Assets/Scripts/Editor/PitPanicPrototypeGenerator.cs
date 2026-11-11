@@ -376,6 +376,7 @@ public static class PitPanicPrototypeGenerator
         if (AIDealer.CalculateEnergyAfterWork(100f, 5f, 10f) != 50f ||
             AIDealer.CalculateEnergyAfterWork(100f, .5f, 140f) != 30f ||
             AIDealer.CalculateEnergyAfterWork(100f, .25f, 280f) != 30f ||
+            AIDealer.CalculateEnergyAfterRest(30f, 1.5f, 45f) < 97f ||
             AIDealer.CalculateEnergyAfterRest(50f, 5f, 10f) != 100f ||
             AIDealer.CalculateEnergyAfterRest(95f, 5f, 10f) != 100f ||
             !AIDealer.CanBeAssignedFromState(DealerDutyState.ReadyAtPitDesk) ||
@@ -1951,6 +1952,26 @@ public static class PitPanicPrototypeGenerator
 
         foreach (CasinoAnimalSpecies species in System.Enum.GetValues(typeof(CasinoAnimalSpecies)))
         {
+            Texture2D atlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_{species}.png");
+            if (atlas == null || !atlas.isReadable || atlas.width != 384 || atlas.height != 3328 ||
+                atlas.filterMode != FilterMode.Point)
+                throw new System.InvalidOperationException($"Missing or incorrectly imported action atlas for {species}.");
+            for (int pose = 0; pose < 13; pose++)
+            {
+                HashSet<int> frameHashes = new HashSet<int>();
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    int hash = 17;
+                    foreach (Color pixelColor in atlas.GetPixels(frame * 48, pose * 4 * 64, 48, 64))
+                    {
+                        Color32 sample = pixelColor;
+                        unchecked { hash = hash * 31 + sample.r; hash = hash * 31 + sample.g; hash = hash * 31 + sample.b; hash = hash * 31 + sample.a; }
+                    }
+                    frameHashes.Add(hash);
+                }
+                if (frameHashes.Count < 4)
+                    throw new System.InvalidOperationException($"{species} {((CasinoAnimationPose)pose)} needs at least four distinct drawn poses.");
+            }
             GameObject prefab = PitPanicArtPrefabLibrary.GetCharacterPrefab(species);
             PixelCharacterVisual pixel = prefab.GetComponent<PixelCharacterVisual>();
             if (pixel == null || prefab.GetComponentInChildren<PixelSpriteTextureBinding>(true) == null)
