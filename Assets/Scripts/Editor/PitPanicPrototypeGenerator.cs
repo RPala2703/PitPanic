@@ -1441,17 +1441,22 @@ public static class PitPanicPrototypeGenerator
     private static bool ValidateManagementHudResolutions()
     {
         CanvasScaler scaler = null;
+        RectTransform panel = null;
         foreach (Canvas candidate in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
         {
             if (candidate.name == "Casino Management HUD")
             {
                 scaler = candidate.GetComponent<CanvasScaler>();
+                Transform panelTransform = candidate.transform.Find("Management HUD Panel");
+                panel = panelTransform != null ? panelTransform.GetComponent<RectTransform>() : null;
                 break;
             }
         }
 
         if (scaler == null || scaler.uiScaleMode != CanvasScaler.ScaleMode.ScaleWithScreenSize ||
-            scaler.referenceResolution != new Vector2(1600f, 900f))
+            scaler.referenceResolution != new Vector2(1600f, 900f) || panel == null ||
+            panel.anchorMin != Vector2.one || panel.anchorMax != Vector2.one ||
+            panel.sizeDelta != new Vector2(390f, 200f))
         {
             return false;
         }
@@ -1461,8 +1466,8 @@ public static class PitPanicPrototypeGenerator
         {
             float scale = Mathf.Min(resolution.x / scaler.referenceResolution.x,
                 resolution.y / scaler.referenceResolution.y);
-            if (scale <= 0f || (430f + 28f) * scale >= resolution.x ||
-                (238f + 28f) * scale >= resolution.y)
+            if (scale <= 0f || (panel.sizeDelta.x - panel.anchoredPosition.x) * scale >= resolution.x ||
+                (panel.sizeDelta.y - panel.anchoredPosition.y) * scale >= resolution.y)
             {
                 return false;
             }

@@ -392,6 +392,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         statusHeader = CasinoMinigamePresentation.CreateImage(
             "Roulette Popup Status", gameArea, new Vector2(0f, 252f), new Vector2(1310f, 62f),
             new Color(0.025f, 0.12f, 0.09f, 0.96f));
+        CasinoHudStyle.Panel(statusHeader.GetComponent<Image>(), new Color(0.26f, 0.20f, 0.19f));
         statusText = CasinoMinigamePresentation.CreateText(
             statusHeader.transform, "Roulette Status", "SPIN THE WHEEL",
             new Vector2(0f, 0f), new Vector2(1250f, 54f), 25,
@@ -596,9 +597,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         GameObject panel = CasinoMinigamePresentation.CreateImage(
             "Roulette Payout Panel", payoutStageRoot, new Vector2(260f, 0f),
             new Vector2(1010f, 550f), new Color(0.025f, 0.15f, 0.11f, 0.99f));
-        Outline panelOutline = panel.AddComponent<Outline>();
-        panelOutline.effectColor = new Color(0.83f, 0.66f, 0.23f);
-        panelOutline.effectDistance = new Vector2(3f, -3f);
+        CasinoHudStyle.Panel(panel.GetComponent<Image>(), new Color(0.045f, 0.19f, 0.15f));
         CasinoMinigamePresentation.CreateText(panel.transform, "Payout Heading",
             "PAY!  •  PAY THE WINNERS", new Vector2(0f, 244f),
             new Vector2(900f, 42f), 25, new Color(1f, 0.87f, 0.44f));
@@ -607,8 +606,8 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             new Vector2(900f, 36f), 21, Color.white);
         payoutCustomerPanel = payoutCustomerText.rectTransform;
         payoutAmountText = CasinoMinigamePresentation.CreateText(
-            panel.transform, "Required Payout", "", new Vector2(0f, 144f),
-            new Vector2(900f, 36f), 21, new Color(0.67f, 1f, 0.73f));
+            panel.transform, "Required Payout", "", new Vector2(-235f, 144f),
+            new Vector2(440f, 40f), 25, new Color(0.67f, 1f, 0.73f));
 
         float[] chipX = { -345f, -115f, 115f, 345f };
         for (int i = 0; i < PayoutDenominationsPence.Length; i++)
@@ -639,7 +638,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             16, new Color(0.68f, 1f, 0.72f));
         selectedAmountText = CasinoMinigamePresentation.CreateText(
             panel.transform, "Selected Payout Total", "SELECTED £0.00",
-            new Vector2(215f, -155f), new Vector2(540f, 34f), 21, Color.white);
+            new Vector2(235f, 144f), new Vector2(440f, 40f), 23, Color.white);
         payoutFeedbackText = CasinoMinigamePresentation.CreateText(
             panel.transform, "Payout Feedback", "", new Vector2(0f, -220f),
             new Vector2(760f, 32f), 16, new Color(1f, 0.83f, 0.4f));
@@ -658,10 +657,11 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         Button button = buttonObject.AddComponent<Button>();
         button.targetGraphic = buttonObject.GetComponent<Image>();
         button.targetGraphic.raycastTarget = true;
+        CasinoHudStyle.Button(button);
         button.onClick.AddListener(() => AddPayoutChips(denominationIndex));
         GameObject chip = CasinoMinigamePresentation.CreateImage(
             $"{PayoutChipNames[denominationIndex]} Payout Chip",
-            buttonObject.transform, new Vector2(0f, 12f), new Vector2(72f, 72f),
+            buttonObject.transform, new Vector2(0f, 12f), new Vector2(88f, 88f),
             PayoutChipColors[denominationIndex]);
         chip.GetComponent<Image>().raycastTarget = false;
         chip.AddComponent<Outline>().effectColor = new Color(1f, 0.9f, 0.55f);
@@ -670,7 +670,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             Vector2.zero, new Vector2(70f, 32f), 14, Color.white);
         CasinoMinigamePresentation.CreateText(buttonObject.transform, "Payout Chip Label",
             PayoutChipNames[denominationIndex], new Vector2(0f, -48f),
-            new Vector2(172f, 26f), 13, Color.white);
+            new Vector2(172f, 26f), 15, Color.white);
     }
 
     private Button CreatePayButton(
@@ -686,9 +686,10 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         Button button = buttonObject.AddComponent<Button>();
         button.targetGraphic = buttonObject.GetComponent<Image>();
         button.targetGraphic.raycastTarget = true;
+        CasinoHudStyle.Button(button);
         button.onClick.AddListener(action);
         CasinoMinigamePresentation.CreateText(buttonObject.transform, "Button Label",
-            label, Vector2.zero, size - new Vector2(8f, 6f), 15, Color.white);
+            label, Vector2.zero, size - new Vector2(8f, 6f), 17, Color.white);
         return button;
     }
 
@@ -778,7 +779,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
                 ? RouletteRoundController.FormatPounds(currentPayoutBet.GrossReturnPence)
                 : RouletteRoundController.FormatPounds(0);
             selectedAmountText.text =
-                $"SELECTED {RouletteRoundController.FormatPounds(selectedPayoutPence)}  /  {required}";
+                $"TRAY {RouletteRoundController.FormatPounds(selectedPayoutPence)} / {required}";
         }
 
         if (payoutConfirmButton != null)
@@ -914,9 +915,9 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         System.Array.Clear(selectedPayoutCounts, 0, selectedPayoutCounts.Length);
         payoutActions.Clear();
         selectedPayoutPence = 0;
-        payoutCustomerText.text = $"WINNER  •  {currentPayoutBet.Customer.name}";
+        payoutCustomerText.text = $"WINNER  •  {currentPayoutBet.Customer.name}  •  {RouletteRoundController.GetBetLabel(currentPayoutBet.Bet)}";
         payoutAmountText.text =
-            $"{RouletteRoundController.GetBetLabel(currentPayoutBet.Bet)}  •  NUMBER {winningNumber}  •  PAY {RouletteRoundController.FormatPounds(currentPayoutBet.GrossReturnPence)}";
+            $"TARGET  {RouletteRoundController.FormatPounds(currentPayoutBet.GrossReturnPence)}";
         payoutFeedbackText.text = "Build the exact total. Chip-stack buttons add up to ten chips.";
         if (payoutQuantityText != null)
         {
