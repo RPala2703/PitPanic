@@ -34,18 +34,32 @@ public sealed class CasinoManagementHud : MonoBehaviour
     [SerializeField] private Text taskText;
     [SerializeField] private Text dealerText;
     [SerializeField] private Text carryText;
+    [SerializeField] private Text additionalTaskText;
     [SerializeField] private Image taskBadge;
+    [SerializeField] private RectTransform panelRect;
+    [SerializeField] private GameObject details;
+    [SerializeField] private Button toggleButton;
+    [SerializeField] private Text toggleLabel;
     private bool hasTasks;
+    private bool expanded;
     private float refreshTimer;
 
-    public bool IsConfigured => taskText != null && dealerText != null && carryText != null;
+    public bool IsConfigured => taskText != null && dealerText != null && carryText != null &&
+                                additionalTaskText != null && panelRect != null && details != null &&
+                                toggleButton != null && toggleLabel != null && taskBadge != null;
 
     private void Awake()
     {
-        if (taskText != null && taskText.transform.parent.TryGetComponent(out Image panel))
+        if (panelRect != null && panelRect.TryGetComponent(out Image panel))
             CasinoHudStyle.Panel(panel, CasinoHudStyle.Ink);
         if (taskBadge != null)
             CasinoHudStyle.Panel(taskBadge, taskBadge.color);
+        if (toggleButton != null)
+        {
+            CasinoHudStyle.Button(toggleButton);
+            toggleButton.onClick.AddListener(ToggleDetails);
+        }
+        SetExpanded(false);
     }
 
     public void Configure(
@@ -88,33 +102,72 @@ public sealed class CasinoManagementHud : MonoBehaviour
             "Management HUD Panel",
             canvas.transform,
             Vector2.zero,
-            new Vector2(390f, 200f),
+            new Vector2(350f, 76f),
             CasinoHudStyle.Ink);
         CasinoHudStyle.Panel(panel.GetComponent<Image>(), CasinoHudStyle.Ink);
-        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect = panel.GetComponent<RectTransform>();
         panelRect.anchorMin = panelRect.anchorMax = new Vector2(1f, 1f);
         panelRect.pivot = new Vector2(1f, 1f);
         panelRect.anchoredPosition = new Vector2(-24f, -24f);
-        Text heading = CreateHudText(panel.transform, "Casino Name",
-            new Vector2(20f, -12f), new Vector2(350f, 29f), 19);
-        heading.text = "FLOOR TASKS";
-        heading.color = CasinoHudStyle.Gold;
         GameObject badge = CasinoMinigamePresentation.CreateImage(
-            "Task Badge", panel.transform, new Vector2(0f, 6f), new Vector2(358f, 82f), CasinoHudStyle.Coral);
+            "Task Badge", panel.transform, Vector2.zero, new Vector2(294f, 34f), CasinoHudStyle.Coral);
+        RectTransform badgeRect = badge.GetComponent<RectTransform>();
+        badgeRect.anchorMin = badgeRect.anchorMax = new Vector2(0f, 1f);
+        badgeRect.pivot = new Vector2(0f, 1f);
+        badgeRect.anchoredPosition = new Vector2(8f, -7f);
         taskBadge = badge.GetComponent<Image>();
         CasinoHudStyle.Panel(taskBadge, taskBadge.color);
         taskText = CreateHudText(panel.transform, "Active Tasks",
-            new Vector2(28f, -47f), new Vector2(334f, 70f), 17);
-        taskText.alignment = TextAnchor.UpperLeft;
+            new Vector2(16f, -9f), new Vector2(278f, 30f), 17);
+        taskText.alignment = TextAnchor.MiddleLeft;
         taskText.color = new Color(0.94f, 0.97f, 0.92f);
-        dealerText = CreateHudText(panel.transform, "Dealer Staffing",
-            new Vector2(24f, -138f), new Vector2(342f, 24f), 15);
-        dealerText.alignment = TextAnchor.MiddleLeft;
-        dealerText.color = new Color(0.76f, 0.88f, 0.86f);
         carryText = CreateHudText(panel.transform, "Float Delivery Status",
-            new Vector2(24f, -165f), new Vector2(342f, 24f), 15);
+            new Vector2(16f, -46f), new Vector2(320f, 23f), 15);
         carryText.alignment = TextAnchor.MiddleLeft;
         carryText.color = new Color(0.85f, 0.90f, 1f);
+
+        GameObject toggle = CasinoMinigamePresentation.CreateImage(
+            "HUD Details Toggle", panel.transform, Vector2.zero, new Vector2(32f, 34f),
+            new Color(0.24f, 0.37f, 0.31f));
+        RectTransform toggleRect = toggle.GetComponent<RectTransform>();
+        toggleRect.anchorMin = toggleRect.anchorMax = new Vector2(1f, 1f);
+        toggleRect.pivot = Vector2.one;
+        toggleRect.anchoredPosition = new Vector2(-8f, -7f);
+        toggleButton = toggle.AddComponent<Button>();
+        toggleButton.targetGraphic = toggle.GetComponent<Image>();
+        toggleButton.targetGraphic.raycastTarget = true;
+        CasinoHudStyle.Button(toggleButton);
+        toggleLabel = CasinoMinigamePresentation.CreateText(toggle.transform, "Toggle Label", "+",
+            Vector2.zero, new Vector2(30f, 30f), 22, Color.white);
+
+        details = new GameObject("HUD Details", typeof(RectTransform));
+        details.transform.SetParent(panel.transform, false);
+        RectTransform detailsRect = details.GetComponent<RectTransform>();
+        detailsRect.anchorMin = Vector2.zero;
+        detailsRect.anchorMax = Vector2.one;
+        detailsRect.offsetMin = detailsRect.offsetMax = Vector2.zero;
+        additionalTaskText = CreateHudText(details.transform, "More Tasks",
+            new Vector2(16f, -78f), new Vector2(318f, 50f), 15);
+        additionalTaskText.alignment = TextAnchor.UpperLeft;
+        additionalTaskText.color = new Color(1f, 0.82f, 0.58f);
+        dealerText = CreateHudText(details.transform, "Dealer Staffing",
+            new Vector2(16f, -133f), new Vector2(318f, 24f), 15);
+        dealerText.alignment = TextAnchor.MiddleLeft;
+        dealerText.color = new Color(0.76f, 0.88f, 0.86f);
+        SetExpanded(false);
+    }
+
+    private void ToggleDetails() => SetExpanded(!expanded);
+
+    private void SetExpanded(bool value)
+    {
+        expanded = value;
+        if (panelRect != null)
+            panelRect.sizeDelta = new Vector2(350f, expanded ? 168f : 76f);
+        if (details != null)
+            details.SetActive(expanded);
+        if (toggleLabel != null)
+            toggleLabel.text = expanded ? "-" : "+";
     }
 
     private void RefreshHud()
@@ -126,6 +179,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
 
         activeTaskLines.Clear();
         int totalTaskCount = 0;
+        int firstTaskCount = 0;
         int displayedTaskCount = 0;
         foreach (TableAttentionReason reason in DisplayPriority)
         {
@@ -148,6 +202,8 @@ public sealed class CasinoManagementHud : MonoBehaviour
                 {
                     activeTaskLines.Add($"{GetTaskLabel(reason)}: {GetStationLabel(attention.name)}" +
                                         (count > 1 ? $"  ×{count}" : string.Empty));
+                    if (activeTaskLines.Count == 1)
+                        firstTaskCount = count;
                     displayedTaskCount += count;
                 }
             }
@@ -156,28 +212,27 @@ public sealed class CasinoManagementHud : MonoBehaviour
         hasTasks = totalTaskCount > 0;
         if (!hasTasks)
         {
-            taskText.text = "ALL CLEAR!\nKeep the casino smiling.";
+            taskText.text = "ALL CLEAR!";
             taskText.color = new Color(0.66f, 0.96f, 0.76f);
+            additionalTaskText.text = "NO OTHER TASKS";
         }
         else
         {
             StringBuilder lines = new StringBuilder();
-            for (int i = 0; i < activeTaskLines.Count; i++)
+            taskText.text = activeTaskLines[0] +
+                            (totalTaskCount > firstTaskCount ? $"  +{totalTaskCount - firstTaskCount}" : "");
+            for (int i = 1; i < activeTaskLines.Count; i++)
             {
-                if (i > 0)
-                {
-                    lines.Append('\n');
-                }
-
                 lines.Append(activeTaskLines[i]);
             }
 
             if (totalTaskCount > displayedTaskCount)
             {
-                lines.Append("\n+ ").Append(totalTaskCount - displayedTaskCount).Append(" more");
+                if (lines.Length > 0) lines.Append('\n');
+                lines.Append("+ ").Append(totalTaskCount - displayedTaskCount).Append(" more");
             }
 
-            taskText.text = lines.ToString();
+            additionalTaskText.text = lines.Length > 0 ? lines.ToString() : "NO OTHER TASKS";
             taskText.color = new Color(1f, 0.82f, 0.58f);
         }
 
