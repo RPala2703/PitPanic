@@ -18,6 +18,19 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
     private float nextAllowedTaskTime;
     private int eligibleRoundsSinceTask;
     private bool subscribed;
+    private bool tutorialRequest;
+
+    public void RequestTutorialAssistance()
+    {
+        tutorialRequest = true;
+        if (roundController != null) roundController.PrepareTutorialRound();
+    }
+
+    public void CancelTutorialAssistance()
+    {
+        tutorialRequest = false;
+        if (roundController != null) roundController.CancelTutorialRound();
+    }
 
     public bool IsConfigured => rouletteDealerStation != null && rouletteDealerStation.IsConfigured &&
                                 minigameStation != null && minigameStation.IsConfigured &&
@@ -160,14 +173,22 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
 
     private void OnAssistanceOpportunity(RouletteRoundController rounds)
     {
-        if (rounds != roundController || !CanRequestAssistance() ||
-            activePlaySeconds < firstTaskDelaySeconds || Time.time < nextAllowedTaskTime)
+        if (rounds != roundController || !CanRequestAssistance())
         {
+            if (rounds == roundController && tutorialRequest)
+                roundController.PrepareTutorialRound();
+            return;
+        }
+        if (tutorialRequest && !roundController.IsTutorialRound)
+        {
+            roundController.PrepareTutorialRound();
             return;
         }
 
-        eligibleRoundsSinceTask++;
-        if (!ShouldRequestTaskAtEligibleRound(
+        if (!tutorialRequest)
+        {
+            eligibleRoundsSinceTask++;
+            if (!ShouldRequestTaskAtEligibleRound(
                 activePlaySeconds,
                 firstTaskDelaySeconds,
                 Time.time >= nextAllowedTaskTime,
@@ -175,8 +196,9 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
                 guaranteedWithinEligibleRounds,
                 Random.value,
                 taskChancePerEligibleRound))
-        {
-            return;
+            {
+                return;
+            }
         }
 
         if (minigameStation.RequestMinigame(
@@ -186,6 +208,12 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
             if (!roundController.TryPauseForAssistance())
             {
                 minigameStation.ResolveTaskAfterFatalFailure();
+                if (tutorialRequest)
+                    roundController.PrepareTutorialRound();
+            }
+            else
+            {
+                tutorialRequest = false;
             }
         }
     }

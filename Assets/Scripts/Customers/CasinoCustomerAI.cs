@@ -388,6 +388,24 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         return false;
     }
 
+    public bool TryVisitSeat(CasinoSeat candidate)
+    {
+        if (state != CustomerState.Wandering || !agent.isOnNavMesh || candidate == null ||
+            !candidate.IsGameAvailable || !candidate.TryReserve(this))
+            return false;
+        if (!NavMesh.SamplePosition(candidate.Position, out NavMeshHit hit, 1.5f, NavMesh.AllAreas) ||
+            !agent.SetDestination(hit.position))
+        {
+            candidate.Release(this);
+            return false;
+        }
+        reservedSeat = candidate;
+        seatNavPosition = hit.position;
+        state = CustomerState.TravellingToSeat;
+        agent.isStopped = false;
+        return true;
+    }
+
     private void SetWanderDestination()
     {
         Vector3 randomPoint = transform.position + UnityEngine.Random.insideUnitSphere * wanderRadius;

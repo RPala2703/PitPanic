@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -17,6 +18,15 @@ public sealed class DealerAssignmentManager : MonoBehaviour
     private readonly HashSet<AIDealer> pendingDeskDecisions = new HashSet<AIDealer>();
     private readonly Dictionary<AIDealer, float> nextRetryTime = new Dictionary<AIDealer, float>();
     private float previousTimeScale = 1f;
+    private bool paused;
+    public event Action<AIDealer, CasinoDealerStation> DealerAssigned;
+    public event Action<AIDealer> DealerSentOnBreak;
+
+    public void SetPaused(bool value)
+    {
+        paused = value;
+        Time.timeScale = paused ? 0f : simulationTimeScale;
+    }
 
     public IReadOnlyList<AIDealer> Dealers => dealers;
     public IReadOnlyList<CasinoDealerStation> Stations => stations;
@@ -77,7 +87,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
 
     private void Update()
     {
-        Time.timeScale = simulationTimeScale;
+        Time.timeScale = paused ? 0f : simulationTimeScale;
         foreach (AIDealer dealer in dealers)
         {
             if (dealer == null || !IsRetryReady(dealer))
@@ -193,6 +203,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         AcknowledgeDealerAtPitDesk(dealer);
         SyncPitDeskAttention();
         reason = string.Empty;
+        DealerAssigned?.Invoke(dealer, station);
         return true;
     }
 
@@ -219,6 +230,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         AcknowledgeDealerAtPitDesk(dealer);
         SyncPitDeskAttention();
         reason = string.Empty;
+        DealerSentOnBreak?.Invoke(dealer);
         return true;
     }
 

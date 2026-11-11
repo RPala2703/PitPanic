@@ -22,10 +22,48 @@ public static class PitPanicPrototypeGenerator
     public static void RunPrototypeValidation()
     {
         RunBlackjackRuleChecks();
+        ValidateShiftAccounting();
         ValidateRoulettePixelArt();
         ValidateAttentionBadge();
         GeneratePrototypeScene();
         ValidatePrototypeScene();
+    }
+
+    private static void ValidateShiftAccounting()
+    {
+        BlackjackShoe shoe = new BlackjackShoe(new[]
+        {
+            new BlackjackCard(10, 0), new BlackjackCard(9, 0),
+            new BlackjackCard(10, 1), new BlackjackCard(8, 1)
+        });
+        BlackjackTableRound round = new BlackjackTableRound(shoe);
+        BlackjackHand hand = round.AddCustomer(null, null, 1000);
+        round.DealTo(hand);
+        round.DealTo(hand);
+        round.DealToDealer();
+        round.DealToDealer();
+        round.Settle();
+        CasinoShiftAccounting accounting = new CasinoShiftAccounting();
+        if (!accounting.RecordBlackjack(round) || accounting.RecordBlackjack(round) ||
+            accounting.StakesPence != 1000 || accounting.ReturnsPence != 2000 ||
+            accounting.ProfitPence != -1000 || accounting.SettledHands != 1)
+        {
+            throw new System.InvalidOperationException("Shift accounting must record each settled blackjack round once, using gross returns.");
+        }
+
+        RouletteCustomerBet bet = new RouletteCustomerBet(1, 0, null,
+            new RouletteBet(RouletteBetType.Red, 0, 500));
+        bool rejected = false;
+        try { accounting.RecordRoulette(bet); }
+        catch (System.ArgumentException) { rejected = true; }
+        typeof(RouletteCustomerBet).GetProperty(nameof(RouletteCustomerBet.IsSettled)).SetValue(bet, true);
+        typeof(RouletteCustomerBet).GetProperty(nameof(RouletteCustomerBet.GrossReturnPence)).SetValue(bet, 1000L);
+        if (!rejected || !accounting.RecordRoulette(bet) || accounting.RecordRoulette(bet) ||
+            accounting.StakesPence != 1500 || accounting.ReturnsPence != 3000 ||
+            accounting.ProfitPence != -1500 || accounting.SettledHands != 2)
+        {
+            throw new System.InvalidOperationException("Shift accounting must reject unsettled bets and record each settled roulette bet once.");
+        }
     }
 
     private static void ValidateAttentionBadge()
@@ -220,6 +258,7 @@ public static class PitPanicPrototypeGenerator
         foreach (PixelBillboard billboard in Object.FindObjectsByType<PixelBillboard>(FindObjectsSortMode.None))
             billboard.transform.rotation = Camera.main.transform.rotation;
         CreateInputEventSystem();
+        new GameObject("First Shift Controller").AddComponent<CasinoShiftController>();
         CasinoManagementHud managementHud = new GameObject("Casino Management HUD")
             .AddComponent<CasinoManagementHud>();
         managementHud.Configure(
@@ -890,6 +929,7 @@ public static class PitPanicPrototypeGenerator
             Object.FindObjectsByType<CasinoMinigameStationPrompt>(FindObjectsSortMode.None);
         CashDeskPackMinigame packMinigame = Object.FindFirstObjectByType<CashDeskPackMinigame>();
         CasinoCustomerSpawner spawner = Object.FindFirstObjectByType<CasinoCustomerSpawner>();
+        CasinoShiftController[] shiftControllers = Object.FindObjectsByType<CasinoShiftController>(FindObjectsSortMode.None);
         NavMeshSurface navigation = Object.FindFirstObjectByType<NavMeshSurface>();
         CasinoSeat[] seats = Object.FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None);
         RouletteRoundController rouletteRounds = Object.FindFirstObjectByType<RouletteRoundController>();
@@ -912,6 +952,11 @@ public static class PitPanicPrototypeGenerator
             !ValidateManagementHudResolutions())
         {
             throw new System.InvalidOperationException("Generated scene is missing its compact management HUD or composed overhead camera framing.");
+        }
+
+        if (shiftControllers.Length != 1)
+        {
+            throw new System.InvalidOperationException("The generated scene must have exactly one shift controller.");
         }
 
         if (player == null || player.GetComponent<CasinoPlayerInteractionRouter>() == null ||
@@ -1002,6 +1047,11 @@ public static class PitPanicPrototypeGenerator
         int reserveDealers = 0;
         foreach (AIDealer dealer in dealers)
         {
+            NavMeshAgent agent = dealer.GetComponent<NavMeshAgent>();
+            if (agent == null || agent.enabled)
+            {
+                throw new System.InvalidOperationException($"{dealer.name} must activate its NavMesh agent after scene navigation loads.");
+            }
             if (dealer.InitialAssignedStation == null)
             {
                 reserveDealers++;
@@ -2775,6 +2825,7 @@ public static class PitPanicPrototypeGenerator
             NavMeshAgent agent = dealerObject.AddComponent<NavMeshAgent>();
             agent.radius = 0.28f;
             agent.height = 1.7f;
+            agent.enabled = false;
             AIDealer dealer = dealerObject.AddComponent<AIDealer>();
             GameObject dealerVisual = PrefabUtility.InstantiatePrefab(dealerPrefabs[i]) as GameObject;
             if (dealerVisual == null)

@@ -67,8 +67,15 @@ public sealed class RouletteRoundController : MonoBehaviour
     private long assistanceRoundId;
     private bool roundSettled;
     private bool subscriptionsBound;
+    private bool tutorialRoundRequested;
+    private bool tutorialRound;
+
+    public bool IsTutorialRound => tutorialRound;
+    public void PrepareTutorialRound() => tutorialRoundRequested = true;
+    public void CancelTutorialRound() => tutorialRoundRequested = false;
 
     public event Action<RouletteRoundController> AssistanceOpportunity;
+    public event Action<RouletteCustomerBet> BetSettled;
 
     public RouletteRoundPhase Phase { get; private set; } = RouletteRoundPhase.WaitingForPlayers;
     public IReadOnlyList<RouletteCustomerBet> CurrentBets => currentBets;
@@ -399,6 +406,14 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     private void TryBeginRound()
     {
+        if (tutorialRoundRequested)
+        {
+            int ready = 0;
+            foreach (CasinoSeat seat in customerPositions)
+                if (seat != null && seat.Occupant != null && seat.Occupant.IsSeated &&
+                    !seat.Occupant.IsInService) ready++;
+            if (ready < 2) return;
+        }
         List<CasinoCustomerAI> participants = new List<CasinoCustomerAI>(customerPositions.Length);
         for (int i = 0; i < customerPositions.Length; i++)
         {
@@ -424,11 +439,15 @@ public sealed class RouletteRoundController : MonoBehaviour
         assistanceRoundId = 0;
         assistanceWinningNumber = -1;
         roundSettled = false;
+        tutorialRound = tutorialRoundRequested;
+        tutorialRoundRequested = false;
         pendingWinningNumber = -1;
         for (int i = 0; i < participants.Count; i++)
         {
             CasinoCustomerAI customer = participants[i];
-            RouletteBet bet = CreateCustomerBet();
+            RouletteBet bet = tutorialRound
+                ? new RouletteBet(i % 2 == 0 ? RouletteBetType.Red : RouletteBetType.Black, -1, 500)
+                : CreateCustomerBet();
             RouletteCustomerBet customerBet = new RouletteCustomerBet(activeRoundId, i, customer, bet);
             currentBets.Add(customerBet);
             CreateVisibleBetChips(customerBet);
@@ -552,6 +571,7 @@ public sealed class RouletteRoundController : MonoBehaviour
             customerBet.GrossReturnPence = grossReturn;
             customerBet.IsWinning = EuropeanRouletteRules.Wins(customerBet.Bet, winningNumber);
             customerBet.IsSettled = true;
+            BetSettled?.Invoke(customerBet);
         }
 
         Phase = RouletteRoundPhase.SettlingBets;

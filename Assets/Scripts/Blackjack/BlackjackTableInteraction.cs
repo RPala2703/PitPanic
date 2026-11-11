@@ -58,6 +58,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         : Mathf.Max(0, round.CustomerHands.Count * 2 + 2 - dealStep);
     public bool IsFlickReady => flickBoundaryReady && flickDealerPaused && flickStation != null && flickStation.IsTaskPending;
     public bool HasFlickAssistanceStation => flickStation != null;
+    public event System.Action<BlackjackTableRound> RoundSettled;
     public AIDealer AssignedDealer => assignedDealer;
     public string TableDisplayName
     {
@@ -670,6 +671,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         state = BlackjackTableState.Settlement;
         round.Settle();
+        RoundSettled?.Invoke(round);
         payoutHandIndex = -1;
         selectedPayoutChips.Clear();
         SelectNextPayout();

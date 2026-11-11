@@ -28,6 +28,8 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField] private CasinoCashDeskInteraction cashDesk;
     private float spawnTimer;
     private int nextCustomerNumber = 1;
+    private bool acceptingArrivals = true;
+    private bool finale;
 
     public float PatienceSeconds => patienceSeconds;
     public Transform Entrance => entrance;
@@ -48,6 +50,15 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     public float RouletteSelectionWeight => rouletteSelectionWeight;
     public int InitialCustomerCount => initialCustomerCount;
     public int ActiveCustomerCount => activeCustomers.Count;
+    public int TotalSpawned { get; private set; }
+    public bool AcceptingArrivals => acceptingArrivals;
+
+    public void SetAcceptingArrivals(bool accepting)
+    {
+        acceptingArrivals = accepting;
+    }
+
+    public void SetFinale(bool active) => finale = active;
     public bool IsConfigured => entrance != null && exit != null && cashierWaypoint != null &&
                                 seats != null && customerCharacterPrefabs != null &&
                                 customerCharacterPrefabs.Length > 0 &&
@@ -144,17 +155,17 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             return;
         }
 
-        for (int i = 0; i < initialCustomerCount; i++)
+        for (int i = 0; acceptingArrivals && i < initialCustomerCount; i++)
         {
             SpawnCustomer(i);
         }
 
-        spawnTimer = spawnInterval;
+        spawnTimer = finale ? Mathf.Max(1f, spawnInterval * 0.5f) : spawnInterval;
     }
 
     private void Update()
     {
-        if (activeCustomers.Count >= maximumCustomers)
+        if (!acceptingArrivals || activeCustomers.Count >= maximumCustomers)
         {
             return;
         }
@@ -163,7 +174,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         if (spawnTimer <= 0f)
         {
             SpawnCustomer(activeCustomers.Count * 2);
-            spawnTimer = spawnInterval;
+            spawnTimer = finale ? Mathf.Max(1f, spawnInterval * 0.5f) : spawnInterval;
         }
     }
 
@@ -172,14 +183,47 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         activeCustomers.Remove(customer);
     }
 
-    private void SpawnCustomer(int entranceOffset)
+    public bool TrySpawnGuidedCustomer(CasinoCustomerGame game, int desiredCount = 1)
+    {
+        int existing = 0;
+        foreach (CasinoCustomerAI active in activeCustomers)
+        {
+            if (active != null && active.Seat != null && active.Seat.GameType == game)
+                existing++;
+        }
+
+        if (existing >= desiredCount)
+            return true;
+        if (activeCustomers.Count >= maximumCustomers)
+            return false;
+        CasinoSeat target = null;
+        foreach (CasinoSeat seat in seats)
+        {
+            if (seat != null && seat.GameType == game && seat.IsAvailable && seat.IsGameAvailable)
+            {
+                target = seat;
+                break;
+            }
+        }
+        if (target == null)
+            return false;
+        CasinoCustomerAI customer = SpawnCustomer(activeCustomers.Count * 2);
+        if (customer == null)
+            return false;
+        if (customer.TryVisitSeat(target))
+            return true;
+        Debug.LogWarning($"Guided customer could not reach {game}; normal customer behavior will retry.", this);
+        return false;
+    }
+
+    private CasinoCustomerAI SpawnCustomer(int entranceOffset)
     {
         Vector3 requestedPosition = entrance.position + new Vector3((entranceOffset % 4) * 0.52f, 0f, (entranceOffset / 4) * 0.55f);
         if (!NavMesh.SamplePosition(requestedPosition, out NavMeshHit spawnHit, 2f, NavMesh.AllAreas))
         {
             Debug.LogError($"No baked NavMesh found near casino entrance at {requestedPosition}.", this);
             spawnTimer = 2f;
-            return;
+            return null;
         }
 
         GameObject customerObject = new GameObject($"Customer {nextCustomerNumber++:00}");
@@ -199,7 +243,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             Debug.LogError("A customer character prefab is missing its CasinoCharacterVisual component.", this);
             Object.Destroy(customerObject);
             spawnTimer = 2f;
-            return;
+            return null;
         }
 
         Color[] variations =
@@ -221,11 +265,13 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             Debug.LogError("A customer animal prefab is missing its outfit renderer.", visual);
             Object.Destroy(customerObject);
             spawnTimer = 2f;
-            return;
+            return null;
         }
 
         customer.Configure(this, seats, exit, cashierWaypoint, visual.transform, bodyRenderer,
             color, wanderRadius, seatChoiceChance);
         activeCustomers.Add(customer);
+        TotalSpawned++;
+        return customer;
     }
 }

@@ -79,6 +79,14 @@ public sealed class AIDealer : MonoBehaviour
     public bool IsWaitingForPitDeskPosition => state == DealerDutyState.WaitingForPitDeskPosition;
     public float CurrentStationTime { get; private set; }
     public float WorkSpeedMultiplier => 1f + Mathf.InverseLerp(100f, tiredThreshold, energy) * 1.8f;
+    public void RequestTutorialBreak()
+    {
+        if (!IsAtStation || NeedsBreak)
+            return;
+        energy = Mathf.Min(energy, tiredThreshold);
+        RequestBreak();
+    }
+
     public string StatusLabel => state switch
     {
         DealerDutyState.Working => "WORKING",
@@ -142,6 +150,16 @@ public sealed class AIDealer : MonoBehaviour
             pitDeskPosition == null && initialAssignedStation == null)
         {
             Debug.LogError($"{nameof(AIDealer)} on {name} is missing its manager or a destination.", this);
+            enabled = false;
+            return;
+        }
+
+        agent = GetComponent<NavMeshAgent>();
+        if (!agent.enabled)
+            agent.enabled = true;
+        if (!agent.isOnNavMesh)
+        {
+            Debug.LogError($"{nameof(AIDealer)} on {name} could not join the casino NavMesh.", this);
             enabled = false;
             return;
         }
