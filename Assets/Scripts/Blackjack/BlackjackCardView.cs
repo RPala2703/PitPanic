@@ -21,7 +21,8 @@ public sealed class BlackjackCardView : MonoBehaviour
     {
         rootCanvas = canvas;
         background = gameObject.AddComponent<Image>();
-        background.color = Color.white;
+        CasinoPixelArt.SetSprite(background, CasinoPixelArt.Card, Color.white);
+        background.preserveAspect = false;
 
         rankText = CreateText("Rank", new Vector2(0f, 1f), new Vector2(8f, -7f), new Vector2(27f, 28f), 19, TextAnchor.UpperLeft, font);
         suitText = CreateText("Suit", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(50f, 46f), 32, TextAnchor.MiddleCenter, font);

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 public sealed class BlackjackBettingSpotView : MonoBehaviour
 {
     private Image background;
+    private GameObject emptyCard;
     private Text nameText;
     private Text statusText;
     private Text betText;
@@ -22,8 +23,13 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
         font = runtimeFont;
         denominations = chipDenominations;
         background = gameObject.AddComponent<Image>();
-        background.color = new Color(0.035f, 0.24f, 0.17f, 0.84f);
+        CasinoHudStyle.Panel(background, new Color(0.035f, 0.24f, 0.17f, 0.84f));
         background.raycastTarget = false;
+        emptyCard = CreateRectObject("Empty Seat Card", transform, Vector2.zero, new Vector2(55f, 76f));
+        Image emptyImage = emptyCard.AddComponent<Image>();
+        CasinoPixelArt.SetSprite(emptyImage, CasinoPixelArt.Card, new Color(0.38f, 0.70f, 0.58f, 0.35f));
+        emptyImage.preserveAspect = false;
+        emptyImage.raycastTarget = false;
 
         nameText = CreateText("Seat Name", transform, font, new Vector2(0f, 87f), new Vector2(270f, 28f), 16, TextAnchor.MiddleCenter);
         statusText = CreateText("Hand Status", transform, font, new Vector2(0f, -78f), new Vector2(270f, 26f), 15, TextAnchor.MiddleCenter);
@@ -46,6 +52,7 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
             : new Color(0.035f, 0.24f, 0.17f, 0.84f);
 
         CasinoCustomerAI customer = hand != null ? hand.Customer : seat != null ? seat.Occupant : null;
+        emptyCard.SetActive(customer == null);
         nameText.text = customer != null ? customer.name.ToUpperInvariant() : seatLabel;
 
         if (hand != null)

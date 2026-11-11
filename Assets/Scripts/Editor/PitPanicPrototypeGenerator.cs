@@ -22,8 +22,34 @@ public static class PitPanicPrototypeGenerator
     public static void RunPrototypeValidation()
     {
         RunBlackjackRuleChecks();
+        ValidateRoulettePixelArt();
         GeneratePrototypeScene();
         ValidatePrototypeScene();
+    }
+
+    private static void ValidateRoulettePixelArt()
+    {
+        Texture2D texture = CasinoPixelArt.Wheel.texture;
+        if (texture.filterMode != FilterMode.Point || texture.GetPixel(0, 0).a != 0f ||
+            CasinoPixelArt.WheelOrder.Length != 37 || new HashSet<int>(CasinoPixelArt.WheelOrder).Count != 37)
+        {
+            throw new System.InvalidOperationException("The pixel roulette wheel is missing its transparent corners or 37 unique pockets.");
+        }
+
+        for (int i = 0; i < CasinoPixelArt.WheelOrder.Length; i++)
+        {
+            int number = CasinoPixelArt.WheelOrder[i];
+            if (number < 0 || number > 36)
+                throw new System.InvalidOperationException("The pixel roulette wheel has an invalid pocket.");
+            float angle = (90f - i * 360f / 37f) * Mathf.Deg2Rad;
+            Color color = texture.GetPixel(
+                Mathf.FloorToInt(96f + Mathf.Cos(angle) * 65f),
+                Mathf.FloorToInt(96f + Mathf.Sin(angle) * 65f));
+            bool matches = number == 0 ? color.g > color.r : EuropeanRouletteRules.IsRed(number)
+                ? color.r > color.g * 1.5f : color.r < 0.3f;
+            if (!matches)
+                throw new System.InvalidOperationException($"The pixel roulette wheel has the wrong color for pocket {number}.");
+        }
     }
 
     [MenuItem("Pit Panic/Generate Prototype Scene")]

@@ -165,20 +165,23 @@ public sealed class BlackjackTableView : MonoBehaviour
         board = CreateUiObject("Table Rim", canvas.transform);
         SetRect(board, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1050f, 590f));
         Image rimImage = board.AddComponent<Image>();
-        rimImage.color = new Color(0.22f, 0.095f, 0.035f, 0.99f);
+        CasinoHudStyle.Panel(rimImage, new Color(0.47f, 0.25f, 0.20f, 0.99f));
         rimImage.raycastTarget = false;
 
         GameObject felt = CreateUiObject("Green Felt Table", board.transform);
         SetRect(felt, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1018f, 558f));
         Image feltImage = felt.AddComponent<Image>();
-        feltImage.color = new Color(0.025f, 0.30f, 0.20f, 0.98f);
+        CasinoHudStyle.Panel(feltImage, new Color(0.035f, 0.34f, 0.25f, 0.98f));
         feltImage.raycastTarget = false;
         CreateText("Title", felt.transform, tableDisplayName, new Vector2(0f, 245f), new Vector2(420f, 34f), 22, new Color(0.97f, 0.80f, 0.39f), TextAnchor.MiddleCenter);
+        CasinoPixelArt.AddSparkle(felt.transform, new Vector2(-270f, 245f), 18f);
+        CasinoPixelArt.AddSparkle(felt.transform, new Vector2(270f, 245f), 18f);
         dealerLabel = CreateText("Dealer Label", felt.transform, "DEALER", new Vector2(0f, 210f), new Vector2(360f, 28f), 17, Color.white, TextAnchor.MiddleCenter);
 
         shoePosition = CreateRectObject("Shoe Position", felt.transform, new Vector2(-425f, 164f), new Vector2(54f, 78f)).GetComponent<RectTransform>();
         Image shoeImage = shoePosition.gameObject.AddComponent<Image>();
-        shoeImage.color = new Color(0.10f, 0.16f, 0.24f);
+        CasinoPixelArt.SetSprite(shoeImage, CasinoPixelArt.Card, new Color(0.28f, 0.42f, 0.62f));
+        shoeImage.preserveAspect = false;
         CreateText("Shoe Mark", shoePosition, "DECK", Vector2.zero, new Vector2(54f, 78f), 11, new Color(0.92f, 0.82f, 0.48f), TextAnchor.MiddleCenter);
 
         GameObject dealerHandObject = CreateRectObject("Dealer Hand", felt.transform, new Vector2(0f, 157f), new Vector2(300f, 105f));
@@ -228,7 +231,7 @@ public sealed class BlackjackTableView : MonoBehaviour
     {
         interactionPrompt = CreateUiObject("Dealer Interaction Prompt", canvas.transform);
         SetRect(interactionPrompt, new Vector2(0.5f, 0f), new Vector2(0f, 45f), new Vector2(420f, 42f));
-        interactionPrompt.AddComponent<Image>().color = new Color(0.025f, 0.06f, 0.05f, 0.90f);
+        CasinoHudStyle.Panel(interactionPrompt.AddComponent<Image>(), CasinoHudStyle.Ink);
         promptText = CreateText("Prompt", interactionPrompt.transform, $"E  •  DEAL {tableDisplayName}", Vector2.zero, new Vector2(410f, 40f), 18, Color.white, TextAnchor.MiddleCenter);
         interactionPrompt.SetActive(false);
     }
@@ -320,8 +323,9 @@ public sealed class BlackjackTableView : MonoBehaviour
         image.color = color;
         Button button = buttonObject.AddComponent<Button>();
         button.targetGraphic = image;
+        CasinoHudStyle.Button(button);
         button.onClick.AddListener(() => action?.Invoke());
-        CreateText("Label", buttonObject.transform, label, Vector2.zero, size, 12, Color.white, TextAnchor.MiddleCenter);
+        CreateText("Label", buttonObject.transform, label, Vector2.zero, size - new Vector2(8f, 4f), 15, Color.white, TextAnchor.MiddleCenter);
         return button;
     }
 
@@ -336,8 +340,8 @@ public sealed class BlackjackTableView : MonoBehaviour
         CasinoPixelFont.Fit(text, fontSize);
         text.color = color;
         text.alignment = alignment;
-        text.horizontalOverflow = HorizontalWrapMode.Overflow;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Truncate;
         text.raycastTarget = false;
         return text;
     }

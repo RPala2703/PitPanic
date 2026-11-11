@@ -10,6 +10,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
     private float targetAlpha;
     private float targetScale;
     private bool closeWhenHidden;
+    private Image[] sparkles;
 
     public static bool IsOpen => activePresentation != null && !activePresentation.closeWhenHidden;
     public Transform GameArea { get; private set; }
@@ -60,6 +61,14 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         GameObject titleBadge = CreateImage("Title Badge", board.transform, new Vector2(0f, 342f),
             new Vector2(520f, 66f), accent);
         CasinoHudStyle.Panel(titleBadge.GetComponent<Image>(), accent);
+        presentation.sparkles = new Image[2];
+        for (int i = 0; i < presentation.sparkles.Length; i++)
+        {
+            GameObject sparkle = CreateImage("Arcade Sparkle", board.transform,
+                new Vector2(i == 0 ? -310f : 310f, 342f), new Vector2(26f, 26f), accent);
+            presentation.sparkles[i] = sparkle.GetComponent<Image>();
+            CasinoPixelArt.SetSprite(presentation.sparkles[i], CasinoPixelArt.Sparkle, accent);
+        }
         CreateText(board.transform, "Minigame Title", title,
             new Vector2(0f, 342f), new Vector2(480f, 50f), 32, CasinoHudStyle.Ink);
         CreateText(board.transform, "Minigame Instructions", instructions,
@@ -109,6 +118,14 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         }
 
         canvasGroup.alpha = Mathf.MoveTowards(canvasGroup.alpha, targetAlpha, Time.unscaledDeltaTime * 7f);
+        if (sparkles != null)
+        {
+            for (int i = 0; i < sparkles.Length; i++)
+            {
+                float pulse = 0.8f + 0.2f * Mathf.Sin(Time.unscaledTime * 3f + i * Mathf.PI);
+                sparkles[i].rectTransform.localScale = Vector3.one * pulse;
+            }
+        }
         if (presentationRect != null)
         {
             float scale = Mathf.MoveTowards(presentationRect.localScale.x, targetScale, Time.unscaledDeltaTime * 0.32f);
