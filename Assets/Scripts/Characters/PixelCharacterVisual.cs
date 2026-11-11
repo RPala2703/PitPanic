@@ -82,6 +82,9 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         previousPosition = actor.position;
         hasPreviousPosition = true;
         bool walking = speed > 0.12f;
+        if (dealer != null)
+            transform.localPosition = Vector3.MoveTowards(transform.localPosition,
+                dealer.IsAtStation ? Vector3.forward * .65f : Vector3.zero, Time.deltaTime * 3f);
         walkTime = walking ? walkTime + Time.deltaTime : 0f;
 
         spriteRenderer.sprite = frames[FrameIndex(actor.forward, walking, walkTime)];

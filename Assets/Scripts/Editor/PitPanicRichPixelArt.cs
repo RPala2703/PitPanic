@@ -99,7 +99,16 @@ public static class PitPanicRichPixelArt
         };
         Color32 fur = furs[(int)species % furs.Length];
         Color32 shadow = Shade(fur, .7f);
-        Color32 coat = new Color32(137, 42, 81, 255);
+        Color32 coat = species switch
+        {
+            CasinoAnimalSpecies.Rabbit => new Color32(55, 119, 119, 255),
+            CasinoAnimalSpecies.Bear => new Color32(67, 89, 144, 255),
+            CasinoAnimalSpecies.Cat => new Color32(140, 78, 157, 255),
+            CasinoAnimalSpecies.Dog => new Color32(159, 95, 44, 255),
+            CasinoAnimalSpecies.Raccoon => new Color32(49, 114, 82, 255),
+            CasinoAnimalSpecies.Elephant => new Color32(62, 109, 147, 255),
+            _ => new Color32(137, 42, 81, 255)
+        };
         R(t, 9, 2 + step * 2, 13, 8, Ink); R(t, 28, 4 - step * 2, 12, 8, Ink);
         R(t, 11, 5 + step * 2, 8, 2, new Color32(96, 82, 101, 255));
         R(t, 30, 7 - step * 2, 7, 2, new Color32(96, 82, 101, 255));
@@ -168,7 +177,41 @@ public static class PitPanicRichPixelArt
         }
         if (species == CasinoAnimalSpecies.Penguin)
         {
-            R(t, 12, 53, 24, 4, Ink); R(t, 18, 57, 13, 4, Gold);
+            R(t, 0, 35, 48, 29, new Color32(0, 0, 0, 0));
+            E(t, 24, 46, 17, 15, Ink);
+            E(t, 24, 47, 14, 12, new Color32(56, 70, 98, 255));
+            R(t, 13, 55, 19, 2, new Color32(94, 111, 141, 255));
+            if (dir == 0)
+            {
+                E(t, 18, 45, 7, 9, Cream); E(t, 30, 45, 7, 9, Cream);
+                R(t, 14, 44, 4, 6, Ink); R(t, 31, 44, 4, 6, Ink);
+                R(t, 15, 48, 1, 2, Cream); R(t, 32, 48, 1, 2, Cream);
+                R(t, 20, 39, 10, 5, Gold); R(t, 22, 38, 6, 2, new Color32(216, 115, 46, 255));
+            }
+            else if (dir > 1)
+            {
+                int x = dir == 2 ? 14 : 29;
+                E(t, x + 2, 45, 6, 9, Cream);
+                R(t, x, 45, 3, 5, Ink);
+                R(t, dir == 2 ? 5 : 35, 39, 8, 4, Gold);
+            }
+            R(t, 10, 2 + step * 2, 11, 3, Gold);
+            R(t, 29, 4 - step * 2, 11, 3, Gold);
+        }
+        if (species == CasinoAnimalSpecies.Dog)
+        {
+            R(t, 6, 41, 7, 15, Ink); R(t, 8, 43, 4, 11, shadow);
+            R(t, 37, 41, 7, 15, Ink); R(t, 38, 43, 4, 11, shadow);
+        }
+        if (species == CasinoAnimalSpecies.Rabbit && dir != 1)
+        {
+            R(t, 12, 56, 3, 6, new Color32(229, 151, 172, 255));
+            R(t, 34, 56, 3, 6, new Color32(229, 151, 172, 255));
+        }
+        if (species == CasinoAnimalSpecies.Bear)
+        {
+            E(t, 13, 56, 5, 5, Ink); E(t, 13, 56, 3, 3, shadow);
+            E(t, 35, 56, 5, 5, Ink); E(t, 35, 56, 3, 3, shadow);
         }
     }
 

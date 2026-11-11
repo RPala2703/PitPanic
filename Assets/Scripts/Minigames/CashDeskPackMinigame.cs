@@ -119,7 +119,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     public static float GetSequenceTimeLimit(int chipCount)
     {
-        return Mathf.Clamp(3.5f + Mathf.Max(0, chipCount) * 0.35f, 5f, 10f);
+        return 15f + Mathf.Max(0, chipCount) * 2f;
     }
 
     public static bool TryAdvancePackingSequence(
@@ -506,7 +506,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         if (!TryAdvancePackingSequence(packingSequence, sequenceIndex, denominationIndex, out int nextIndex))
         {
-            timeRemaining = Mathf.Max(0f, timeRemaining - 1.5f);
+            timeRemaining = Mathf.Max(0f, timeRemaining - 0.5f);
             int expectedDenomination = packingSequence[sequenceIndex];
             SetStatus($"WRONG CHIP  •  {timeRemaining:0.0}s LEFT");
             SetInstruction($"That order needs {ChipNames[expectedDenomination]}. Try again.");

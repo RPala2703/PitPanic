@@ -149,6 +149,11 @@ public static class FirstShiftPlayModeValidation
             intro.transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
             Check(shift.IsRunning, "Start button failed");
             Check(Camera.main.cullingMask != 0, "Gameplay camera did not resume");
+            Check(player.GetComponentInChildren<CasinoCharacterVisual>().Species == CasinoAnimalSpecies.Penguin,
+                "Playable pit boss is not a penguin");
+            foreach (AIDealer dealer in manager.Dealers)
+                Check(dealer.DealerId == dealer.GetComponentInChildren<CasinoCharacterVisual>().Species.ToString(),
+                    "Dealer name does not match animal");
             yield return Press(UnityEngine.InputSystem.Key.P);
             float pausedAt = shift.RemainingSeconds;
             yield return new WaitForSecondsRealtime(0.5f);
@@ -161,6 +166,10 @@ public static class FirstShiftPlayModeValidation
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
             Check((bool)Get(shift, "moved"), "W movement did not advance tutorial");
+            foreach (AIDealer dealer in manager.Dealers)
+                if (dealer.IsAtStation)
+                    Check(Vector3.Distance(dealer.GetComponentInChildren<PixelCharacterVisual>().transform.localPosition,
+                        Vector3.forward * .65f) < .02f, "Working dealer visual did not approach table edge");
 
             MoveNear(blackjack.transform, blackjack.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.Q);

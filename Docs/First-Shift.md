@@ -54,6 +54,15 @@ Characters have directional walk cycles, service poses, happy/sad reactions
 and tired/resting expressions. Blackjack reuses its physical dealing/payout
 animation; roulette adds customer/dealer gestures and an orbiting ball.
 The cashier's chip movement follows actual customer/float service activity.
+The playable pit boss is a penguin. Staff use their animal names, and customers
+use the ten-species character pool with distinct outfits and species details.
+Working dealer visuals step toward the felt while their collision/navigation
+positions remain outside the table, preserving access and break-room routes.
+
+PACK! allows **15 seconds to read the order plus 2 seconds per chip**, without
+the old ten-second cap. A wrong sequence chip costs half a second, and cancelled
+or timed-out orders remain retryable. This applies to float packing and customer
+cash-outs.
 
 A development macOS build with automated presentation captures can be made
 without hardcoded output paths:

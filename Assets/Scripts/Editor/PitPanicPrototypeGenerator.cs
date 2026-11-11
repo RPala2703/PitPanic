@@ -189,7 +189,7 @@ public static class PitPanicPrototypeGenerator
         CreateFloor(floorMaterial, trimMaterial);
         CreateRichScenery();
         CasinoPlayerController playerController = CreatePlayer(
-            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Fox));
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Penguin));
         CasinoSeat[] firstTableSeats = CreateBlackjackTable(
             "Blackjack Table 1",
             new Vector3(-6.2f, 0f, 0.6f),
@@ -624,6 +624,9 @@ public static class PitPanicPrototypeGenerator
             !sequenceCountsMatch ||
             CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127).Length != packingSequence.Length ||
             CashDeskPackMinigame.GetSequenceTimeLimit(19) <= CashDeskPackMinigame.GetSequenceTimeLimit(10) ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(0) != 15f ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(19) != 53f ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(100) != 215f ||
             wrongChipAdvanced || nextPackingIndex != 0 ||
             !rightChipAdvanced || advancedPackingIndex != 1 ||
             completedSequenceAdvanced || completedPackingIndex != packingSequence.Length)
@@ -2841,7 +2844,8 @@ public static class PitPanicPrototypeGenerator
             CasinoDealerStation station = i < stations.Length ? stations[i] : null;
             Transform initialPitPosition = station == null ? pitDeskPositions[0] : null;
             Transform spawnPosition = station != null ? station.DealerPosition : initialPitPosition;
-            GameObject dealerObject = new GameObject($"Dealer {i + 1:00}");
+            CasinoAnimalSpecies animal = dealerPrefabs[i].GetComponent<CasinoCharacterVisual>().Species;
+            GameObject dealerObject = new GameObject(animal.ToString());
             dealerObject.transform.SetPositionAndRotation(spawnPosition.position, spawnPosition.rotation);
             NavMeshAgent agent = dealerObject.AddComponent<NavMeshAgent>();
             agent.radius = 0.28f;
@@ -2957,7 +2961,7 @@ public static class PitPanicPrototypeGenerator
         }
 
         visual.transform.SetParent(player.transform, false);
-        visual.name = "Fox Pit Boss Visual";
+        visual.name = "Penguin Pit Boss Visual";
         visual.transform.localPosition = Vector3.zero;
         return player.GetComponent<CasinoPlayerController>();
     }
