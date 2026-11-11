@@ -200,6 +200,8 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void BeginShift(int number, bool guided)
     {
+        CasinoSoundscape.SetMusicTrack(CasinoMusicTrack.Casino);
+        CasinoSoundscape.SetFocus(null);
         if (newGameRequested)
         {
             CasinoDemoProgression.StartNewGame();

@@ -25,8 +25,15 @@ public static class FirstShiftPlayModeValidation
             SessionState.SetInt("Old." + key, PlayerPrefs.GetInt(key, -1));
             PlayerPrefs.DeleteKey(key);
         }
-        foreach (string channel in new[] { "Music", "Ambience", "Effects" })
+        float[] defaults = { .45f, .3f, .65f };
+        string[] channels = { "Music", "Ambience", "Effects" };
+        for (int i = 0; i < channels.Length; i++)
+        {
+            string channel = channels[i];
             SessionState.SetFloat("PitPanic.Old" + channel, PlayerPrefs.GetFloat("PitPanic." + channel + "Volume", -1));
+            PlayerPrefs.SetFloat("PitPanic." + channel + "Volume", defaults[i]);
+        }
+        PlayerPrefs.Save();
         PlayerPrefs.DeleteKey("PitPanic.TutorialComplete");
         PlayerPrefs.DeleteKey("PitPanic.UnlockedShift");
         EditorSceneManager.OpenScene("Assets/Scenes/PitPanicPrototype.unity");
@@ -155,6 +162,12 @@ public static class FirstShiftPlayModeValidation
             var desk = FindFirstObjectByType<CasinoCashDeskInteraction>();
             var manager = FindFirstObjectByType<DealerAssignmentManager>();
             Check(Time.timeScale == 0 && !spawner.AcceptingArrivals, "Menu failed to pause");
+            Check(CasinoSoundscape.CurrentMusicTrack == CasinoMusicTrack.Title &&
+                ((AudioSource)typeof(CasinoSoundscape).GetField("music", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(FindFirstObjectByType<CasinoSoundscape>())).loop &&
+                ((AudioSource)typeof(CasinoSoundscape).GetField("music", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(FindFirstObjectByType<CasinoSoundscape>())).clip.name.Contains("PitPanicWelcome"),
+                "Title did not select looping welcome music");
             GameObject menu = (GameObject)Get(shift, "menu");
             Check(Camera.main.cullingMask == 0, "Title did not isolate the casino camera");
             PixelCharacterVisual[] titleCast = (PixelCharacterVisual[])Get(menu.GetComponent<CasinoTitleScreen>(), "cast");
@@ -205,6 +218,15 @@ public static class FirstShiftPlayModeValidation
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
             intro.transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
             Check(shift.IsRunning, "Start button failed");
+            Check(CasinoSoundscape.CurrentMusicTrack == CasinoMusicTrack.Casino,
+                "Starting a shift did not select casino background music");
+            CasinoSoundscape soundscape = FindFirstObjectByType<CasinoSoundscape>();
+            AudioSource backgroundMusic = (AudioSource)typeof(CasinoSoundscape)
+                .GetField("music", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(soundscape);
+            Check(backgroundMusic.loop && backgroundMusic.clip.name.Contains("PixelatedRoulette") &&
+                backgroundMusic.volume <= CasinoSoundscape.MusicVolume * .121f &&
+                backgroundMusic.volume < CasinoSoundscape.EffectsVolume,
+                "Casino music did not loop quietly beneath louder effects");
             Check(Camera.main.cullingMask != 0, "Gameplay camera did not resume");
             Check(player.GetComponentInChildren<CasinoCharacterVisual>().Species == CasinoAnimalSpecies.Penguin,
                 "Playable pit boss is not a penguin");
@@ -247,6 +269,8 @@ public static class FirstShiftPlayModeValidation
             Check(CasinoSoundscape.Focus == flick.transform && !CasinoSoundscape.AllowsEffect(null) &&
                 CasinoSoundscape.AllowsEffect(flick.transform) && !CasinoSoundscape.AllowsEffect(rgame.transform),
                 "Minigame audio did not isolate the active task");
+            Check(CasinoSoundscape.CurrentMusicTrack == CasinoMusicTrack.Casino,
+                "Opening a minigame changed the casino soundtrack");
             yield return Press(UnityEngine.InputSystem.Key.P);
             float flickPausedAt = (float)Get(flick, "timeRemaining");
             Vector3 pausedPlayer = player.transform.position;
@@ -515,6 +539,8 @@ public static class FirstShiftPlayModeValidation
             Check(menu.activeSelf && !shift.IsRunning && Time.timeScale == 0 && !AudioListener.pause,
                 "Pause Main Menu did not return to an idle title");
             Check(menu.transform.Find("Quit").GetComponent<Button>().interactable, "Quit Game button missing");
+            Check(CasinoSoundscape.CurrentMusicTrack == CasinoMusicTrack.Title,
+                "Returning to the main menu did not restore welcome music");
             Check(CasinoSoundscape.Focus == menu.transform, "Main Menu retained old task audio focus");
             menu.transform.Find("Continue").GetComponent<Button>().onClick.Invoke();
             Check(shift.IsRunning && !AudioListener.pause && Time.timeScale > 0,

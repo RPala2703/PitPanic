@@ -18,6 +18,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
 
     public void Build(Action newGame, Action continueGame, bool canContinue)
     {
+        CasinoSoundscape.SetMusicTrack(CasinoMusicTrack.Title);
         CasinoSoundscape.SetIntensity(0);
         CasinoSoundscape.SetFocus(transform);
         RectTransform rect = (RectTransform)transform;
