@@ -155,6 +155,12 @@ public static class PitPanicPrototypeGenerator
         CreateCustomerSpawner(entrance, exit, cashierWaypoint, seats, customerPrefabs, cashDesk);
         NavMeshSurface navigationSurface = CreateNavigationSurface();
         CreateCamera();
+        foreach (PixelCharacterVisual pixel in Object.FindObjectsByType<PixelCharacterVisual>(FindObjectsSortMode.None))
+        {
+            pixel.GetComponentInChildren<SpriteRenderer>().transform.rotation = Camera.main.transform.rotation;
+        }
+        foreach (PixelBillboard billboard in Object.FindObjectsByType<PixelBillboard>(FindObjectsSortMode.None))
+            billboard.transform.rotation = Camera.main.transform.rotation;
         CreateInputEventSystem();
         CasinoManagementHud managementHud = new GameObject("Casino Management HUD")
             .AddComponent<CasinoManagementHud>();
@@ -833,6 +839,7 @@ public static class PitPanicPrototypeGenerator
         AIDealer[] dealers = Object.FindObjectsByType<AIDealer>(FindObjectsSortMode.None);
         CasinoManagementHud managementHud = Object.FindFirstObjectByType<CasinoManagementHud>();
         ValidateCasinoArtMeshes(blackjackTables, rouletteMinigame);
+        ValidatePixelPresentation();
         cashDesk?.InitializeRuntime();
         if (camera == null || !camera.orthographic || eventSystem == null ||
             uiInputModule == null || uiInputModule.actionsAsset == null ||
@@ -1728,6 +1735,14 @@ public static class PitPanicPrototypeGenerator
 
         foreach (CasinoCharacterVisual visual in visuals)
         {
+            if (visual.GetComponent<PixelCharacterVisual>() != null)
+            {
+                SpriteRenderer sprite = visual.GetComponentInChildren<SpriteRenderer>();
+                if (sprite == null || sprite.sprite == null || visual.OutfitRenderer != sprite)
+                    throw new System.InvalidOperationException($"{visual.name} has an incomplete pixel character visual.");
+                continue;
+            }
+
             Transform head = visual.transform.Find("Animated Head");
             Transform headShape = head != null ? head.Find("Head Shape") : null;
             if (headShape == null)
@@ -1758,6 +1773,66 @@ public static class PitPanicPrototypeGenerator
             {
                 throw new System.InvalidOperationException($"{visual.name} is missing gesture arm pivots.");
             }
+        }
+    }
+
+    private static void ValidatePixelPresentation()
+    {
+        Font pixelFont = CasinoPixelFont.Default;
+        if (!pixelFont.HasCharacter('A') || !pixelFont.HasCharacter('£') ||
+            !pixelFont.HasCharacter('•') || !CasinoPixelFont.Symbols.HasCharacter('♠'))
+            throw new System.InvalidOperationException("The pixel UI font or playing-card symbol font is missing required characters.");
+
+        GameObject propsTest = new GameObject("Pixel Prop Validation");
+        try
+        {
+            SpriteRenderer prop = PixelWorldProps.CreateSurface(propsTest.transform, "Test Card",
+                PixelWorldProps.CardBack, new Vector2(0.2f, 0.2f), -8);
+            MaterialPropertyBlock block = new MaterialPropertyBlock();
+            prop.GetPropertyBlock(block);
+            if (block.GetTexture("_MainTex") != PixelWorldProps.CardBack.texture ||
+                PixelWorldProps.CardFront.texture.filterMode != FilterMode.Point ||
+                PixelWorldProps.Chip.texture.filterMode != FilterMode.Point)
+                throw new System.InvalidOperationException("Pixel activity props are missing their point-filtered textures.");
+        }
+        finally
+        {
+            Object.DestroyImmediate(propsTest);
+        }
+
+        if (PixelCharacterVisual.FrameIndex(Vector3.back, false, 1f) != 0 ||
+            PixelCharacterVisual.FrameIndex(Vector3.forward, false, 1f) != 2 ||
+            PixelCharacterVisual.FrameIndex(Vector3.left, false, 1f) != 4 ||
+            PixelCharacterVisual.FrameIndex(Vector3.right, false, 1f) != 6 ||
+            PixelCharacterVisual.FrameIndex(Vector3.right, true, 0.2f) != 7)
+            throw new System.InvalidOperationException("Pixel character facing or walk-frame selection is incorrect.");
+
+        GameObject floor = GameObject.Find("Pixel Carpet");
+        if (floor == null || floor.GetComponent<SpriteRenderer>()?.sprite == null)
+            throw new System.InvalidOperationException("The pixel carpet is missing.");
+
+        foreach (CasinoAnimalSpecies species in System.Enum.GetValues(typeof(CasinoAnimalSpecies)))
+        {
+            GameObject prefab = PitPanicArtPrefabLibrary.GetCharacterPrefab(species);
+            PixelCharacterVisual pixel = prefab.GetComponent<PixelCharacterVisual>();
+            if (pixel == null || prefab.GetComponentInChildren<PixelSpriteTextureBinding>(true) == null)
+                throw new System.InvalidOperationException($"{prefab.name} has no pixel character controller.");
+            SerializedProperty frames = new SerializedObject(pixel).FindProperty("frames");
+            if (frames == null || frames.arraySize != 8)
+                throw new System.InvalidOperationException($"{prefab.name} needs eight directional walk frames.");
+            for (int i = 0; i < frames.arraySize; i++)
+            {
+                Sprite sprite = frames.GetArrayElementAtIndex(i).objectReferenceValue as Sprite;
+                if (sprite == null || sprite.texture.filterMode != FilterMode.Point)
+                    throw new System.InvalidOperationException($"{prefab.name} frame {i} is missing or not point-filtered.");
+            }
+        }
+
+        foreach (string station in new[] { "Blackjack Table 1", "Blackjack Table 2", "Roulette Table", "Cashier Station", "Pit Desk", "Dealer Break Room" })
+        {
+            GameObject root = GameObject.Find(station);
+            if (root == null || root.GetComponentInChildren<SpriteRenderer>() == null)
+                throw new System.InvalidOperationException($"{station} has no pixel-art surface.");
         }
     }
 
@@ -2108,12 +2183,14 @@ public static class PitPanicPrototypeGenerator
     private static void CreateFloor(Material floorMaterial, Material trimMaterial)
     {
         GameObject floor = new GameObject("Casino Floor");
-        CreatePrimitive(PrimitiveType.Cube, "Floor", new Vector3(0f, -0.25f, 0f), new Vector3(32f, 0.5f, 22f), floorMaterial, floor.transform);
+        GameObject floorCollider = CreatePrimitive(PrimitiveType.Cube, "Floor", new Vector3(0f, -0.25f, 0f), new Vector3(32f, 0.5f, 22f), floorMaterial, floor.transform);
+        floorCollider.GetComponent<Renderer>().enabled = false;
+        CreatePixelSurface(floor.transform, "Pixel Carpet", PitPanicPixelArt.FloorSprite(), 0.01f);
 
-        CreatePrimitive(PrimitiveType.Cube, "North Brass Border", new Vector3(0f, 0.03f, 10.65f), new Vector3(31.5f, 0.08f, 0.12f), trimMaterial, floor.transform);
-        CreatePrimitive(PrimitiveType.Cube, "South Brass Border", new Vector3(0f, 0.03f, -10.65f), new Vector3(31.5f, 0.08f, 0.12f), trimMaterial, floor.transform);
-        CreatePrimitive(PrimitiveType.Cube, "East Brass Border", new Vector3(15.65f, 0.03f, 0f), new Vector3(0.12f, 0.08f, 21.3f), trimMaterial, floor.transform);
-        CreatePrimitive(PrimitiveType.Cube, "West Brass Border", new Vector3(-15.65f, 0.03f, 0f), new Vector3(0.12f, 0.08f, 21.3f), trimMaterial, floor.transform);
+        CreatePrimitive(PrimitiveType.Cube, "North Brass Border", new Vector3(0f, 0.03f, 10.65f), new Vector3(31.5f, 0.08f, 0.12f), trimMaterial, floor.transform).GetComponent<Renderer>().enabled = false;
+        CreatePrimitive(PrimitiveType.Cube, "South Brass Border", new Vector3(0f, 0.03f, -10.65f), new Vector3(31.5f, 0.08f, 0.12f), trimMaterial, floor.transform).GetComponent<Renderer>().enabled = false;
+        CreatePrimitive(PrimitiveType.Cube, "East Brass Border", new Vector3(15.65f, 0.03f, 0f), new Vector3(0.12f, 0.08f, 21.3f), trimMaterial, floor.transform).GetComponent<Renderer>().enabled = false;
+        CreatePrimitive(PrimitiveType.Cube, "West Brass Border", new Vector3(-15.65f, 0.03f, 0f), new Vector3(0.12f, 0.08f, 21.3f), trimMaterial, floor.transform).GetComponent<Renderer>().enabled = false;
 
         for (int x = -1; x <= 1; x += 2)
         {
@@ -2163,7 +2240,7 @@ public static class PitPanicPrototypeGenerator
 
         if (placed == 0)
         {
-            Debug.LogWarning("KayKit decor skipped: models or texture are not imported (Assets/Art/KayKitFurniture).");
+            Debug.Log("KayKit decor skipped: KayKit Furniture is not installed (optional).");
             Object.DestroyImmediate(decor.gameObject);
         }
     }
@@ -2199,7 +2276,7 @@ public static class PitPanicPrototypeGenerator
         navMeshModifier.area = 1;
 
         InstantiateArtVisual(
-            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableHeroArtV3"), table.transform);
+            PitPanicArtPrefabLibrary.GetCasinoPrefab("BlackjackTableHeroArtV4"), table.transform);
         GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
         interactionBounds.transform.SetParent(table.transform, false);
         BoxCollider tableFootprint = interactionBounds.AddComponent<BoxCollider>();
@@ -2306,7 +2383,7 @@ public static class PitPanicPrototypeGenerator
         textRect.offsetMin = Vector2.zero;
         textRect.offsetMax = Vector2.zero;
         Text text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = CasinoPixelFont.Default;
         text.text = "!";
         text.fontSize = 150;
         text.fontStyle = FontStyle.Bold;
@@ -2330,7 +2407,7 @@ public static class PitPanicPrototypeGenerator
         labelObject.AddComponent<CameraFacingCanvas>().Configure(canvas);
         RectTransform canvasRect = labelObject.GetComponent<RectTransform>();
         canvasRect.sizeDelta = new Vector2(34f * value.Length + 60f, 54f);
-        labelObject.transform.localScale = Vector3.one * 0.0075f;
+        labelObject.transform.localScale = Vector3.one * 0.011f;
         Image signBackground = labelObject.AddComponent<Image>();
         signBackground.color = new Color(0.035f, 0.11f, 0.095f, 0.96f);
         signBackground.raycastTarget = false;
@@ -2346,7 +2423,7 @@ public static class PitPanicPrototypeGenerator
         textRect.offsetMin = Vector2.zero;
         textRect.offsetMax = Vector2.zero;
         Text text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = CasinoPixelFont.Default;
         text.text = value;
         text.fontSize = 32;
         text.fontStyle = FontStyle.Bold;
@@ -2388,6 +2465,7 @@ public static class PitPanicPrototypeGenerator
         {
             throw new System.InvalidOperationException("Roulette table art prefab has no rotating wheel root.");
         }
+        CreatePixelSurface(wheel, "Pixel Roulette Wheel", PitPanicPixelArt.WheelSprite(), 0.25f);
         GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
         interactionBounds.transform.SetParent(table.transform, false);
         BoxCollider tableFootprint = interactionBounds.AddComponent<BoxCollider>();
@@ -2510,6 +2588,7 @@ public static class PitPanicPrototypeGenerator
                 position.transform.position + Vector3.up * 0.035f,
                 new Vector3(0.52f, 0.025f, 0.52f), trimMaterial, room.transform);
             Object.DestroyImmediate(marker.GetComponent<Collider>());
+            marker.GetComponent<Renderer>().enabled = false;
         }
 
         return positions;
@@ -2605,6 +2684,7 @@ public static class PitPanicPrototypeGenerator
                 trimMaterial,
                 position.transform);
             Object.DestroyImmediate(marker.GetComponent<Collider>());
+            marker.GetComponent<Renderer>().enabled = false;
         }
 
         return positions;
@@ -2666,9 +2746,10 @@ public static class PitPanicPrototypeGenerator
     {
         GameObject entrance = new GameObject(name);
         entrance.transform.position = position;
-        CreatePrimitive(PrimitiveType.Cube, "Entrance Sign", position + new Vector3(0f, 3.1f, 0f), new Vector3(3.2f, 0.38f, 0.35f), material, entrance.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Left Entrance Post", position + new Vector3(-1.45f, 1.5f, 0f), new Vector3(0.3f, 3f, 0.35f), material, entrance.transform);
-        CreatePrimitive(PrimitiveType.Cube, "Right Entrance Post", position + new Vector3(1.45f, 1.5f, 0f), new Vector3(0.3f, 3f, 0.35f), material, entrance.transform);
+        CreatePrimitive(PrimitiveType.Cube, "Entrance Sign", position + new Vector3(0f, 3.1f, 0f), new Vector3(3.2f, 0.38f, 0.35f), material, entrance.transform).GetComponent<Renderer>().enabled = false;
+        CreatePrimitive(PrimitiveType.Cube, "Left Entrance Post", position + new Vector3(-1.45f, 1.5f, 0f), new Vector3(0.3f, 3f, 0.35f), material, entrance.transform).GetComponent<Renderer>().enabled = false;
+        CreatePrimitive(PrimitiveType.Cube, "Right Entrance Post", position + new Vector3(1.45f, 1.5f, 0f), new Vector3(0.3f, 3f, 0.35f), material, entrance.transform).GetComponent<Renderer>().enabled = false;
+        CreatePixelBillboard(entrance.transform, "Pixel Entrance", PitPanicPixelArt.StructureSprite("Arch"));
         GameObject point = new GameObject(name + " Point");
         point.transform.SetParent(entrance.transform, false);
         return point.transform;
@@ -2815,7 +2896,69 @@ public static class PitPanicPrototypeGenerator
         instance.transform.localPosition = Vector3.zero;
         instance.transform.localRotation = Quaternion.identity;
         instance.transform.localScale = Vector3.one;
+        string pixelKind = null;
+        float height = 1.25f;
+        if (prefab.name.StartsWith("BlackjackTable"))
+        {
+            pixelKind = "BlackjackV2";
+            height = 1.42f;
+        }
+        else if (prefab.name.StartsWith("RouletteTable"))
+        {
+            pixelKind = "Roulette";
+            height = 1.20f;
+        }
+        else if (prefab.name == "CashDeskArt")
+        {
+            pixelKind = "CashDesk";
+        }
+        else if (prefab.name == "PitDeskArt")
+        {
+            pixelKind = "PitDesk";
+        }
+        else if (prefab.name == "BreakRoomArt")
+        {
+            pixelKind = "BreakRoom";
+        }
+        else if (prefab.name == "CasinoColumnArt")
+        {
+            foreach (MeshRenderer renderer in instance.GetComponentsInChildren<MeshRenderer>(true))
+                renderer.enabled = false;
+            CreatePixelBillboard(visualRoot.transform, "Pixel Column", PitPanicPixelArt.StructureSprite("Column"));
+        }
+        if (pixelKind != null)
+        {
+            foreach (MeshRenderer renderer in instance.GetComponentsInChildren<MeshRenderer>(true))
+                renderer.enabled = false;
+            CreatePixelSurface(visualRoot.transform, "Pixel " + pixelKind, PitPanicPixelArt.StationSprite(pixelKind), height);
+        }
         return visualRoot.transform;
+    }
+
+    private static void CreatePixelSurface(Transform parent, string name, Sprite sprite, float height)
+    {
+        GameObject surface = new GameObject(name);
+        surface.transform.SetParent(parent, false);
+        surface.transform.localPosition = new Vector3(0f, height, 0f);
+        surface.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        SpriteRenderer renderer = surface.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = name == "Pixel Carpet" ? -100 : name == "Pixel Roulette Wheel" ? -9 : -10;
+        surface.AddComponent<PixelSpriteTextureBinding>();
+        if (name == "Pixel CashDesk" || name == "Pixel PitDesk" || name == "Pixel BreakRoom")
+            surface.transform.localScale = new Vector3(0.75f, 0.6f, 1f);
+    }
+
+    private static void CreatePixelBillboard(Transform parent, string name, Sprite sprite)
+    {
+        GameObject billboard = new GameObject(name);
+        billboard.transform.SetParent(parent, false);
+        SpriteRenderer renderer = billboard.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        if (name == "Pixel Column")
+            billboard.transform.localScale = new Vector3(1f, 0.65f, 1f);
+        billboard.AddComponent<PixelSpriteTextureBinding>();
+        billboard.AddComponent<PixelBillboard>();
     }
 
     private static Transform FindDeepChild(Transform root, string childName)

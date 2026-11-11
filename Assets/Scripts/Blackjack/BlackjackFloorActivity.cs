@@ -35,7 +35,7 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
     private sealed class CardVisual
     {
         public Mover Mover;
-        public Renderer Face;
+        public SpriteRenderer Face;
         public GameObject Mark;
         public bool FaceDown;
     }
@@ -215,22 +215,17 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
 
     private CardVisual SpawnCard(BlackjackCard card, Vector3 targetLocal, bool faceDown)
     {
-        GameObject cardObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cardObject.name = "Table Card";
-        DestroyCollider(cardObject);
+        GameObject cardObject = new GameObject("Table Card");
         cardObject.transform.SetParent(container, false);
-        cardObject.transform.localScale = new Vector3(0.17f, 0.012f, 0.24f);
-        Renderer renderer = cardObject.GetComponent<Renderer>();
-        renderer.sharedMaterial = faceDown ? cardBackMaterial : cardFaceMaterial;
+        SpriteRenderer renderer = PixelWorldProps.CreateSurface(cardObject.transform, "Pixel Card",
+            faceDown ? PixelWorldProps.CardBack : PixelWorldProps.CardFront, new Vector2(0.22f, 0.22f), -8);
 
-        GameObject mark = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        mark.name = "Card Suit Mark";
-        DestroyCollider(mark);
-        mark.transform.SetParent(cardObject.transform, false);
-        mark.transform.localPosition = new Vector3(0f, 0.6f, 0f);
-        mark.transform.localScale = new Vector3(0.45f, 0.2f, 0.34f);
+        SpriteRenderer markRenderer = PixelWorldProps.CreateSurface(cardObject.transform, "Card Suit Mark",
+            PixelWorldProps.Chip, new Vector2(0.065f, 0.065f), -7);
+        GameObject mark = markRenderer.gameObject;
+        mark.transform.localPosition = new Vector3(0f, 0.002f, 0f);
         bool red = card.Suit == 1 || card.Suit == 2;
-        mark.GetComponent<Renderer>().sharedMaterial = red ? redMarkMaterial : blackMarkMaterial;
+        markRenderer.color = red ? new Color(0.72f, 0.08f, 0.12f) : new Color(0.08f, 0.08f, 0.12f);
         mark.SetActive(!faceDown);
 
         Mover mover = new Mover
@@ -250,7 +245,7 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
     private void RevealCard(CardVisual card)
     {
         card.FaceDown = false;
-        card.Face.sharedMaterial = cardFaceMaterial;
+        card.Face.sprite = PixelWorldProps.CardFront;
         card.Mark.SetActive(true);
     }
 
@@ -274,17 +269,16 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
     {
         for (int i = 0; i < count; i++)
         {
-            GameObject chip = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            chip.name = "Table Chip";
-            DestroyCollider(chip);
+            GameObject chip = new GameObject("Table Chip");
             chip.transform.SetParent(container, false);
-            chip.transform.localScale = new Vector3(0.17f, 0.012f, 0.17f);
+            SpriteRenderer renderer = PixelWorldProps.CreateSurface(chip.transform, "Pixel Chip",
+                PixelWorldProps.Chip, new Vector2(0.17f, 0.17f), -7);
             int materialIndex = chipMaterials != null && chipMaterials.Length > 0
                 ? (count + materialShift) % chipMaterials.Length
                 : 0;
             if (chipMaterials != null && chipMaterials.Length > 0)
             {
-                chip.GetComponent<Renderer>().sharedMaterial = chipMaterials[materialIndex];
+                renderer.color = chipMaterials[materialIndex].color;
             }
 
             chip.transform.localPosition = origin;
@@ -400,12 +394,4 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
         cleared = false;
     }
 
-    private static void DestroyCollider(GameObject target)
-    {
-        Collider collider = target.GetComponent<Collider>();
-        if (collider != null)
-        {
-            Destroy(collider);
-        }
-    }
 }

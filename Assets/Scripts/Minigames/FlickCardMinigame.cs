@@ -373,6 +373,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
             cardObject.transform, "Card Rank And Suit", hidden ? "PIT" : FormatCard(card),
             new Vector2(0f, 0f), new Vector2(size.x - 8f, size.y - 8f), hidden ? 14 : 25,
             hidden ? new Color(1f, 0.84f, 0.37f) : GetSuitColor(card.Suit));
+        face.font = CasinoPixelFont.Symbols;
         return new CardVisual
         {
             Rect = cardObject.GetComponent<RectTransform>(),

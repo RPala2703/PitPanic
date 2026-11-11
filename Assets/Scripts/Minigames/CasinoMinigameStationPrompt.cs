@@ -125,8 +125,9 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
         rect.anchoredPosition = new Vector2(0f, 48f);
         rect.sizeDelta = new Vector2(720f, 48f);
         prompt = textObject.GetComponent<Text>();
-        prompt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        prompt.font = CasinoPixelFont.Default;
         prompt.fontSize = 22;
+        CasinoPixelFont.Fit(prompt, 22);
         prompt.fontStyle = FontStyle.Bold;
         prompt.alignment = TextAnchor.MiddleCenter;
         prompt.color = new Color(1f, 0.88f, 0.48f);

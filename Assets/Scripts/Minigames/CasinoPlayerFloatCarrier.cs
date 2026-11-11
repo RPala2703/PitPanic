@@ -200,6 +200,11 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
     {
         GameObject trayRoot = Object.Instantiate(trayPrefab);
         trayRoot.name = "Carried Casino Float Tray";
+        foreach (MeshRenderer renderer in trayRoot.GetComponentsInChildren<MeshRenderer>())
+            renderer.enabled = false;
+        SpriteRenderer traySurface = PixelWorldProps.CreateSurface(trayRoot.transform, "Pixel Float Tray",
+            PixelWorldProps.CardBack, new Vector2(1.45f, 1.1f), 1);
+        traySurface.color = new Color(0.7f, 0.6f, 0.45f);
 
         Color[] colors =
         {
@@ -212,29 +217,19 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         {
             for (int i = 0; i < refillOrder.CountFor(denomination); i++)
             {
-                GameObject chip = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                chip.name = $"Float Chip {refillOrder.GetDenominationPence(denomination)}p";
+                GameObject chip = new GameObject($"Float Chip {refillOrder.GetDenominationPence(denomination)}p");
                 chip.transform.SetParent(trayRoot.transform, false);
-                chip.transform.localScale = new Vector3(0.22f, 0.035f, 0.22f);
                 chip.transform.localPosition = new Vector3(
                     -0.46f + (i % 4) * 0.3f,
                     0.075f + (i / 4) * 0.074f + denomination * 0.004f,
                     -0.61f + (i / 4) * 0.3f);
-                SetColor(chip.GetComponent<Renderer>(), colors[denomination]);
-                Object.Destroy(chip.GetComponent<Collider>());
+                SpriteRenderer sprite = PixelWorldProps.CreateSurface(chip.transform, "Pixel Float Chip",
+                    PixelWorldProps.Chip, new Vector2(0.22f, 0.22f), 2);
+                sprite.color = colors[denomination];
             }
         }
 
         return trayRoot;
-    }
-
-    private static void SetColor(Renderer renderer, Color color)
-    {
-        MaterialPropertyBlock block = new MaterialPropertyBlock();
-        renderer.GetPropertyBlock(block);
-        block.SetColor("_BaseColor", color);
-        block.SetColor("_Color", color);
-        renderer.SetPropertyBlock(block);
     }
 
     private static string GetShortDestinationLabel(CasinoFloatRefillOrder refillOrder)

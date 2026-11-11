@@ -146,12 +146,7 @@ public sealed class BlackjackTableView : MonoBehaviour
 
     private void Build()
     {
-        if (Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf") is not Font builtinFont)
-        {
-            throw new InvalidOperationException("Unity's LegacyRuntime.ttf font is required to render the blackjack table.");
-        }
-
-        font = builtinFont;
+        font = CasinoPixelFont.Default;
         GameObject canvasObject = new GameObject("Blackjack Table UI", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasObject.transform.SetParent(transform, false);
         canvas = canvasObject.GetComponent<Canvas>();
@@ -338,6 +333,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         text.font = font;
         text.text = value;
         text.fontSize = fontSize;
+        CasinoPixelFont.Fit(text, fontSize);
         text.color = color;
         text.alignment = alignment;
         text.horizontalOverflow = HorizontalWrapMode.Overflow;

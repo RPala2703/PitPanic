@@ -5,7 +5,7 @@ using System.Collections.Generic;
 [DisallowMultipleComponent]
 public sealed class BlackjackChipView : MonoBehaviour
 {
-    private const int ChipTextureSize = 64;
+    private const int ChipTextureSize = 16;
     private static Sprite chipSprite;
 
     private Image image;
@@ -131,7 +131,7 @@ public sealed class BlackjackChipView : MonoBehaviour
         Texture2D texture = new Texture2D(ChipTextureSize, ChipTextureSize, TextureFormat.RGBA32, false)
         {
             name = "Procedural Blackjack Chip",
-            filterMode = FilterMode.Bilinear,
+            filterMode = FilterMode.Point,
             wrapMode = TextureWrapMode.Clamp
         };
         Color32[] pixels = new Color32[ChipTextureSize * ChipTextureSize];

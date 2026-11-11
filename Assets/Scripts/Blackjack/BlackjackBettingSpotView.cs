@@ -155,6 +155,7 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
         Text text = child.AddComponent<Text>();
         text.font = font;
         text.fontSize = fontSize;
+        CasinoPixelFont.Fit(text, fontSize);
         text.color = Color.white;
         text.alignment = alignment;
         text.horizontalOverflow = HorizontalWrapMode.Overflow;
