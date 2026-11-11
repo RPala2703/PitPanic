@@ -25,7 +25,7 @@ public sealed class AIDealer : MonoBehaviour
     [SerializeField] private Transform breakRoomPosition;
     [SerializeField] private Transform pitDeskPosition;
     [SerializeField] private CasinoDealerStation initialAssignedStation;
-    [SerializeField, Min(0f)] private float energyDrainPerSecond = 0.12f;
+    [SerializeField, Min(0f)] private float energyDrainPerSecond = 0.5f;
     [SerializeField, Min(0f)] private float energyRecoveryPerSecond = 0.38f;
     [SerializeField, Range(0f, 100f)] private float tiredThreshold = 30f;
     [SerializeField, Range(0f, 100f)] private float exhaustedThreshold = 12f;
@@ -364,10 +364,11 @@ public sealed class AIDealer : MonoBehaviour
         if (IsAtStation)
         {
             CurrentStationTime += Time.deltaTime;
-            if (AssignedStation.BlackjackTable == null || AssignedStation.BlackjackTable.IsActivelyServing)
-            {
-                energy = CalculateEnergyAfterWork(energy, energyDrainPerSecond, Time.deltaTime);
-            }
+            RouletteRoundController roulette = AssignedStation.GetComponent<RouletteRoundController>();
+            bool busy = AssignedStation.BlackjackTable != null
+                ? AssignedStation.BlackjackTable.IsActivelyServing
+                : roulette != null && roulette.HasActiveCustomersAndDealer;
+            energy = CalculateEnergyAfterWork(energy, energyDrainPerSecond, Time.deltaTime * (busy ? 1f : 0.5f));
 
             if (state == DealerDutyState.Working && energy <= tiredThreshold)
             {

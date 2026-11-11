@@ -374,6 +374,8 @@ public static class PitPanicPrototypeGenerator
             });
         AssertCustomerBetChoices();
         if (AIDealer.CalculateEnergyAfterWork(100f, 5f, 10f) != 50f ||
+            AIDealer.CalculateEnergyAfterWork(100f, .5f, 140f) != 30f ||
+            AIDealer.CalculateEnergyAfterWork(100f, .25f, 280f) != 30f ||
             AIDealer.CalculateEnergyAfterRest(50f, 5f, 10f) != 100f ||
             AIDealer.CalculateEnergyAfterRest(95f, 5f, 10f) != 100f ||
             !AIDealer.CanBeAssignedFromState(DealerDutyState.ReadyAtPitDesk) ||

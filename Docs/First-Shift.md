@@ -15,6 +15,10 @@ a persisted sound toggle and fullscreen toggle; **Quit** exits the standalone
 (or stops Play Mode in the Editor). It is not a second gameplay scene.
 During the dealer lesson, BJ1's dealer is deliberately made tired so the
 player can practise assigning cover and sending a dealer on break.
+Dealers lose 0.5 energy per second during active service and half that while
+waiting at a table. From full energy, the 30% break warning arrives after
+about 2 minutes 20 seconds of busy work, or 4 minutes 40 seconds of idle duty.
+Break recovery remains unchanged, so rotating cover matters during the shift.
 
 The shift duration defaults to nine minutes and can be changed on the
 **First Shift Controller** in the scene. When time runs out, arrivals stop and
