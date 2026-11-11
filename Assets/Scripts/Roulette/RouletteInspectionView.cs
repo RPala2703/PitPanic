@@ -73,6 +73,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
         }
 
         panelOpen = true;
+        CasinoSoundscape.SetFocus(transform);
         SetDetailsVisible(false);
         savedCursorLockMode = Cursor.lockState;
         savedCursorVisible = Cursor.visible;
@@ -100,6 +101,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (panelOpen)
         {
             assistanceButton.gameObject.SetActive(roundController.HasPendingAssistance);
@@ -132,6 +134,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
 
     private void Close()
     {
+        CasinoSoundscape.ReleaseFocus(transform);
         panelOpen = false;
         if (board != null)
         {

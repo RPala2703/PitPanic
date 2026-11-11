@@ -35,6 +35,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private bool flickDealerPaused;
     private bool flickBoundaryReady;
     private bool forceFlickNextRound;
+    private float nextFlickTaskTime;
+    private int roundsSinceFlick;
     private AIDealer assignedDealer;
     [SerializeField] private CasinoMinigameStation flickStation;
     [SerializeField] private string tableIdentifier;
@@ -74,7 +76,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                    name.ToUpperInvariant();
         }
     }
-    public bool IsDealerStaffed => assignedDealer != null && assignedDealer.IsAtStation;
+    public bool IsDealerStaffed => assignedDealer != null && assignedDealer.CanServe;
     public bool IsActivelyServing => waitingSet.Count > 0 ||
                                      state != BlackjackTableState.WaitingForCustomers &&
                                      state != BlackjackTableState.ClearingTable;
@@ -160,6 +162,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         UpdateRoundProgress();
         UpdateAutomatedDealer();
 
@@ -177,10 +180,12 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         Keyboard keyboard = Keyboard.current;
+#if UNITY_EDITOR
         if (keyboard != null && keyboard.f8Key.wasPressedThisFrame)
         {
             QueueFlickAssistanceTest();
         }
+#endif
 
         if (flickStation != null && flickStation.IsMinigameRunning)
         {
@@ -246,6 +251,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         panelOpen = true;
+        CasinoSoundscape.SetFocus(transform);
         tableView.SetPromptVisible(false, "");
         tableView.SetVisible(true);
         playerController.SetMovementEnabled(false);
@@ -255,6 +261,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void ClosePanel()
     {
+        CasinoSoundscape.ReleaseFocus(transform);
         panelOpen = false;
         if (tableView != null)
         {
@@ -305,6 +312,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void BeginRound()
     {
+        AssignedDealer?.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+            CasinoAnimationPose.Shuffle, transform.position, .9f);
         if (!IsDealerStaffed)
         {
             return;
@@ -371,9 +380,11 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         awaitingCustomerCard = false;
         awaitingDealerCard = false;
         state = BlackjackTableState.TakingBets;
+        roundsSinceFlick++;
         flickAssistanceForRound = flickStation != null &&
                                   (flickStation.IsTaskPending || forceFlickNextRound ||
-                                   Random.value < flickAssistanceChance);
+                                   Time.time >= nextFlickTaskTime && !CasinoMinigamePresentation.IsOpen &&
+                                   (roundsSinceFlick >= 4 || Random.value < flickAssistanceChance));
         forceFlickNextRound = false;
         message = $"{string.Join(", ", bets)}. The dealer is starting the opening deal.";
         RefreshView();
@@ -1086,6 +1097,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         flickBoundaryReady = true;
         flickDealerPaused = true;
+        nextFlickTaskTime = Time.time + 60f;
+        roundsSinceFlick = 0;
         message = "The dealer needs a hand. Flick the next cards to the highlighted targets!";
         RefreshView();
         return true;

@@ -76,7 +76,7 @@ public sealed class CasinoMinigameStationPrompt : MonoBehaviour
             return;
         }
 
-        if (player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true ||
+        if (Time.timeScale == 0 || player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true ||
             CasinoMinigamePresentation.IsOpen || CasinoPlayerInteractionRouter.IsAnyInspectionOpen() ||
             GetComponent<BlackjackTableInteraction>() != null || GetComponent<RouletteInspectionView>() != null)
         {

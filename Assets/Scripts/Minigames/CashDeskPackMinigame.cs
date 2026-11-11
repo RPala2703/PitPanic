@@ -51,6 +51,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     private int sequenceIndex;
     private int[] packingSequence = System.Array.Empty<int>();
     private float timeRemaining;
+    public float PackingBonusSeconds { get; set; }
     private bool cashOutMode;
     private bool cashOutReady;
     private CursorLockMode savedCursorLockMode;
@@ -119,7 +120,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     public static float GetSequenceTimeLimit(int chipCount)
     {
-        return Mathf.Clamp(3.5f + Mathf.Max(0, chipCount) * 0.35f, 5f, 10f);
+        return 15f + Mathf.Max(0, chipCount) * 2f;
     }
 
     public static bool TryAdvancePackingSequence(
@@ -240,6 +241,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         if (availableOrders.Count > 0)
         {
+            cashOutMode = false;
             ShowOrderSelection();
         }
         else if (cashOutMode)
@@ -429,7 +431,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         packingSequence = cashOutMode
             ? BuildPackingSequence(requiredCounts, Random.Range(0, int.MaxValue))
             : System.Array.Empty<int>();
-        timeRemaining = GetSequenceTimeLimit(totalRequired);
+        timeRemaining = GetSequenceTimeLimit(totalRequired) + PackingBonusSeconds;
         sequenceIndex = 0;
         UpdateSequenceDisplay();
         RenderTrayStacks();
@@ -506,7 +508,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         if (!TryAdvancePackingSequence(packingSequence, sequenceIndex, denominationIndex, out int nextIndex))
         {
-            timeRemaining = Mathf.Max(0f, timeRemaining - 1.5f);
+            CasinoSoundscape.Play(CasinoSoundCue.Mistake, transform.position, transform);
+            timeRemaining = Mathf.Max(0f, timeRemaining - 0.5f);
             int expectedDenomination = packingSequence[sequenceIndex];
             SetStatus($"WRONG CHIP  •  {timeRemaining:0.0}s LEFT");
             SetInstruction($"That order needs {ChipNames[expectedDenomination]}. Try again.");
@@ -515,6 +518,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         }
 
         packedCounts[denominationIndex]++;
+        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position, transform);
         packedCount++;
         sequenceIndex = nextIndex;
         SetStatus("CORRECT CHIP  •  KEEP THE SEQUENCE MOVING");

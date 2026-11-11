@@ -2165,6 +2165,8 @@ MonoBehaviour:
   - {fileID: 21300000, guid: ea93a1ad103c04b409b9d37e0e0210e9, type: 3}
   - {fileID: 21300000, guid: 8c767f18f97f54b3b839a19749d4de35, type: 3}
   - {fileID: 21300000, guid: f52ad5d5ac3f243b4ac9686eb3548805, type: 3}
+  animationAtlas: {fileID: 2800000, guid: e6a66ee5c0a3a4fc8ae0a8bfd156e6f5, type: 3}
+  customerAnimationAtlas: {fileID: 2800000, guid: f6796a51839b54a6ea161135d4de2322, type: 3}
 --- !u!114 &5261132512032478909
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -105,6 +105,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     private void OnMinigameCompleted(CasinoMinigameResult result)
     {
+        CasinoSoundscape.Play(result.Success ? CasinoSoundCue.Success : CasinoSoundCue.Mistake, transform.position);
         if (result.Success)
         {
             ResolveTask();

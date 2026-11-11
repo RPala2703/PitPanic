@@ -122,7 +122,7 @@ public sealed class BlackjackCardView : MonoBehaviour
         float elapsed = 0f;
         while (elapsed < 0.22f)
         {
-            elapsed += Time.unscaledDeltaTime;
+            elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / 0.22f);
             t = 1f - Mathf.Pow(1f - t, 3f);
             rect.anchoredPosition = Vector2.LerpUnclamped(start, target, t);

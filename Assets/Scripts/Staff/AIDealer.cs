@@ -25,8 +25,8 @@ public sealed class AIDealer : MonoBehaviour
     [SerializeField] private Transform breakRoomPosition;
     [SerializeField] private Transform pitDeskPosition;
     [SerializeField] private CasinoDealerStation initialAssignedStation;
-    [SerializeField, Min(0f)] private float energyDrainPerSecond = 0.12f;
-    [SerializeField, Min(0f)] private float energyRecoveryPerSecond = 0.38f;
+    [SerializeField, Min(0f)] private float energyDrainPerSecond = 0.5f;
+    [SerializeField, Min(0f)] private float energyRecoveryPerSecond = 1.5f;
     [SerializeField, Range(0f, 100f)] private float tiredThreshold = 30f;
     [SerializeField, Range(0f, 100f)] private float exhaustedThreshold = 12f;
     [SerializeField, Range(90f, 100f)] private float fullRestThreshold = 97f;
@@ -41,6 +41,7 @@ public sealed class AIDealer : MonoBehaviour
 
     public string DealerId => string.IsNullOrWhiteSpace(dealerId) ? name : dealerId;
     public float Energy => energy;
+    public bool CanServe => IsAtStation && energy > 0f;
     public float TiredThreshold => tiredThreshold;
     public float ExhaustedThreshold => exhaustedThreshold;
     public float FullRestThreshold => fullRestThreshold;
@@ -87,7 +88,7 @@ public sealed class AIDealer : MonoBehaviour
         RequestBreak();
     }
 
-    public string StatusLabel => state switch
+    public string StatusLabel => IsAtStation && energy <= 0 ? "EXHAUSTED! SERVICE STOPPED" : state switch
     {
         DealerDutyState.Working => "WORKING",
         DealerDutyState.NeedsBreak => "NEEDS BREAK",
@@ -329,6 +330,7 @@ public sealed class AIDealer : MonoBehaviour
         }
 
         state = DealerDutyState.NeedsBreak;
+        CasinoSoundscape.Play(CasinoSoundCue.Warning, transform.position);
         AssignedStation?.RequestDealerBreakAttention();
     }
 
@@ -359,15 +361,37 @@ public sealed class AIDealer : MonoBehaviour
         manager?.NotifyDealerPathFailed(this);
     }
 
+    public void ConfigureShift(int number, bool restUpgrade)
+    {
+        energyDrainPerSecond = .5f * (1 + .06f * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1));
+        energyRecoveryPerSecond = restUpgrade ? 1.8f : 1.5f;
+    }
+
+    private float blockedSeconds;
+
     private void Update()
     {
+        if (Time.timeScale == 0) return;
+        if (Destination != null && !IsAtStation && !IsResting && agent.isOnNavMesh && !agent.pathPending &&
+            !HasReachedDestination())
+        {
+            blockedSeconds = agent.velocity.sqrMagnitude < .01f ? blockedSeconds + Time.deltaTime : 0;
+            if (blockedSeconds > 20)
+            {
+                Debug.LogWarning($"{DealerId} is blocked en route; retrying through the existing assignment recovery.", this);
+                blockedSeconds = 0;
+                NotifyAssignmentFailed();
+            }
+        }
+        else blockedSeconds = 0;
         if (IsAtStation)
         {
             CurrentStationTime += Time.deltaTime;
-            if (AssignedStation.BlackjackTable == null || AssignedStation.BlackjackTable.IsActivelyServing)
-            {
-                energy = CalculateEnergyAfterWork(energy, energyDrainPerSecond, Time.deltaTime);
-            }
+            RouletteRoundController roulette = AssignedStation.GetComponent<RouletteRoundController>();
+            bool busy = AssignedStation.BlackjackTable != null
+                ? AssignedStation.BlackjackTable.IsActivelyServing
+                : roulette != null && roulette.HasActiveCustomersAndDealer;
+            energy = CalculateEnergyAfterWork(energy, energyDrainPerSecond, Time.deltaTime * (busy ? 1f : 0.5f));
 
             if (state == DealerDutyState.Working && energy <= tiredThreshold)
             {

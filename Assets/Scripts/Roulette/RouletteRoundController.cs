@@ -54,6 +54,7 @@ public sealed class RouletteRoundController : MonoBehaviour
     private readonly List<RouletteCustomerBet> assistanceBets = new List<RouletteCustomerBet>();
     private readonly Queue<int> recentResults = new Queue<int>(5);
     private readonly List<GameObject> tableChips = new List<GameObject>();
+    private readonly Dictionary<RouletteCustomerBet, List<GameObject>> betChipVisuals = new Dictionary<RouletteCustomerBet, List<GameObject>>();
     private readonly HashSet<CasinoCustomerAI> activeCustomers = new HashSet<CasinoCustomerAI>();
     private float phaseTimer;
     private float spinElapsed;
@@ -135,7 +136,7 @@ public sealed class RouletteRoundController : MonoBehaviour
                                   dealerStation.AssignedDealer != null &&
                                   dealerStation.AssignedDealer.isActiveAndEnabled &&
                                   dealerStation.AssignedDealer.AssignedStation == dealerStation &&
-                                  dealerStation.AssignedDealer.IsAtStation;
+                                  dealerStation.AssignedDealer.CanServe;
     public bool HasActiveCustomersAndDealer => IsDealerStaffed && ParticipantCount > 0 &&
                                                Phase != RouletteRoundPhase.WaitingForPlayers;
     public bool IsConfigured => dealerStation != null && dealerStation.IsConfigured &&
@@ -148,7 +149,8 @@ public sealed class RouletteRoundController : MonoBehaviour
     public AIDealer AssignedDealer => dealerStation != null ? dealerStation.AssignedDealer : null;
     public bool HasPendingAssistance => assistanceStation != null && assistanceStation.IsTaskPending;
     public CasinoFloatRefillDestination FloatDestination => floatDestination;
-    public string PhaseLabel => Phase switch
+    public string PhaseLabel => AssignedDealer != null && AssignedDealer.IsAtStation && !AssignedDealer.CanServe
+        ? "EXHAUSTED! ASSIGN COVER" : Phase switch
     {
         RouletteRoundPhase.WaitingForPlayers => IsDealerStaffed ? "WAITING FOR PLAYERS" : "UNSTAFFED",
         RouletteRoundPhase.AcceptingBets => "ACCEPTING BETS",
@@ -247,6 +249,7 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         customerBet.IsSwept = true;
+        AnimateSettlement(customerBet, false);
         return true;
     }
 
@@ -271,6 +274,8 @@ public sealed class RouletteRoundController : MonoBehaviour
 
         customerBet.PaidOutPence = amountPence;
         customerBet.IsPaid = true;
+        AnimateSettlement(customerBet, true);
+        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position);
         customerBet.Customer?.GetComponentInChildren<PixelCharacterVisual>()?.React(true);
         AssignedDealer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
             CasinoGesture.Pay, customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
@@ -365,6 +370,7 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         RefreshAssistanceStatus();
         if (!IsDealerStaffed)
         {
@@ -506,6 +512,8 @@ public sealed class RouletteRoundController : MonoBehaviour
         };
 
         int chipCount = Mathf.Clamp(customerBet.Bet.StakePence / 500, 1, 5);
+        List<GameObject> visuals = new List<GameObject>();
+        betChipVisuals[customerBet] = visuals;
         for (int i = 0; i < chipCount; i++)
         {
             GameObject chip = new GameObject($"Roulette Bet Chip {customerBet.Customer.name} {i + 1}");
@@ -514,17 +522,51 @@ public sealed class RouletteRoundController : MonoBehaviour
             SpriteRenderer renderer = PixelWorldProps.CreateSurface(chip.transform, "Pixel Roulette Chip",
                 PixelWorldProps.Chip, new Vector2(0.18f, 0.18f), -7);
             renderer.color = color;
+            chip.AddComponent<CasinoPropFlight>().Configure(
+                transform.InverseTransformPoint(customerBet.Customer.transform.position) + Vector3.up,
+                chip.transform.localPosition, .5f + i * .06f, CasinoSoundCue.Chip);
             tableChips.Add(chip);
+            visuals.Add(chip);
         }
     }
 
     private void BeginAutomaticSpin()
     {
+        CasinoSoundscape.Play(CasinoSoundCue.Roulette, transform.position);
         Phase = RouletteRoundPhase.Spinning;
         pendingWinningNumber = UnityEngine.Random.Range(0, 37);
         spinElapsed = 0f;
         wheelStartAngle = physicalWheel.localEulerAngles.y;
         wheelExtraRotation = UnityEngine.Random.Range(900f, 1500f);
+    }
+
+    private void AnimateSettlement(RouletteCustomerBet bet, bool paid)
+    {
+        if (!paid)
+        {
+            if (!betChipVisuals.TryGetValue(bet, out List<GameObject> chips)) return;
+            foreach (GameObject chip in chips)
+            {
+                if (chip == null) continue;
+                CasinoPropFlight prior = chip.GetComponent<CasinoPropFlight>();
+                if (prior != null) Destroy(prior);
+                chip.AddComponent<CasinoPropFlight>().Configure(chip.transform.localPosition,
+                    new Vector3(-1.5f, 1.3f, .7f), .6f, CasinoSoundCue.Chip);
+            }
+            return;
+        }
+        if (bet.Customer == null) return;
+        Vector3 target = transform.InverseTransformPoint(bet.Customer.transform.position) + Vector3.up;
+        int count = Mathf.Clamp((int)(bet.GrossReturnPence / 500), 1, 6);
+        for (int i = 0; i < count; i++)
+        {
+            GameObject chip = new GameObject("Roulette Winner Chip");
+            chip.transform.SetParent(chipContainer, false);
+            PixelWorldProps.CreateSurface(chip.transform, "Payout", PixelWorldProps.Chip, new Vector2(.22f, .22f), -5).color = CasinoHudStyle.Gold;
+            chip.AddComponent<CasinoPropFlight>().Configure(new Vector3(-1.5f, 1.3f, .7f),
+                target + Vector3.up * i * .03f, .65f + i * .06f, CasinoSoundCue.Chip);
+            tableChips.Add(chip);
+        }
     }
 
     private void UpdateWheelSpin()
@@ -595,6 +637,7 @@ public sealed class RouletteRoundController : MonoBehaviour
                 customerBet.IsWinning ? CasinoGesture.Pay : CasinoGesture.Collect,
                 customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
             BetSettled?.Invoke(customerBet);
+            if (assistanceBets.Count == 0) AnimateSettlement(customerBet, customerBet.IsWinning);
         }
 
         Phase = RouletteRoundPhase.SettlingBets;
@@ -633,6 +676,7 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         tableChips.Clear();
+        betChipVisuals.Clear();
     }
 
     private void BindTaskEvents()

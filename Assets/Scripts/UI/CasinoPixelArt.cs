@@ -201,6 +201,7 @@ public sealed class CasinoPixelSparkle : MonoBehaviour
 
     private void Update()
     {
+        if (AudioListener.pause) return;
         rect.localScale = Vector3.one * (0.8f + 0.2f * Mathf.Sin(Time.unscaledTime * 3f + phase));
     }
 }

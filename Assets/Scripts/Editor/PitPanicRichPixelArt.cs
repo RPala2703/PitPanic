@@ -25,6 +25,53 @@ public static class PitPanicRichPixelArt
                     Save(t, $"Character_{species}_{direction}_{frame}", new Vector2(.5f, 0), 30);
                 }
             Sprite[] expressions = new Sprite[4];
+            Texture2D atlas = New(48 * 8, 64 * 4 * 13);
+            Texture2D customerAtlas = New(48 * 8, 64 * 4 * 13);
+            for (int pose = 0; pose < 13; pose++)
+            for (int direction = 0; direction < 4; direction++)
+            for (int frame = 0; frame < 8; frame++)
+            {
+                Texture2D drawing = New(48, 64);
+                Character(drawing, species, direction, 0);
+                AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame);
+                atlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
+                drawing.SetPixels32(new Color32[48 * 64]);
+                Character(drawing, species, direction, 0);
+                DressCustomer(drawing, species, direction);
+                AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame, true);
+                customerAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
+                UnityEngine.Object.DestroyImmediate(drawing);
+            }
+            string atlasPath = $"Assets/Art/Pixel/Animation_{species}.png";
+            atlas.Apply();
+            File.WriteAllBytes(atlasPath, atlas.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(atlas);
+            AssetDatabase.ImportAsset(atlasPath);
+            TextureImporter atlasImporter = (TextureImporter)AssetImporter.GetAtPath(atlasPath);
+            atlasImporter.textureType = TextureImporterType.Default;
+            atlasImporter.npotScale = TextureImporterNPOTScale.None;
+            atlasImporter.isReadable = true;
+            atlasImporter.filterMode = FilterMode.Point;
+            atlasImporter.mipmapEnabled = false;
+            atlasImporter.textureCompression = TextureImporterCompression.Uncompressed;
+            atlasImporter.maxTextureSize = 4096;
+            atlasImporter.SaveAndReimport();
+            Texture2D animation = AssetDatabase.LoadAssetAtPath<Texture2D>(atlasPath);
+            string customerPath = $"Assets/Art/Pixel/Animation_Customer_{species}.png";
+            customerAtlas.Apply();
+            File.WriteAllBytes(customerPath, customerAtlas.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(customerAtlas);
+            AssetDatabase.ImportAsset(customerPath);
+            TextureImporter customerImporter = (TextureImporter)AssetImporter.GetAtPath(customerPath);
+            customerImporter.textureType = TextureImporterType.Default;
+            customerImporter.npotScale = TextureImporterNPOTScale.None;
+            customerImporter.isReadable = true;
+            customerImporter.filterMode = FilterMode.Point;
+            customerImporter.mipmapEnabled = false;
+            customerImporter.textureCompression = TextureImporterCompression.Uncompressed;
+            customerImporter.maxTextureSize = 4096;
+            customerImporter.SaveAndReimport();
+            Texture2D customerAnimation = AssetDatabase.LoadAssetAtPath<Texture2D>(customerPath);
             for (int i = 0; i < expressions.Length; i++)
             {
                 Texture2D t = New(48, 64);
@@ -60,7 +107,13 @@ public static class PitPanicRichPixelArt
                 try
                 {
                     PixelCharacterVisual pixel = root.GetComponent<PixelCharacterVisual>();
-                    if (pixel != null) { pixel.ConfigureExpressions(expressions); PrefabUtility.SaveAsPrefabAsset(root, path); }
+                    if (pixel != null)
+                    {
+                        pixel.ConfigureExpressions(expressions);
+                        pixel.ConfigureAnimation(animation);
+                        pixel.ConfigureCustomerAnimation(customerAnimation);
+                        PrefabUtility.SaveAsPrefabAsset(root, path);
+                    }
                 }
                 finally { PrefabUtility.UnloadPrefabContents(root); }
             }
@@ -86,6 +139,178 @@ public static class PitPanicRichPixelArt
         Debug.Log("Rich pixel artwork rebuilt with original GUIDs and point filtering.");
     }
 
+    private static Color32 CustomerShirt(CasinoAnimalSpecies species) => ((int)species % 4) switch
+    {
+        0 => new Color32(70, 171, 177, 255),
+        1 => new Color32(227, 151, 68, 255),
+        2 => new Color32(150, 103, 195, 255),
+        _ => new Color32(86, 172, 102, 255)
+    };
+
+    private static void DressCustomer(Texture2D t, CasinoAnimalSpecies species, int direction)
+    {
+        Color32 shirt = CustomerShirt(species);
+        R(t, 11, 19, 28, 15, shirt);
+        R(t, 12, 20, 3, 12, Shade(shirt, 1.2f));
+        R(t, 35, 19, 4, 14, Shade(shirt, .7f));
+        R(t, 7, 24, 4, 8, shirt); R(t, 40, 24, 3, 8, shirt);
+        if (direction != 1)
+        {
+            R(t, 20, 30, 10, 4, Cream);
+            R(t, 22, 28, 6, 5, shirt);
+            R(t, 14, 23, 20, 2, Shade(shirt, 1.35f));
+        }
+        if ((int)species % 2 == 0) R(t, 14, 26, 20, 2, Shade(shirt, .75f));
+    }
+
+    private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false)
+    {
+        int[] ease = { 0, -1, -2, 1, 4, 6, 3, 0 };
+        int reach = ease[frame];
+        if (pose == CasinoAnimationPose.Collect)
+            reach = new[] { 0, 2, 5, 6, 4, 2, -1, 0 }[frame];
+        Color32 sleeve = customer ? CustomerShirt(species) : new Color32(137, 42, 81, 255);
+        bool action = pose == CasinoAnimationPose.Deal || pose == CasinoAnimationPose.Pay ||
+            pose == CasinoAnimationPose.Collect || pose == CasinoAnimationPose.Shuffle;
+        if (pose == CasinoAnimationPose.Walk || pose == CasinoAnimationPose.Carry)
+        {
+            int[] stride = { 0, 1, 3, 2, 0, -1, -3, -2 };
+            R(t, 5, 0, 39, 10, new Color32(0, 0, 0, 0));
+            R(t, 10 + stride[frame], 2, 11, 8, Ink);
+            R(t, 29 - stride[frame], 3, 11, 7, Ink);
+            R(t, 11 + stride[frame], 3, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
+            R(t, 30 - stride[frame], 4, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
+        }
+        if (action)
+        {
+            R(t, 37, 17, 10, 18, new Color32(0, 0, 0, 0));
+            int y = direction == 1 ? 39 + Mathf.Clamp(reach, 0, 3) : 23 + reach;
+            R(t, 35, y, 11, 8, Ink); R(t, 36, y + 2, 8, 4, sleeve);
+            R(t, 40, y + 2, 6, 4, Cream);
+            if ((pose == CasinoAnimationPose.Deal && frame < 5) || pose == CasinoAnimationPose.Shuffle)
+            {
+                R(t, 39, y + 5, 7, 10, Ink); R(t, 40, y + 6, 5, 8, Cream);
+                R(t, 41, y + 11, 2, 2, Wood);
+                if (pose == CasinoAnimationPose.Shuffle)
+                { R(t, 6, y + 4, 9, 8, Ink); R(t, 7, y + 5, 7, 6, Cream); }
+            }
+            else if (pose == CasinoAnimationPose.Pay || pose == CasinoAnimationPose.Collect)
+            { E(t, 43, y + 6, 4, 2, Gold); R(t, 40, y + 5, 6, 1, Wood); }
+        }
+        if (pose == CasinoAnimationPose.Carry)
+        {
+            R(t, 8, 21, 33, 8, Ink); R(t, 10, 23, 29, 5, Gold);
+            R(t, 12, 24, 25, 3, Felt);
+            for (int x = 15; x < 37; x += 7) { R(t, x, 26, 4, 4, Wood); R(t, x, 29, 4, 1, Cream); }
+            R(t, 7, 23, 6, 4, Cream); R(t, 37, 23, 6, 4, Cream);
+        }
+        if (pose == CasinoAnimationPose.Celebrate)
+        {
+            int lift = new[] { 0, 2, 5, 9, 11, 8, 4, 1 }[frame];
+            R(t, 2, 21 + lift, 8, 13, Ink); R(t, 4, 30 + lift, 5, 5, Cream);
+            R(t, 39, 21 + lift, 8, 13, Ink); R(t, 40, 30 + lift, 5, 5, Cream);
+            if (direction == 0 && frame >= 2 && frame <= 6)
+            { R(t, 21, 37, 8, 4, Ink); R(t, 23, 37, 4, 2, new Color32(238, 136, 157, 255)); }
+        }
+        if (pose == CasinoAnimationPose.Tired || pose == CasinoAnimationPose.Rest || pose == CasinoAnimationPose.Disappointed)
+        {
+            int hand = new[] { 0, 1, 3, 5, 6, 4, 2, 0 }[frame];
+            if (pose == CasinoAnimationPose.Disappointed)
+            {
+                int handY = direction == 1 ? 39 + hand / 2 : 27 + hand;
+                R(t, 35, handY, 7, 5, Cream);
+                R(t, 36, handY - 2, 6, 3, sleeve);
+            }
+            if (pose == CasinoAnimationPose.Rest)
+            {
+                if (direction == 1)
+                {
+                    R(t, 5, 34 + hand / 2, 7, 4, Cream);
+                    R(t, 36, 34 + hand / 2, 7, 4, Cream);
+                }
+                else
+                {
+                    R(t, 10, 18 + hand / 2, 12, 4, Cream);
+                    R(t, 28, 18 + hand / 2, 12, 4, Cream);
+                }
+            }
+            if (direction == 0)
+            {
+                R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
+                R(t, 14, 46, 4, 1, Ink); R(t, 31, 46, 4, 1, Ink);
+                R(t, 21, 38, 8, 1, Ink);
+                if (pose == CasinoAnimationPose.Tired && frame >= 2 && frame <= 5)
+                { E(t, 24, 39, 3, 3, Ink); R(t, 30, 38 + reach, 9, 5, Cream); }
+            }
+            if (pose == CasinoAnimationPose.Rest)
+            { R(t, 10, 10, 29, 8, Ink); R(t, 10, 12, 12, 3, Wood); }
+        }
+        if (pose == CasinoAnimationPose.Examine)
+        {
+            if (direction == 1)
+            {
+                R(t, 6, 35, 7, 12, Ink); R(t, 35, 35, 7, 12, Ink);
+                R(t, 7, 36, 5, 8, sleeve); R(t, 36, 36, 5, 8, sleeve);
+                R(t, 7, 43, 5, 4, Cream); R(t, 36, 43, 5, 4, Cream);
+                R(t, 5, 47 + Mathf.Max(0, reach / 2), 8, 10, Ink);
+                R(t, 6, 48 + Mathf.Max(0, reach / 2), 6, 8, Cream);
+                R(t, 35, 47 + Mathf.Max(0, reach / 2), 8, 10, Ink);
+                R(t, 36, 48 + Mathf.Max(0, reach / 2), 6, 8, Cream);
+            }
+            else
+            {
+                R(t, 15, 28 + Mathf.Max(0, reach), 18, 12, Ink);
+                R(t, 17, 30 + Mathf.Max(0, reach), 6, 8, Cream);
+                R(t, 25, 30 + Mathf.Max(0, reach), 6, 8, Cream);
+            }
+        }
+        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 3 && frame <= 4)
+        { R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream); R(t, 14, 46, 4, 1, Ink); R(t, 31, 46, 4, 1, Ink); }
+        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 5)
+        {
+            R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
+            int glance = frame == 5 ? -1 : 1;
+            R(t, 15 + glance, 45, 2, 4, Ink); R(t, 32 + glance, 45, 2, 4, Ink);
+            R(t, 30, 29, 10, 4, Cream);
+        }
+        if (pose == CasinoAnimationPose.Walk && direction != 1)
+        {
+            int swing = new[] { 0, 1, 2, 1, 0, -1, -2, -1 }[frame];
+            R(t, 6, 19 + swing, 6, 5, Cream); R(t, 39, 19 - swing, 6, 5, Cream);
+        }
+        if (pose == CasinoAnimationPose.Examine && frame >= 3 && frame <= 5 && direction == 0)
+        {
+            R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
+            R(t, 15, 44, 2, 4, Ink); R(t, 32, 44, 2, 4, Ink);
+        }
+        if (action && direction == 2)
+        {
+            Color[] pixels = t.GetPixels();
+            for (int y = 17; y < 35; y++)
+            for (int x = 0; x < 48; x++) t.SetPixel(x, y, pixels[y * 48 + 47 - x]);
+        }
+        if (action || pose == CasinoAnimationPose.Celebrate || pose == CasinoAnimationPose.Disappointed)
+        {
+            int lean = new[] { 0, -1, -2, 0, 2, 3, 1, 0 }[frame];
+            if (direction == 2 || pose == CasinoAnimationPose.Collect) lean = -lean;
+            int crouch = new[] { 0, 0, -1, -1, 0, 0, 1, 0 }[frame];
+            Color[] upper = t.GetPixels();
+            R(t, 0, 13, 48, 51, new Color32(0, 0, 0, 0));
+            for (int y = 13; y < 64; y++)
+            for (int x = 0; x < 48; x++)
+                if (x + lean >= 0 && x + lean < 48 && y + crouch >= 13 && y + crouch < 64)
+                    t.SetPixel(x + lean, y + crouch, upper[y * 48 + x]);
+        }
+        if (pose == CasinoAnimationPose.Sit || pose == CasinoAnimationPose.Rest || pose == CasinoAnimationPose.Examine)
+        {
+            Color[] pixels = t.GetPixels();
+            int drop = pose == CasinoAnimationPose.Sit ? new[] { 0, 0, 1, 3, 5, 7, 8, 8 }[frame] : 8;
+            t.SetPixels(new Color[48 * 64]);
+            for (int y = drop; y < 64; y++)
+            for (int x = 0; x < 48; x++) t.SetPixel(x, y - drop, pixels[y * 48 + x]);
+            R(t, 10, 3, 29, 6, Ink);
+        }
+    }
 
     private static void Character(Texture2D t, CasinoAnimalSpecies species, int dir, int step)
     {
@@ -99,7 +324,16 @@ public static class PitPanicRichPixelArt
         };
         Color32 fur = furs[(int)species % furs.Length];
         Color32 shadow = Shade(fur, .7f);
-        Color32 coat = new Color32(137, 42, 81, 255);
+        Color32 coat = species switch
+        {
+            CasinoAnimalSpecies.Rabbit => new Color32(55, 119, 119, 255),
+            CasinoAnimalSpecies.Bear => new Color32(67, 89, 144, 255),
+            CasinoAnimalSpecies.Cat => new Color32(140, 78, 157, 255),
+            CasinoAnimalSpecies.Dog => new Color32(159, 95, 44, 255),
+            CasinoAnimalSpecies.Raccoon => new Color32(49, 114, 82, 255),
+            CasinoAnimalSpecies.Elephant => new Color32(62, 109, 147, 255),
+            _ => new Color32(137, 42, 81, 255)
+        };
         R(t, 9, 2 + step * 2, 13, 8, Ink); R(t, 28, 4 - step * 2, 12, 8, Ink);
         R(t, 11, 5 + step * 2, 8, 2, new Color32(96, 82, 101, 255));
         R(t, 30, 7 - step * 2, 7, 2, new Color32(96, 82, 101, 255));
@@ -168,7 +402,41 @@ public static class PitPanicRichPixelArt
         }
         if (species == CasinoAnimalSpecies.Penguin)
         {
-            R(t, 12, 53, 24, 4, Ink); R(t, 18, 57, 13, 4, Gold);
+            R(t, 0, 35, 48, 29, new Color32(0, 0, 0, 0));
+            E(t, 24, 46, 17, 15, Ink);
+            E(t, 24, 47, 14, 12, new Color32(56, 70, 98, 255));
+            R(t, 13, 55, 19, 2, new Color32(94, 111, 141, 255));
+            if (dir == 0)
+            {
+                E(t, 18, 45, 7, 9, Cream); E(t, 30, 45, 7, 9, Cream);
+                R(t, 14, 44, 4, 6, Ink); R(t, 31, 44, 4, 6, Ink);
+                R(t, 15, 48, 1, 2, Cream); R(t, 32, 48, 1, 2, Cream);
+                R(t, 20, 39, 10, 5, Gold); R(t, 22, 38, 6, 2, new Color32(216, 115, 46, 255));
+            }
+            else if (dir > 1)
+            {
+                int x = dir == 2 ? 14 : 29;
+                E(t, x + 2, 45, 6, 9, Cream);
+                R(t, x, 45, 3, 5, Ink);
+                R(t, dir == 2 ? 5 : 35, 39, 8, 4, Gold);
+            }
+            R(t, 10, 2 + step * 2, 11, 3, Gold);
+            R(t, 29, 4 - step * 2, 11, 3, Gold);
+        }
+        if (species == CasinoAnimalSpecies.Dog)
+        {
+            R(t, 6, 41, 7, 15, Ink); R(t, 8, 43, 4, 11, shadow);
+            R(t, 37, 41, 7, 15, Ink); R(t, 38, 43, 4, 11, shadow);
+        }
+        if (species == CasinoAnimalSpecies.Rabbit && dir != 1)
+        {
+            R(t, 12, 56, 3, 6, new Color32(229, 151, 172, 255));
+            R(t, 34, 56, 3, 6, new Color32(229, 151, 172, 255));
+        }
+        if (species == CasinoAnimalSpecies.Bear)
+        {
+            E(t, 13, 56, 5, 5, Ink); E(t, 13, 56, 3, 3, shadow);
+            E(t, 35, 56, 5, 5, Ink); E(t, 35, 56, 3, 3, shadow);
         }
     }
 

@@ -9,9 +9,9 @@ using UnityEngine.UI;
 public sealed class CasinoShiftController : MonoBehaviour
 {
     private const string SaveTutorial = "PitPanic.TutorialComplete";
-    private const string SaveUnlocked = "PitPanic.UnlockedShift";
     private static int requestedShift;
     private static bool skipMenu;
+    private static bool requestedTutorial;
 
     [SerializeField, Min(60f)] private float shiftSeconds = 540f;
     private CasinoPlayerController player;
@@ -34,6 +34,12 @@ public sealed class CasinoShiftController : MonoBehaviour
     private GameObject hud;
     private GameObject results;
     private GameObject pausePanel;
+    private GameObject upgrades;
+    private Text upgradeText;
+    private Button nextButton;
+    private Button[] upgradeButtons;
+    private bool newGameRequested;
+    private bool passed;
     private Text objectiveText;
     private Text timerText;
     private Text resultText;
@@ -68,6 +74,7 @@ public sealed class CasinoShiftController : MonoBehaviour
     public bool IsRunning => running;
     public int CurrentShift => shift;
     public CasinoShiftAccounting Accounting => accounting;
+    public bool PassedShift => passed;
 
     private void Awake()
     {
@@ -129,7 +136,8 @@ public sealed class CasinoShiftController : MonoBehaviour
         if (skipMenu)
         {
             skipMenu = false;
-            BeginShift(requestedShift, false);
+            BeginShift(requestedShift, requestedTutorial);
+            requestedTutorial = false;
         }
         else
             menu.SetActive(true);
@@ -140,8 +148,8 @@ public sealed class CasinoShiftController : MonoBehaviour
         if (!running)
             return;
 
-        if (Keyboard.current != null && Keyboard.current.pKey.wasPressedThisFrame &&
-            (paused || !AnyInteractionOpen()))
+        if (Keyboard.current != null && (Keyboard.current.pKey.wasPressedThisFrame ||
+            Keyboard.current.escapeKey.wasPressedThisFrame && (paused || !AnyInteractionOpen())))
             SetPaused(!paused);
         if (paused)
             return;
@@ -157,13 +165,17 @@ public sealed class CasinoShiftController : MonoBehaviour
 
         if (!ending)
         {
-            remaining = Mathf.Max(0f, remaining - Time.deltaTime);
+            remaining = Mathf.Max(tutorial ? 180f : 0f, remaining - Time.deltaTime);
+            CasinoSoundscape.SetIntensity(1 - remaining / shiftSeconds);
+            spawner.SetShiftProgress(1 - remaining / shiftSeconds);
             spawner.SetFinale(remaining <= 60f);
             if (remaining <= 0f)
             {
                 ending = true;
                 spawner.SetAcceptingArrivals(false);
             }
+            if (!tutorial && !ending)
+                objectiveText.text = $"HANDS {accounting.SettledHands}/{CasinoDemoProgression.ServiceGoal(shift)}  •  HELP {completedTasks}/4  •  KEEP 60% HAPPY";
         }
         int seconds = Mathf.CeilToInt(remaining);
         timerText.text = $"SHIFT {shift}  •  {seconds / 60:00}:{seconds % 60:00}";
@@ -188,14 +200,31 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void BeginShift(int number, bool guided)
     {
-        shift = Mathf.Max(1, number);
+        if (newGameRequested)
+        {
+            CasinoDemoProgression.StartNewGame();
+            newGameRequested = false;
+            if (!guided)
+            {
+                PlayerPrefs.SetInt(SaveTutorial, 1);
+                PlayerPrefs.Save();
+            }
+        }
+        shift = Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift);
         tutorial = guided;
+        spawner.ConfigureShift(shift, CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience));
+        foreach (AIDealer dealer in dealers.Dealers)
+            if (dealer != null) dealer.ConfigureShift(shift, CasinoDemoProgression.Owns(CasinoDemoUpgrade.DealerRest));
+        foreach (CasinoMinigame game in minigames)
+            if (game is CashDeskPackMinigame pack)
+                pack.PackingBonusSeconds = CasinoDemoProgression.Owns(CasinoDemoUpgrade.Packing) ? 5 : 0;
         remaining = shiftSeconds;
         penaltyStart = CustomerSatisfaction.PenaltyCount;
         movementStart = player.transform.position;
         menu.SetActive(false);
         intro.SetActive(false);
         results.SetActive(false);
+        upgrades.SetActive(false);
         hud.SetActive(true);
         skipButton.gameObject.SetActive(tutorial);
         router.enabled = true;
@@ -208,10 +237,38 @@ public sealed class CasinoShiftController : MonoBehaviour
     private void SetPaused(bool value)
     {
         paused = value;
+        AudioListener.pause = value;
         dealers.SetPaused(value);
         router.enabled = !value;
-        player.SetMovementEnabled(!value);
+        player.SetMovementEnabled(!value && !AnyInteractionOpen());
         pausePanel.SetActive(value);
+    }
+
+    private void ReturnToMainMenu()
+    {
+        foreach (CasinoMinigame game in minigames)
+            if (game != null && game.IsRunning) game.Abandon();
+        running = false;
+        skipMenu = false;
+        requestedShift = 0;
+        requestedTutorial = false;
+        AudioListener.pause = false;
+        CasinoSoundscape.SetFocus(null);
+        dealers.SetPaused(false);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    private void RestartShift()
+    {
+        foreach (CasinoMinigame game in minigames)
+            if (game != null && game.IsRunning) game.Abandon();
+        requestedShift = shift;
+        requestedTutorial = tutorial;
+        skipMenu = true;
+        AudioListener.pause = false;
+        CasinoSoundscape.SetFocus(null);
+        dealers.SetPaused(false);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     private void UpdateTutorial()
@@ -360,6 +417,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         PlayerPrefs.SetInt(SaveTutorial, 1);
         PlayerPrefs.Save();
         spawner.SetAcceptingArrivals(!ending);
+        if (!ending) remaining = Mathf.Max(remaining, 180);
         objectiveText.text = "YOU'VE GOT THIS! KEEP THE CASINO HAPPY!";
         arrow.gameObject.SetActive(false);
         skipButton.gameObject.SetActive(false);
@@ -367,8 +425,10 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void FinishShift()
     {
+        if (!running) return;
         running = false;
         rouletteScheduler.CancelTutorialAssistance();
+        CasinoSoundscape.SetIntensity(0);
         dealers.SetPaused(true);
         router.enabled = false;
         player.SetMovementEnabled(false);
@@ -399,14 +459,19 @@ public sealed class CasinoShiftController : MonoBehaviour
             : 100;
         int rating = satisfaction >= 85 && failedAttempts + pending <= 2 ? 3 :
             satisfaction >= 60 && failedAttempts + pending <= 5 ? 2 : 1;
-        PlayerPrefs.SetInt(SaveUnlocked, Mathf.Max(PlayerPrefs.GetInt(SaveUnlocked, 1), shift + 1));
-        PlayerPrefs.Save();
-        resultText.text = $"SHIFT {shift} COMPLETE!  {new string('★', rating)}\n\n" +
+        passed = CasinoDemoProgression.Passed(shift, accounting.SettledHands, completedTasks, satisfaction);
+        if (passed) CasinoDemoProgression.AwardShift(shift, rating);
+        nextButton.gameObject.SetActive(passed);
+        CasinoSoundscape.SetFocus(results.transform);
+        CasinoSoundscape.Play(passed ? CasinoSoundCue.Success : CasinoSoundCue.Warning, player.transform.position, results.transform);
+        resultText.text = $"SHIFT {shift} {(passed ? "CLEARED!" : "TRY AGAIN!")}  {new string('★', rating)}\n\n" +
             $"TABLE PROFIT  {FormatMoney(accounting.ProfitPence)}\n" +
             $"SATISFACTION  {(customers > 0 ? satisfaction + "%" : "NO CUSTOMERS")}\n" +
             $"TASKS COMPLETED  {completedTasks}\n" +
-            $"TASKS MISSED  {pending}  •  FAILED ATTEMPTS  {failedAttempts}\n\n" +
-            "FLOAT TRANSFERS ARE NOT INCOME.";
+            $"TASKS MISSED  {pending}  •  FAILED ATTEMPTS  {failedAttempts}\n" +
+            $"HANDS SERVED  {accounting.SettledHands}/{CasinoDemoProgression.ServiceGoal(shift)}\n\n" +
+            (passed ? $"EARNED {rating} UPGRADE STAMPS!" : "GOAL: 4 HELPS, HANDS TARGET, 60% HAPPY.") +
+            "\nFLOAT TRANSFERS ARE NOT INCOME.";
         hud.SetActive(false);
         results.SetActive(true);
     }
@@ -447,6 +512,7 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void OnDestroy()
     {
+        AudioListener.pause = false;
         foreach (BlackjackTableInteraction table in FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
             table.RoundSettled -= OnBlackjackSettled;
         if (roulette != null) roulette.BetSettled -= OnRouletteSettled;
@@ -478,10 +544,11 @@ public sealed class CasinoShiftController : MonoBehaviour
         menu = Panel("Welcome", new Vector2(780f, 430f));
         menu.AddComponent<CasinoTitleScreen>().Build(() =>
         {
+            newGameRequested = true;
             menu.SetActive(false);
             intro.SetActive(true);
-        }, () => BeginShift(PlayerPrefs.GetInt(SaveUnlocked, 1), PlayerPrefs.GetInt(SaveTutorial, 0) == 0),
-            PlayerPrefs.GetInt(SaveUnlocked, 1) > 1 || PlayerPrefs.GetInt(SaveTutorial, 0) != 0);
+        }, () => BeginShift(CasinoDemoProgression.UnlockedShift, PlayerPrefs.GetInt(SaveTutorial, 0) == 0),
+            CasinoDemoProgression.UnlockedShift > 1 || PlayerPrefs.GetInt(SaveTutorial, 0) != 0);
 
         intro = Panel("Introduction", new Vector2(780f, 400f));
         SpriteRenderer portraitSource = dealers.Dealers.Count > 0 && dealers.Dealers[0] != null
@@ -493,9 +560,15 @@ public sealed class CasinoShiftController : MonoBehaviour
             CasinoPixelArt.SetSprite(portrait.GetComponent<Image>(), portraitSource.sprite, Color.white);
         }
         Label(intro.transform, "Introduction text",
-            "HEY, PIT BOSS!\n\nKeep the tables moving and our customers smiling.\nI'll show you the ropes as we go!",
+            "HEY, PIT BOSS!\n\nServe 8 hands, help 4 times and keep 60% happy!\nNew Game resets progress and upgrades.\nI'll show you the ropes as we go!",
             new Vector2(75f, 55f), new Vector2(560f, 200f), 23);
         MakeButton(intro.transform, "Begin", "LET'S GO!", new Vector2(0f, -120f), () => BeginShift(1, true));
+        MakeButton(intro.transform, "Back", "BACK", new Vector2(280f, -120f), () =>
+        {
+            newGameRequested = false;
+            intro.SetActive(false);
+            menu.SetActive(true);
+        }, new Vector2(150, 40));
         MakeButton(intro.transform, "Skip", "SKIP TRAINING", new Vector2(0f, -175f), () =>
         {
             PlayerPrefs.SetInt(SaveTutorial, 1);
@@ -523,21 +596,68 @@ public sealed class CasinoShiftController : MonoBehaviour
         arrow.gameObject.SetActive(false);
         hud.SetActive(false);
 
-        results = Panel("Shift Results", new Vector2(760f, 580f));
-        resultText = Label(results.transform, "Results", "", new Vector2(0f, 48f), new Vector2(680f, 390f), 24);
+        results = Panel("Shift Results", new Vector2(800f, 660f));
+        resultText = Label(results.transform, "Results", "", new Vector2(0f, 75f), new Vector2(740f, 440f), 22);
         resultText.font = CasinoPixelFont.Symbols;
-        MakeButton(results.transform, "Next shift", "NEXT SHIFT", new Vector2(0f, -232f), () =>
+        nextButton = MakeButton(results.transform, "Next shift", "UPGRADES", new Vector2(0f, -180f), ShowUpgrades);
+        MakeButton(results.transform, "Retry", "RETRY SHIFT", new Vector2(-190f, -250f), RestartShift);
+        MakeButton(results.transform, "Main Menu", "MAIN MENU", new Vector2(190f, -250f), ReturnToMainMenu);
+        results.SetActive(false);
+        upgrades = Panel("Shift Upgrades", new Vector2(800, 610));
+        upgradeText = Label(upgrades.transform, "Upgrade balance", "", new Vector2(0, 235), new Vector2(730, 75), 23);
+        upgradeButtons = new Button[3];
+        for (int i = 0; i < 3; i++)
         {
-            requestedShift = shift + 1;
+            CasinoDemoUpgrade choice = (CasinoDemoUpgrade)i;
+            upgradeButtons[i] = MakeButton(upgrades.transform, choice.ToString(), "", new Vector2(0, 120 - i * 85),
+                () => { CasinoDemoProgression.TryBuy(choice); RefreshUpgrades(); }, new Vector2(710, 65));
+        }
+        MakeButton(upgrades.transform, "Next shift", "NEXT SHIFT / REPLAY DEMO", new Vector2(0, -150), () =>
+        {
+            requestedShift = Mathf.Min(shift + 1, CasinoDemoProgression.LastShift);
+            requestedTutorial = false;
             skipMenu = true;
+            CasinoSoundscape.SetFocus(null);
             dealers.SetPaused(false);
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-        });
-        results.SetActive(false);
-        pausePanel = Panel("Shift Paused", new Vector2(520f, 250f));
-        Label(pausePanel.transform, "Pause title", "TAKE A BREATHER!", new Vector2(0f, 45f), new Vector2(480f, 45f), 28);
-        MakeButton(pausePanel.transform, "Resume", "RESUME  •  P", new Vector2(0f, -45f), () => SetPaused(false));
+        }, new Vector2(500, 50));
+        MakeButton(upgrades.transform, "Main Menu", "MAIN MENU", new Vector2(0, -235), ReturnToMainMenu);
+        upgrades.SetActive(false);
+        GameObject pauseShade = CasinoMinigamePresentation.CreateImage("Pause backdrop", canvas.transform,
+            Vector2.zero, new Vector2(1600, 900), new Color(0, 0, 0, .7f), true);
+        RectTransform shadeRect = (RectTransform)pauseShade.transform;
+        shadeRect.anchorMin = Vector2.zero; shadeRect.anchorMax = Vector2.one;
+        shadeRect.offsetMin = shadeRect.offsetMax = Vector2.zero;
+        pausePanel = pauseShade;
+        GameObject pauseCard = Panel("Pause card", new Vector2(520f, 410f));
+        pauseCard.transform.SetParent(pauseShade.transform, false);
+        Label(pauseCard.transform, "Pause title", "TAKE A BREATHER!", new Vector2(0f, 90f), new Vector2(480f, 45f), 28);
+        MakeButton(pauseCard.transform, "Resume", "RESUME  •  P / ESC", new Vector2(0f, 0f), () => SetPaused(false));
+        MakeButton(pauseCard.transform, "Main Menu", "MAIN MENU", new Vector2(0f, -80f), ReturnToMainMenu);
+        MakeButton(pauseCard.transform, "Restart", "RESTART SHIFT", new Vector2(0f, -155f), RestartShift);
         pausePanel.SetActive(false);
+    }
+
+    private void ShowUpgrades()
+    {
+        if (!passed) return;
+        results.SetActive(false);
+        upgrades.SetActive(true);
+        CasinoSoundscape.SetFocus(upgrades.transform);
+        RefreshUpgrades();
+    }
+
+    private void RefreshUpgrades()
+    {
+        upgradeText.text = $"PIT PERKS!  •  {CasinoDemoProgression.Credits} STAMPS\n" +
+            (shift == CasinoDemoProgression.LastShift ? "DEMO COMPLETE! THANKS FOR PLAYING." : "BUY A PERK OR SAVE FOR NEXT SHIFT.");
+        string[] names = { "HAPPY CUSTOMERS: +5s PATIENCE", "COMFY BREAKS: 20% FASTER RECOVERY", "PACK PRACTICE: +5s PER ORDER" };
+        for (int i = 0; i < upgradeButtons.Length; i++)
+        {
+            bool owned = CasinoDemoProgression.Owns((CasinoDemoUpgrade)i);
+            upgradeButtons[i].interactable = !owned && CasinoDemoProgression.Credits >= CasinoDemoProgression.UpgradeCost;
+            upgradeButtons[i].GetComponentInChildren<Text>().text = names[i] + (owned ? "  •  OWNED" : "  •  3 STAMPS");
+        }
     }
 
     private GameObject Panel(string name, Vector2 size)

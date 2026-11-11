@@ -52,6 +52,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
     {
         if (panelRect != null && panelRect.TryGetComponent(out Image panel))
             CasinoHudStyle.Panel(panel, CasinoHudStyle.Ink);
+        if (AudioListener.pause) return;
         if (taskBadge != null)
             CasinoHudStyle.Panel(taskBadge, taskBadge.color);
         if (toggleButton != null)

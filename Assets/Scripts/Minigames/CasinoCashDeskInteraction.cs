@@ -226,12 +226,23 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (!IsConfigured)
         {
             return;
         }
 
         RefreshFloatRequests();
+        if (!ReferenceEquals(activeCustomer, null) && (activeCustomer == null || !activeCustomer.IsWaitingAtCashDesk))
+        {
+            queuedCustomers.Remove(activeCustomer);
+            activeCustomer = null;
+            if (activeOrder == null && GetRequestedOrders().Count == 0)
+            {
+                if (packMinigame.IsRunning) packMinigame.Abandon();
+                minigameStation.ResolveTaskAfterFatalFailure();
+            }
+        }
 
         if (carryingOrder != null && GetOrderStatus(carryingOrder.Id) == CasinoFloatRefillStatus.Carrying &&
             carrier != null && !carrier.IsCarrying)

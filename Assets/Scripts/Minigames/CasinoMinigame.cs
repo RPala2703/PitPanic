@@ -41,6 +41,7 @@ public abstract class CasinoMinigame : MonoBehaviour
         }
 
         elapsedSeconds = 0f;
+        CasinoSoundscape.SetFocus(transform);
         IsRunning = true;
         try
         {
@@ -106,6 +107,7 @@ public abstract class CasinoMinigame : MonoBehaviour
 
     private void ClosePresentation()
     {
+        CasinoSoundscape.ReleaseFocus(transform);
         if (presentation != null)
         {
             presentation.Close();
@@ -115,7 +117,7 @@ public abstract class CasinoMinigame : MonoBehaviour
 
     private void Update()
     {
-        if (!IsRunning)
+        if (!IsRunning || Time.timeScale == 0)
         {
             return;
         }

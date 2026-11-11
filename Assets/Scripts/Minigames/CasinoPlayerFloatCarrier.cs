@@ -93,6 +93,7 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
         if (notificationRemaining > 0f)
         {
             notificationRemaining -= Time.unscaledDeltaTime;

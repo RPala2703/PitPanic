@@ -32,6 +32,7 @@ public sealed class CashierFloorActivity : MonoBehaviour
         {
             nextGesture = Time.time + 1.1f;
             cashier.PlayGesture(CasinoGesture.Pay, transform.position + Vector3.back, .8f);
+            CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position);
             desk.ActiveCustomer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
                 CasinoGesture.Collect, transform.position, .8f);
         }

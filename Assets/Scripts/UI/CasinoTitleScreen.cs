@@ -18,6 +18,8 @@ public sealed class CasinoTitleScreen : MonoBehaviour
 
     public void Build(Action newGame, Action continueGame, bool canContinue)
     {
+        CasinoSoundscape.SetIntensity(0);
+        CasinoSoundscape.SetFocus(transform);
         RectTransform rect = (RectTransform)transform;
         rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
         rect.offsetMin = rect.offsetMax = Vector2.zero;
@@ -76,7 +78,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         Button cont = Button("Continue", "CONTINUE", new Vector2(0, -45), continueGame);
         cont.interactable = canContinue;
         Button("Settings", "SETTINGS", new Vector2(0, -115), () => settings.SetActive(true));
-        Button("Quit", "QUIT", new Vector2(0, -185), () =>
+        Button("Quit", "QUIT GAME", new Vector2(0, -185), () =>
         {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -85,11 +87,11 @@ public sealed class CasinoTitleScreen : MonoBehaviour
 #endif
         });
         settings = CasinoMinigamePresentation.CreateImage("Settings panel", transform, Vector2.zero,
-            new Vector2(650, 420), CasinoHudStyle.Ink, true);
+            new Vector2(650, 600), CasinoHudStyle.Ink, true);
         CasinoHudStyle.Panel(settings.GetComponent<Image>(), CasinoHudStyle.Ink);
         CasinoMinigamePresentation.CreateText(settings.transform, "Settings title", "MAKE YOURSELF AT HOME",
-            new Vector2(0, 145), new Vector2(580, 50), 26, CasinoHudStyle.Gold);
-        Button volume = Button("Volume", "", new Vector2(0, 55), () =>
+            new Vector2(0, 245), new Vector2(580, 50), 26, CasinoHudStyle.Gold);
+        Button volume = Button("Volume", "", new Vector2(0, 180), () =>
         {
             float value = AudioListener.volume > 0 ? 0 : 1;
             AudioListener.volume = value;
@@ -98,10 +100,31 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         volume.onClick.AddListener(() => volume.GetComponentInChildren<Text>().text = AudioListener.volume > 0 ? "SOUND: ON" : "SOUND: OFF");
         AudioListener.volume = PlayerPrefs.GetInt("PitPanic.Muted", 0) == 1 ? 0 : 1;
         volume.GetComponentInChildren<Text>().text = AudioListener.volume > 0 ? "SOUND: ON" : "SOUND: OFF";
-        Button("Fullscreen", "TOGGLE FULLSCREEN", new Vector2(0, -20),
+        AudioSlider("Music", 90, CasinoSoundscape.MusicVolume);
+        AudioSlider("Ambience", 10, CasinoSoundscape.AmbienceVolume);
+        AudioSlider("Effects", -70, CasinoSoundscape.EffectsVolume);
+        Button("Fullscreen", "TOGGLE FULLSCREEN", new Vector2(0, -160),
             () => Screen.fullScreen = !Screen.fullScreen, settings.transform);
-        Button("Back", "BACK", new Vector2(0, -120), () => settings.SetActive(false), settings.transform);
+        Button("Back", "BACK", new Vector2(0, -235), () => settings.SetActive(false), settings.transform);
         settings.SetActive(false);
+    }
+
+    private void AudioSlider(string channel, float y, float volume)
+    {
+        CasinoMinigamePresentation.CreateText(settings.transform, channel + " label", channel.ToUpperInvariant(),
+            new Vector2(0, y + 22), new Vector2(480, 30), 20, CasinoHudStyle.Gold);
+        GameObject root = CasinoMinigamePresentation.CreateImage(channel + " volume", settings.transform,
+            new Vector2(0, y - 10), new Vector2(420, 22), new Color(.25f, .2f, .3f), true);
+        Slider slider = root.AddComponent<Slider>();
+        GameObject fill = CasinoMinigamePresentation.CreateImage("Fill", root.transform, Vector2.zero, new Vector2(420, 22), CasinoHudStyle.Mint);
+        RectTransform fillRect = (RectTransform)fill.transform;
+        fillRect.anchorMin = Vector2.zero; fillRect.anchorMax = Vector2.one; fillRect.offsetMin = fillRect.offsetMax = Vector2.zero;
+        GameObject handle = CasinoMinigamePresentation.CreateImage("Handle", root.transform, Vector2.zero, new Vector2(22, 30), CasinoHudStyle.Gold, true);
+        slider.fillRect = fillRect;
+        slider.handleRect = (RectTransform)handle.transform;
+        slider.targetGraphic = handle.GetComponent<Image>();
+        slider.value = volume;
+        slider.onValueChanged.AddListener(value => CasinoSoundscape.SetVolume(channel, value));
     }
 
     private RectTransform Art(string name, Sprite sprite, Vector2 p, Vector2 size)
@@ -143,8 +166,17 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        if (gameCamera == null) return;
+        gameCamera.cullingMask = 0;
+        CasinoSoundscape.SetFocus(transform);
+        CasinoSoundscape.SetIntensity(0);
+    }
+
     private void OnDisable()
     {
+        CasinoSoundscape.ReleaseFocus(transform);
         if (gameCamera != null) gameCamera.cullingMask = savedCullingMask;
     }
 }

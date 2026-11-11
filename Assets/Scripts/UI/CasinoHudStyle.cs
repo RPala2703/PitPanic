@@ -26,6 +26,8 @@ public static class CasinoHudStyle
 
     public static void Button(Button button)
     {
+        if (Application.isPlaying && button.GetComponent<CasinoButtonFeedback>() == null)
+            button.gameObject.AddComponent<CasinoButtonFeedback>();
         if (button.targetGraphic is Image image)
             Panel(image, image.color);
         ColorBlock colors = button.colors;

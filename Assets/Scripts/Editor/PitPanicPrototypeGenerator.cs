@@ -189,7 +189,7 @@ public static class PitPanicPrototypeGenerator
         CreateFloor(floorMaterial, trimMaterial);
         CreateRichScenery();
         CasinoPlayerController playerController = CreatePlayer(
-            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Fox));
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Penguin));
         CasinoSeat[] firstTableSeats = CreateBlackjackTable(
             "Blackjack Table 1",
             new Vector3(-6.2f, 0f, 0.6f),
@@ -374,6 +374,9 @@ public static class PitPanicPrototypeGenerator
             });
         AssertCustomerBetChoices();
         if (AIDealer.CalculateEnergyAfterWork(100f, 5f, 10f) != 50f ||
+            AIDealer.CalculateEnergyAfterWork(100f, .5f, 140f) != 30f ||
+            AIDealer.CalculateEnergyAfterWork(100f, .25f, 280f) != 30f ||
+            AIDealer.CalculateEnergyAfterRest(30f, 1.5f, 45f) < 97f ||
             AIDealer.CalculateEnergyAfterRest(50f, 5f, 10f) != 100f ||
             AIDealer.CalculateEnergyAfterRest(95f, 5f, 10f) != 100f ||
             !AIDealer.CanBeAssignedFromState(DealerDutyState.ReadyAtPitDesk) ||
@@ -624,6 +627,9 @@ public static class PitPanicPrototypeGenerator
             !sequenceCountsMatch ||
             CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127).Length != packingSequence.Length ||
             CashDeskPackMinigame.GetSequenceTimeLimit(19) <= CashDeskPackMinigame.GetSequenceTimeLimit(10) ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(0) != 15f ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(19) != 53f ||
+            CashDeskPackMinigame.GetSequenceTimeLimit(100) != 215f ||
             wrongChipAdvanced || nextPackingIndex != 0 ||
             !rightChipAdvanced || advancedPackingIndex != 1 ||
             completedSequenceAdvanced || completedPackingIndex != packingSequence.Length)
@@ -1946,6 +1952,34 @@ public static class PitPanicPrototypeGenerator
 
         foreach (CasinoAnimalSpecies species in System.Enum.GetValues(typeof(CasinoAnimalSpecies)))
         {
+            Texture2D atlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_{species}.png");
+            if (atlas == null || !atlas.isReadable || atlas.width != 384 || atlas.height != 3328 ||
+                atlas.filterMode != FilterMode.Point)
+                throw new System.InvalidOperationException($"Missing or incorrectly imported action atlas for {species}.");
+            Texture2D customerAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_Customer_{species}.png");
+            if (customerAtlas == null || customerAtlas.width != 384 || customerAtlas.height != 3328 ||
+                customerAtlas.filterMode != FilterMode.Point ||
+                customerAtlas.GetPixel(16, 22) == atlas.GetPixel(16, 22))
+                throw new System.InvalidOperationException($"Customer {species} must have a distinct civilian outfit atlas.");
+            Color forwardCard = customerAtlas.GetPixel(6, ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 40);
+            if (forwardCard.r < .8f || forwardCard.g < .7f)
+                throw new System.InvalidOperationException($"Away-facing seated {species} must hold cards toward the table, not behind their back.");
+            for (int pose = 0; pose < 13; pose++)
+            {
+                HashSet<int> frameHashes = new HashSet<int>();
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    int hash = 17;
+                    foreach (Color pixelColor in atlas.GetPixels(frame * 48, pose * 4 * 64, 48, 64))
+                    {
+                        Color32 sample = pixelColor;
+                        unchecked { hash = hash * 31 + sample.r; hash = hash * 31 + sample.g; hash = hash * 31 + sample.b; hash = hash * 31 + sample.a; }
+                    }
+                    frameHashes.Add(hash);
+                }
+                if (frameHashes.Count < 4)
+                    throw new System.InvalidOperationException($"{species} {((CasinoAnimationPose)pose)} needs at least four distinct drawn poses.");
+            }
             GameObject prefab = PitPanicArtPrefabLibrary.GetCharacterPrefab(species);
             PixelCharacterVisual pixel = prefab.GetComponent<PixelCharacterVisual>();
             if (pixel == null || prefab.GetComponentInChildren<PixelSpriteTextureBinding>(true) == null)
@@ -2841,7 +2875,8 @@ public static class PitPanicPrototypeGenerator
             CasinoDealerStation station = i < stations.Length ? stations[i] : null;
             Transform initialPitPosition = station == null ? pitDeskPositions[0] : null;
             Transform spawnPosition = station != null ? station.DealerPosition : initialPitPosition;
-            GameObject dealerObject = new GameObject($"Dealer {i + 1:00}");
+            CasinoAnimalSpecies animal = dealerPrefabs[i].GetComponent<CasinoCharacterVisual>().Species;
+            GameObject dealerObject = new GameObject(animal.ToString());
             dealerObject.transform.SetPositionAndRotation(spawnPosition.position, spawnPosition.rotation);
             NavMeshAgent agent = dealerObject.AddComponent<NavMeshAgent>();
             agent.radius = 0.28f;
@@ -2957,7 +2992,7 @@ public static class PitPanicPrototypeGenerator
         }
 
         visual.transform.SetParent(player.transform, false);
-        visual.name = "Fox Pit Boss Visual";
+        visual.name = "Penguin Pit Boss Visual";
         visual.transform.localPosition = Vector3.zero;
         return player.GetComponent<CasinoPlayerController>();
     }
