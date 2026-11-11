@@ -125,6 +125,7 @@ public static class PitPanicPrototypeGenerator
     [MenuItem("Pit Panic/Generate Prototype Scene")]
     public static void GeneratePrototypeScene()
     {
+        PitPanicRichPixelArt.Generate();
         PitPanicArtPrefabLibrary.EnsureStarterAssets();
         Material floorMaterial = PitPanicArtPrefabLibrary.GetFloorCarpetMaterial();
         Material trimMaterial = GetOrCreateMaterial("Brass", new Color(0.76f, 0.48f, 0.16f));
@@ -186,8 +187,9 @@ public static class PitPanicPrototypeGenerator
 
         CreateLighting();
         CreateFloor(floorMaterial, trimMaterial);
+        CreateRichScenery();
         CasinoPlayerController playerController = CreatePlayer(
-            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Penguin));
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Fox));
         CasinoSeat[] firstTableSeats = CreateBlackjackTable(
             "Blackjack Table 1",
             new Vector3(-6.2f, 0f, 0.6f),
@@ -222,6 +224,18 @@ public static class PitPanicPrototypeGenerator
         firstTableSeats.CopyTo(seats, 0);
         secondTableSeats.CopyTo(seats, firstTableSeats.Length);
         rouletteSeats.CopyTo(seats, firstTableSeats.Length + secondTableSeats.Length);
+        foreach (CasinoSeat seat in seats)
+        {
+            GameObject chair = new GameObject("Pixel Chair");
+            chair.transform.SetParent(seat.transform, false);
+            chair.transform.localScale = Vector3.one * .75f;
+            chair.AddComponent<SpriteRenderer>().sprite =
+                AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/Pixel/Structure_Chair.png");
+            chair.GetComponent<SpriteRenderer>().sortingOrder = -5;
+            chair.AddComponent<PixelBillboard>();
+            chair.AddComponent<PixelSpriteTextureBinding>();
+            seat.gameObject.AddComponent<CasinoSeatVisual>().Configure(chair.transform);
+        }
         Transform[] breakPositions = CreateBreakRoom(woodMaterial, feltMaterial, trimMaterial);
         Transform cashierWaypoint = CreateCashierStation(
             new Vector3(0f, 0f, -8.1f),
@@ -235,6 +249,12 @@ public static class PitPanicPrototypeGenerator
             secondFloatDestination,
             rouletteFloatDestination);
         cashDesk.ConfigureCarriedTrayPrefab(PitPanicArtPrefabLibrary.GetCasinoPrefab("CarriedFloatTrayArt"));
+        GameObject cashierArt = (GameObject)PrefabUtility.InstantiatePrefab(
+            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Pig));
+        cashierArt.name = "Cashier Visual";
+        cashierArt.transform.SetParent(cashDesk.transform, false);
+        cashierArt.transform.localPosition = new Vector3(0, .8f, .5f);
+        cashDesk.gameObject.AddComponent<CashierFloorActivity>().Configure(cashierArt.GetComponent<CasinoCharacterVisual>());
         PitDeskInteraction pitDesk = CreatePitDesk(new Vector3(12f, 0f, -4f), woodMaterial, trimMaterial, playerController);
         Transform[] pitDeskPositions = CreatePitDeskWaitingPositions(new Vector3(12f, 0f, -4f), trimMaterial);
         DealerAssignmentManager dealerManager = CreateDealerManager(
@@ -2578,6 +2598,7 @@ public static class PitPanicPrototypeGenerator
         {
             throw new System.InvalidOperationException("Roulette table art prefab has no rotating wheel root.");
         }
+        wheel.localPosition = new Vector3(-1.40625f, .8f, .3125f);
         CreatePixelSurface(wheel, "Pixel Roulette Wheel", PitPanicPixelArt.WheelSprite(), 0.25f);
         GameObject interactionBounds = new GameObject("Gameplay Interaction Bounds");
         interactionBounds.transform.SetParent(table.transform, false);
@@ -2936,7 +2957,7 @@ public static class PitPanicPrototypeGenerator
         }
 
         visual.transform.SetParent(player.transform, false);
-        visual.name = "Penguin Pit Boss Visual";
+        visual.name = "Fox Pit Boss Visual";
         visual.transform.localPosition = Vector3.zero;
         return player.GetComponent<CasinoPlayerController>();
     }
@@ -3073,6 +3094,39 @@ public static class PitPanicPrototypeGenerator
             billboard.transform.localScale = new Vector3(1f, 0.65f, 1f);
         billboard.AddComponent<PixelSpriteTextureBinding>();
         billboard.AddComponent<PixelBillboard>();
+    }
+
+    private static void CreateRichScenery()
+    {
+        Transform root = new GameObject("Casino Atmosphere").transform;
+        foreach (float x in new[] { -12f, -5f, 5f, 12f })
+        {
+            CreateSceneryProp(root, "Window", new Vector3(x, .3f, 9f), .9f);
+            CreateSceneryProp(root, "Lamp", new Vector3(x + 2, .3f, 8.8f), .65f);
+        }
+        foreach (Vector3 p in new[] { new Vector3(-14, 0, 5), new Vector3(14, 0, 5),
+            new Vector3(-14, 0, -7), new Vector3(14, 0, -7), new Vector3(-4, 0, -8), new Vector3(4, 0, -8) })
+            CreateSceneryProp(root, "Plant", p, .85f);
+        CreateSceneryProp(root, "Curtain", new Vector3(-14, 0, 9), 1.6f);
+        CreateSceneryProp(root, "Curtain", new Vector3(14, 0, 9), -1.6f);
+        CreateSceneryProp(root, "Sofa", new Vector3(-11.5f, .1f, 6.3f), 1f);
+        CreateSceneryProp(root, "Lamp", new Vector3(-9.5f, .1f, 6.7f), .65f);
+    }
+
+    private static void CreateSceneryProp(Transform root, string kind, Vector3 p, float scale)
+    {
+        Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Art/Pixel/Structure_{kind}.png");
+        if (sprite == null) throw new System.InvalidOperationException($"Missing scenery sprite {kind}.");
+        GameObject prop = new GameObject("Pixel " + kind);
+        prop.transform.SetParent(root, false);
+        prop.transform.position = p;
+        prop.transform.localScale = new Vector3(scale, Mathf.Abs(scale), 1);
+        SpriteRenderer renderer = prop.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = -5;
+        prop.AddComponent<PixelBillboard>();
+        prop.AddComponent<PixelSpriteTextureBinding>();
+        if (kind == "Lamp") prop.AddComponent<CasinoAmbientGlow>();
     }
 
     private static Transform FindDeepChild(Transform root, string childName)

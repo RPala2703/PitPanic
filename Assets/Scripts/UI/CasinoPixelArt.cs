@@ -94,9 +94,11 @@ public static class CasinoPixelArt
             float dy = y + 0.5f - 16f;
             float radius = Mathf.Sqrt(dx * dx + dy * dy);
             if (radius >= 15f) continue;
-            byte shade = radius > 13f ? (byte)130 : radius > 10f ? (byte)240 : (byte)255;
+            byte shade = radius > 13f ? (byte)100 : radius > 10f ? (byte)205 : (byte)245;
             if (!isBall && radius > 10f && ((x / 4 + y / 4) % 3 == 0)) shade = 255;
-            if (isBall && dx < -3f && dy > 3f && radius < 10f) shade = 255;
+            if (!isBall && radius < 8 && (Mathf.Abs(dx) < 2 || Mathf.Abs(dy) < 2)) shade = 210;
+            if (dy < -5 && radius < 13) shade = (byte)Mathf.Max(100, shade - 25);
+            if (dx < -3f && dy > 3f && radius < 10f) shade = 255;
             pixels[y * size + x] = new Color32(shade, shade, shade, 255);
         }
         return MakeSprite(isBall ? "Roulette ball pixel art" : "Casino chip pixel art", size, pixels);
@@ -111,8 +113,10 @@ public static class CasinoPixelArt
         {
             if ((x == 1 || x == size - 2) && (y == 1 || y == size - 2)) continue;
             bool edge = x < 3 || y < 3 || x >= size - 3 || y >= size - 3;
+            bool inset = x == 5 || y == 5 || x == size - 6 || y == size - 6;
             pixels[y * size + x] = edge
-                ? new Color32(150, 150, 150, 255)
+                ? new Color32(110, 110, 110, 255)
+                : inset ? new Color32(215, 215, 215, 255)
                 : new Color32(255, 255, 255, 255);
         }
         return MakeSprite("Playing card pixel art", size, pixels);

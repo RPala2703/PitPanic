@@ -190,6 +190,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         if (panelOpen)
         {
+            tableView.SetAssistance(IsFlickReady, StartAssistance);
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
             {
                 ClosePanel();
@@ -203,13 +204,12 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         bool inRange = IsPlayerInRange();
-        bool hasAction = IsDealerStaffed && (waitingSet.Count > 0 || state != BlackjackTableState.WaitingForCustomers);
-        bool flickTaskPending = flickStation != null && flickStation.IsTaskPending;
         bool flickReady = IsFlickReady;
-        bool showPrompt = inRange && hasAction && (!flickTaskPending || flickReady);
         tableView.SetPromptVisible(
-            showPrompt,
-            flickReady ? $"E  •  FLICK! HELP {TableDisplayName}" : GetActionPrompt());
+            inRange && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen() && !CasinoMinigamePresentation.IsOpen &&
+                playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying != true,
+            $"E  •  {TableDisplayName}{(flickReady ? "  •  FLICK! READY" : "")}");
+        tableView.SetAssistance(IsFlickReady, StartAssistance);
     }
 
     private void OnCustomerSeated(CasinoCustomerAI customer)
@@ -239,7 +239,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void OpenPanel()
     {
-        if (!IsDealerStaffed || CasinoMinigamePresentation.IsOpen ||
+        if (CasinoMinigamePresentation.IsOpen || CasinoPlayerInteractionRouter.IsAnyInspectionOpen() ||
             playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true)
         {
             return;
@@ -280,7 +280,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     public bool TryOpenInspectionFromPlayerInput()
     {
-        if (panelOpen || !IsDealerStaffed || !IsPlayerInRange(playerController.transform) ||
+        if (panelOpen || !IsPlayerInRange(playerController.transform) ||
             flickStation != null && flickStation.IsMinigameRunning ||
             playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true ||
             CasinoMinigamePresentation.IsOpen)
@@ -290,6 +290,17 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         OpenPanel();
         return panelOpen;
+    }
+
+    private void StartAssistance()
+    {
+        if (!IsFlickReady || flickStation == null) return;
+        ClosePanel();
+        if (!flickStation.TryBegin())
+        {
+            message = "Task not ready. Wait for the dealer and try again.";
+            OpenPanel();
+        }
     }
 
     private void BeginRound()
@@ -671,6 +682,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         state = BlackjackTableState.Settlement;
         round.Settle();
+        foreach (BlackjackHand hand in round.CustomerHands)
+            hand.Customer?.GetComponentInChildren<PixelCharacterVisual>()?.React(hand.PayoutPence >= hand.BetPence);
         RoundSettled?.Invoke(round);
         payoutHandIndex = -1;
         selectedPayoutChips.Clear();

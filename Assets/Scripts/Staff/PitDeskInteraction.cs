@@ -56,7 +56,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void Update()
     {
-        if (!isOpen && CasinoMinigamePresentation.IsOpen)
+        if (!isOpen && (CasinoMinigamePresentation.IsOpen || CasinoPlayerInteractionRouter.IsAnyInspectionOpen()))
         {
             if (promptText != null)
             {
@@ -95,7 +95,8 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     public bool TryOpenFromPlayerInput()
     {
-        if (isOpen || !IsPlayerInRange(player.transform) || CasinoMinigamePresentation.IsOpen)
+        if (isOpen || !IsPlayerInRange(player.transform) || CasinoMinigamePresentation.IsOpen ||
+            CasinoPlayerInteractionRouter.IsAnyInspectionOpen())
         {
             return false;
         }

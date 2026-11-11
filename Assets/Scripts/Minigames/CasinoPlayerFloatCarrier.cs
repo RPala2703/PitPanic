@@ -203,8 +203,8 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         foreach (MeshRenderer renderer in trayRoot.GetComponentsInChildren<MeshRenderer>())
             renderer.enabled = false;
         SpriteRenderer traySurface = PixelWorldProps.CreateSurface(trayRoot.transform, "Pixel Float Tray",
-            PixelWorldProps.CardBack, new Vector2(1.45f, 1.1f), 1);
-        traySurface.color = new Color(0.7f, 0.6f, 0.45f);
+            PixelWorldProps.FloatTray, new Vector2(1.45f, 1.1f), 1);
+        traySurface.color = Color.white;
 
         Color[] colors =
         {

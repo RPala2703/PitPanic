@@ -145,6 +145,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             SetPaused(!paused);
         if (paused)
             return;
+        hud.SetActive(!AnyInteractionOpen());
 
         if (tutorial)
         {
@@ -225,6 +226,13 @@ public sealed class CasinoShiftController : MonoBehaviour
         }
         objectiveText.rectTransform.localScale = Vector3.MoveTowards(
             objectiveText.rectTransform.localScale, Vector3.one, Time.unscaledDeltaTime);
+        CasinoPlayerFloatCarrier heldTray = player.GetComponent<CasinoPlayerFloatCarrier>();
+        if (stage != 5 && heldTray != null && heldTray.IsCarrying)
+        {
+            objectiveText.text = $"E: DELIVER FLOAT TO {heldTray.CurrentOrder.DestinationId}, THEN KEEP LEARNING";
+            UpdateArrow(heldTray.CurrentOrder.Destination.transform);
+            return;
+        }
         if ((stage == 1 || stage == 2) && !blackjack.IsDealerStaffed)
         {
             ShowDealerRecovery("BJ1");
@@ -242,25 +250,25 @@ public sealed class CasinoShiftController : MonoBehaviour
                 objectiveText.text = "WASD: MOVE, BOSS!";
                 break;
             case 1:
-                objectiveText.text = "Q: INSPECT BLACKJACK 1";
+                objectiveText.text = "E: OPEN BLACKJACK 1";
                 target = blackjack.transform;
                 break;
             case 2:
                 if (!queuedFlick) { blackjack.QueueFlickAssistanceTest(); queuedFlick = true; }
                 EnsureGuidedCustomer(CasinoCustomerGame.Blackjack1);
                 bool ready = blackjack.IsFlickReady;
-                objectiveText.text = ready ? "E: HELP BJ1 WITH FLICK!" : "BJ1: WAIT FOR THE DEALER'S FLICK! CALL";
+                objectiveText.text = ready ? "BJ1: OPEN WITH E, THEN PLAY FLICK!" : "BJ1: WAIT FOR THE DEALER'S FLICK! CALL";
                 target = blackjack.transform;
                 break;
             case 3:
-                objectiveText.text = "Q: INSPECT ROULETTE";
+                objectiveText.text = "E: OPEN ROULETTE";
                 target = roulette.transform;
                 break;
             case 4:
                 if (!queuedRoulette) { rouletteScheduler.RequestTutorialAssistance(); queuedRoulette = true; }
                 EnsureGuidedCustomer(CasinoCustomerGame.Roulette, 2);
                 objectiveText.text = roulette.HasPendingAssistance
-                    ? "E: HELP ROULETTE! SPIN, SWEEP AND PAY."
+                    ? "ROULETTE: OPEN WITH E, THEN PLAY!"
                     : "ROULETTE: WAIT FOR THE DEALER'S CALL";
                 target = roulette.transform;
                 break;
@@ -351,7 +359,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         rouletteScheduler.CancelTutorialAssistance();
         PlayerPrefs.SetInt(SaveTutorial, 1);
         PlayerPrefs.Save();
-        spawner.SetAcceptingArrivals(true);
+        spawner.SetAcceptingArrivals(!ending);
         objectiveText.text = "YOU'VE GOT THIS! KEEP THE CASINO HAPPY!";
         arrow.gameObject.SetActive(false);
         skipButton.gameObject.SetActive(false);
@@ -468,19 +476,12 @@ public sealed class CasinoShiftController : MonoBehaviour
         canvas = CasinoMinigameHud.Create("Shift UI", 100);
         canvas.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1600f, 900f);
         menu = Panel("Welcome", new Vector2(780f, 430f));
-        Label(menu.transform, "Welcome text",
-            "PIT PANIC!\n\nReady to run the casino?",
-            new Vector2(0f, 82f), new Vector2(680f, 190f), 25);
-        MakeButton(menu.transform, "Start", "START SHIFT 1", new Vector2(0f, -55f), () =>
+        menu.AddComponent<CasinoTitleScreen>().Build(() =>
         {
             menu.SetActive(false);
             intro.SetActive(true);
-        });
-        MakeButton(menu.transform, "Skip", "SKIP TUTORIAL", new Vector2(0f, -120f), () => { PlayerPrefs.SetInt(SaveTutorial, 1); PlayerPrefs.Save(); BeginShift(1, false); });
-        if (PlayerPrefs.GetInt(SaveUnlocked, 1) > 1 || PlayerPrefs.GetInt(SaveTutorial, 0) != 0)
-            MakeButton(menu.transform, "Continue", "CONTINUE", new Vector2(0f, -185f),
-                () => BeginShift(PlayerPrefs.GetInt(SaveUnlocked, 1), PlayerPrefs.GetInt(SaveTutorial, 0) == 0));
-        menu.SetActive(false);
+        }, () => BeginShift(PlayerPrefs.GetInt(SaveUnlocked, 1), PlayerPrefs.GetInt(SaveTutorial, 0) == 0),
+            PlayerPrefs.GetInt(SaveUnlocked, 1) > 1 || PlayerPrefs.GetInt(SaveTutorial, 0) != 0);
 
         intro = Panel("Introduction", new Vector2(780f, 400f));
         SpriteRenderer portraitSource = dealers.Dealers.Count > 0 && dealers.Dealers[0] != null
@@ -495,6 +496,12 @@ public sealed class CasinoShiftController : MonoBehaviour
             "HEY, PIT BOSS!\n\nKeep the tables moving and our customers smiling.\nI'll show you the ropes as we go!",
             new Vector2(75f, 55f), new Vector2(560f, 200f), 23);
         MakeButton(intro.transform, "Begin", "LET'S GO!", new Vector2(0f, -120f), () => BeginShift(1, true));
+        MakeButton(intro.transform, "Skip", "SKIP TRAINING", new Vector2(0f, -175f), () =>
+        {
+            PlayerPrefs.SetInt(SaveTutorial, 1);
+            PlayerPrefs.Save();
+            BeginShift(1, false);
+        });
         intro.SetActive(false);
 
         hud = new GameObject("Shift objective", typeof(RectTransform));

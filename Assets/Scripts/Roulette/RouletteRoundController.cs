@@ -69,6 +69,7 @@ public sealed class RouletteRoundController : MonoBehaviour
     private bool subscriptionsBound;
     private bool tutorialRoundRequested;
     private bool tutorialRound;
+    private Transform visibleBall;
 
     public bool IsTutorialRound => tutorialRound;
     public void PrepareTutorialRound() => tutorialRoundRequested = true;
@@ -270,6 +271,9 @@ public sealed class RouletteRoundController : MonoBehaviour
 
         customerBet.PaidOutPence = amountPence;
         customerBet.IsPaid = true;
+        customerBet.Customer?.GetComponentInChildren<PixelCharacterVisual>()?.React(true);
+        AssignedDealer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
+            CasinoGesture.Pay, customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
         return true;
     }
 
@@ -450,6 +454,7 @@ public sealed class RouletteRoundController : MonoBehaviour
                 : CreateCustomerBet();
             RouletteCustomerBet customerBet = new RouletteCustomerBet(activeRoundId, i, customer, bet);
             currentBets.Add(customerBet);
+            customer.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(CasinoGesture.Pay, transform.position);
             CreateVisibleBetChips(customerBet);
         }
 
@@ -530,6 +535,15 @@ public sealed class RouletteRoundController : MonoBehaviour
         Vector3 angles = physicalWheel.localEulerAngles;
         angles.y = wheelStartAngle + wheelExtraRotation * eased;
         physicalWheel.localEulerAngles = angles;
+        if (visibleBall == null)
+        {
+            visibleBall = new GameObject("Roulette Moving Ball").transform;
+            visibleBall.SetParent(physicalWheel, false);
+            PixelWorldProps.CreateSurface(visibleBall, "Pixel Ball", CasinoPixelArt.Ball,
+                new Vector2(.12f, .12f), -6);
+        }
+        float ballAngle = -eased * Mathf.PI * 16;
+        visibleBall.localPosition = new Vector3(Mathf.Cos(ballAngle) * .6f, .32f, Mathf.Sin(ballAngle) * .6f);
         if (spinElapsed >= spinSeconds)
         {
             SettleRound(pendingWinningNumber);
@@ -553,6 +567,11 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         roundSettled = true;
+        if (visibleBall != null)
+        {
+            float angle = ((Array.IndexOf(CasinoPixelArt.WheelOrder, winningNumber) + .5f) / 37f * 2 - 1) * Mathf.PI;
+            visibleBall.localPosition = new Vector3(Mathf.Cos(angle) * .6f, .32f, Mathf.Sin(angle) * .6f);
+        }
         pendingWinningNumber = winningNumber;
         latestWinningNumber = winningNumber;
         recentResults.Enqueue(winningNumber);
@@ -571,6 +590,10 @@ public sealed class RouletteRoundController : MonoBehaviour
             customerBet.GrossReturnPence = grossReturn;
             customerBet.IsWinning = EuropeanRouletteRules.Wins(customerBet.Bet, winningNumber);
             customerBet.IsSettled = true;
+            customerBet.Customer?.GetComponentInChildren<PixelCharacterVisual>()?.React(customerBet.IsWinning);
+            AssignedDealer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
+                customerBet.IsWinning ? CasinoGesture.Pay : CasinoGesture.Collect,
+                customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
             BetSettled?.Invoke(customerBet);
         }
 

@@ -133,11 +133,22 @@ public static class FirstShiftPlayModeValidation
             var manager = FindFirstObjectByType<DealerAssignmentManager>();
             Check(Time.timeScale == 0 && !spawner.AcceptingArrivals, "Menu failed to pause");
             GameObject menu = (GameObject)Get(shift, "menu");
+            Check(Camera.main.cullingMask == 0, "Title did not isolate the casino camera");
+            PixelCharacterVisual[] titleCast = (PixelCharacterVisual[])Get(menu.GetComponent<CasinoTitleScreen>(), "cast");
+            Check(titleCast.Length > 0 && titleCast[0] == player.GetComponentInChildren<PixelCharacterVisual>(),
+                "Title hero did not match the playable pit boss");
+            Check(!menu.transform.Find("Continue").GetComponent<Button>().interactable, "Fresh save enabled Continue");
+            menu.transform.Find("Settings").GetComponent<Button>().onClick.Invoke();
+            GameObject settings = menu.transform.Find("Settings panel").gameObject;
+            Check(settings.activeSelf && Time.timeScale == 0, "Settings did not preserve title pause");
+            settings.transform.Find("Back").GetComponent<Button>().onClick.Invoke();
+            Check(!settings.activeSelf, "Settings Back failed");
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
             GameObject intro = (GameObject)Get(shift, "intro");
             Check(intro.activeSelf && !shift.IsRunning, "Intro did not follow menu");
             intro.transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
             Check(shift.IsRunning, "Start button failed");
+            Check(Camera.main.cullingMask != 0, "Gameplay camera did not resume");
             yield return Press(UnityEngine.InputSystem.Key.P);
             float pausedAt = shift.RemainingSeconds;
             yield return new WaitForSecondsRealtime(0.5f);
@@ -160,15 +171,21 @@ public static class FirstShiftPlayModeValidation
             while (!blackjack.IsFlickReady && Time.realtimeSinceStartup < timeout) yield return null;
             Check(blackjack.IsFlickReady, "FLICK did not become ready");
             yield return Press(UnityEngine.InputSystem.Key.E);
+            Check(blackjack.IsInspectionOpen, "E did not open unified BJ1 interface");
+            Check(!blackjack.GetComponent<CasinoMinigameStation>().TryBegin(), "Minigame overlapped table inspection");
+            Check(!inspection.TryOpenInspectionFromPlayerInput(), "Roulette overlapped Blackjack inspection");
+            ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
             Check(flick.IsRunning, "E failed to start FLICK");
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(!flick.IsRunning && blackjack.IsFlickReady, "FLICK cancellation failed");
             yield return Press(UnityEngine.InputSystem.Key.E);
+            ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
             Check(flick.IsRunning, "FLICK retry failed");
             Set(flick, "timeRemaining", 0f);
             yield return null;
             Check(!flick.IsRunning && blackjack.IsFlickReady, "Failed FLICK did not allow retry");
             yield return Press(UnityEngine.InputSystem.Key.E);
+            ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
             Check(flick.IsRunning, "FLICK retry after failure failed");
             while (flick.IsRunning)
             {
@@ -198,10 +215,15 @@ public static class FirstShiftPlayModeValidation
             while (!roulette.HasPendingAssistance && Time.realtimeSinceStartup < timeout) yield return null;
             Check(roulette.HasPendingAssistance, "Roulette task did not become ready");
             yield return Press(UnityEngine.InputSystem.Key.E);
+            Check(inspection.IsOpen, "E did not open unified roulette interface");
+            ((GameObject)Get(inspection, "board")).transform.Find("Start assistance")
+                .GetComponent<Button>().onClick.Invoke();
             Check(rgame.IsRunning, "E failed to start roulette");
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(!rgame.IsRunning && roulette.HasPendingAssistance, "Roulette cancellation failed");
             yield return Press(UnityEngine.InputSystem.Key.E);
+            ((GameObject)Get(inspection, "board")).transform.Find("Start assistance")
+                .GetComponent<Button>().onClick.Invoke();
             Check(rgame.IsRunning, "Roulette retry failed");
             Call(rgame, "BeginSpin");
             yield return new WaitForSeconds(3f);
@@ -332,7 +354,8 @@ public static class FirstShiftPlayModeValidation
             yield return null;
             shift = FindFirstObjectByType<CasinoShiftController>();
             menu = (GameObject)Get(shift, "menu");
-            menu.transform.Find("Skip").GetComponent<Button>().onClick.Invoke();
+            menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
+            ((GameObject)Get(shift, "intro")).transform.Find("Skip").GetComponent<Button>().onClick.Invoke();
             spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
             Check(shift.IsRunning && !(bool)Get(shift, "tutorial") && spawner.AcceptingArrivals,
                 "Skip tutorial did not start normal scheduling");

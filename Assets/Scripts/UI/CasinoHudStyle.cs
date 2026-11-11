@@ -17,6 +17,10 @@ public static class CasinoHudStyle
             image.sprite = GetPanelSprite();
             image.type = Image.Type.Sliced;
             image.pixelsPerUnitMultiplier = 0.35f;
+            Outline outline = image.GetComponent<Outline>();
+            if (outline == null) outline = image.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(.75f, .47f, .2f, .7f);
+            outline.effectDistance = new Vector2(2, -2);
         }
     }
 
@@ -27,7 +31,7 @@ public static class CasinoHudStyle
         ColorBlock colors = button.colors;
         colors.normalColor = Color.white;
         colors.highlightedColor = new Color(1f, 0.91f, 0.69f);
-        colors.pressedColor = new Color(0.72f, 0.76f, 0.68f);
+        colors.pressedColor = new Color(0.8f, 0.6f, 0.7f);
         colors.selectedColor = colors.highlightedColor;
         colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.65f);
         colors.fadeDuration = 0.08f;

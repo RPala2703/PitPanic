@@ -76,6 +76,13 @@ public sealed class CasinoManagementHud : MonoBehaviour
 
     private void Update()
     {
+        if (panelRect != null)
+        {
+            PitDeskInteraction pitDesk = FindFirstObjectByType<PitDeskInteraction>();
+            bool visible = Time.timeScale > 0 && !CasinoMinigamePresentation.IsOpen &&
+                !CasinoPlayerInteractionRouter.IsAnyInspectionOpen() && (pitDesk == null || !pitDesk.IsOpen);
+            if (panelRect.gameObject.activeSelf != visible) panelRect.gameObject.SetActive(visible);
+        }
         if (taskBadge != null)
         {
             float pulse = hasTasks ? 0.88f + 0.12f * Mathf.Sin(Time.unscaledTime * 3f) : 1f;

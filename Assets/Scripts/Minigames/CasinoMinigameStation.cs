@@ -68,6 +68,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
     {
         if (!IsTaskPending || IsMinigameRunning || !IsConfigured ||
             CasinoMinigamePresentation.IsOpen ||
+            CasinoPlayerInteractionRouter.IsAnyInspectionOpen() ||
             player.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true ||
             !interactionZone.IsPlayerInRange(player.transform) || !minigame.CanBegin)
         {
