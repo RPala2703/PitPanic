@@ -222,7 +222,7 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
     {
         AIDealer dealer = rouletteDealerStation != null ? rouletteDealerStation.AssignedDealer : null;
         bool dealerActive = dealer != null && dealer.isActiveAndEnabled &&
-                            dealer.AssignedStation == rouletteDealerStation && dealer.IsAtStation;
+                            dealer.AssignedStation == rouletteDealerStation && dealer.CanServe;
         return CanRequestTask(
             IsConfigured,
             dealerActive,

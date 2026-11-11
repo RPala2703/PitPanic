@@ -45,6 +45,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private bool headingToExit;
     private bool cashierArrivalReported;
     private int roundsRemaining;
+    private Vector3 lastTravelPosition;
+    private float stationarySeconds;
     [SerializeField, Min(1)] private int minimumBetPence = 500;
     [SerializeField, Min(1)] private int maximumBetPence = 5000;
 
@@ -112,6 +114,22 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             else patience.Resume();
         }
         UpdateImpatienceColor();
+        if ((state == CustomerState.TravellingToSeat || state == CustomerState.VisitingCashier && !cashierArrivalReported) &&
+            agent.isOnNavMesh && !agent.pathPending)
+        {
+            stationarySeconds = (transform.position - lastTravelPosition).sqrMagnitude < .01f
+                ? stationarySeconds + Time.deltaTime : 0;
+            if (stationarySeconds == 0) lastTravelPosition = transform.position;
+            if (stationarySeconds > 20)
+            {
+                Debug.LogWarning($"{name} was blocked while travelling; releasing the reservation and choosing a new route.", this);
+                ReleaseSeat();
+                patience.Pause();
+                BeginWandering();
+                stationarySeconds = 0;
+            }
+        }
+        else stationarySeconds = 0;
 
         if (state == CustomerState.TravellingToSeat && !agent.pathPending && agent.pathStatus != NavMeshPathStatus.PathComplete)
         {
@@ -170,6 +188,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             {
                 cashierArrivalReported = true;
                 agent.isStopped = true;
+                patience.Begin(spawner.PatienceSeconds + 35);
                 spawner.NotifyCashierArrival(this);
             }
         }
@@ -199,6 +218,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
 
         serviceActive = true;
+        if (roundsRemaining == 0)
+            roundsRemaining = UnityEngine.Random.Range(spawner.MinimumRoundsPerVisit, spawner.MaximumRoundsPerVisit + 1);
         patience.Pause();
         return true;
     }
@@ -316,6 +337,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
 
         cashierArrivalReported = false;
+        patience.Pause();
         state = CustomerState.Wandering;
         agent.isStopped = false;
         SetNextDecisionTime();
@@ -443,7 +465,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
 
     private void OnPatienceExpired()
     {
-        if (state == CustomerState.Seated)
+        if (state == CustomerState.Seated || state == CustomerState.VisitingCashier && cashierArrivalReported)
         {
             StartLeaving(true);
         }
@@ -463,6 +485,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
 
         LeavingSeat?.Invoke(this);
+        patience.Pause();
         ReleaseSeat();
         serviceActive = false;
         state = CustomerState.Leaving;
@@ -524,5 +547,6 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
 
         ReleaseSeat();
+        spawner?.NotifyDespawned(this);
     }
 }

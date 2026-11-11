@@ -51,6 +51,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     private int sequenceIndex;
     private int[] packingSequence = System.Array.Empty<int>();
     private float timeRemaining;
+    public float PackingBonusSeconds { get; set; }
     private bool cashOutMode;
     private bool cashOutReady;
     private CursorLockMode savedCursorLockMode;
@@ -430,7 +431,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         packingSequence = cashOutMode
             ? BuildPackingSequence(requiredCounts, Random.Range(0, int.MaxValue))
             : System.Array.Empty<int>();
-        timeRemaining = GetSequenceTimeLimit(totalRequired);
+        timeRemaining = GetSequenceTimeLimit(totalRequired) + PackingBonusSeconds;
         sequenceIndex = 0;
         UpdateSequenceDisplay();
         RenderTrayStacks();

@@ -361,9 +361,29 @@ public sealed class AIDealer : MonoBehaviour
         manager?.NotifyDealerPathFailed(this);
     }
 
+    public void ConfigureShift(int number, bool restUpgrade)
+    {
+        energyDrainPerSecond = .5f * (1 + .06f * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1));
+        energyRecoveryPerSecond = restUpgrade ? 1.8f : 1.5f;
+    }
+
+    private float blockedSeconds;
+
     private void Update()
     {
         if (Time.timeScale == 0) return;
+        if (Destination != null && !IsAtStation && !IsResting && agent.isOnNavMesh && !agent.pathPending &&
+            !HasReachedDestination())
+        {
+            blockedSeconds = agent.velocity.sqrMagnitude < .01f ? blockedSeconds + Time.deltaTime : 0;
+            if (blockedSeconds > 20)
+            {
+                Debug.LogWarning($"{DealerId} is blocked en route; retrying through the existing assignment recovery.", this);
+                blockedSeconds = 0;
+                NotifyAssignmentFailed();
+            }
+        }
+        else blockedSeconds = 0;
         if (IsAtStation)
         {
             CurrentStationTime += Time.deltaTime;

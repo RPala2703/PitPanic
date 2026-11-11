@@ -20,6 +20,11 @@ public static class FirstShiftPlayModeValidation
             throw new InvalidOperationException("Run the shift validation in a batch-mode editor.");
         SessionState.SetInt("PitPanic.OldTutorial", PlayerPrefs.GetInt("PitPanic.TutorialComplete", -1));
         SessionState.SetInt("PitPanic.OldUnlocked", PlayerPrefs.GetInt("PitPanic.UnlockedShift", -1));
+        foreach (string key in ProgressKeys())
+        {
+            SessionState.SetInt("Old." + key, PlayerPrefs.GetInt(key, -1));
+            PlayerPrefs.DeleteKey(key);
+        }
         foreach (string channel in new[] { "Music", "Ambience", "Effects" })
             SessionState.SetFloat("PitPanic.Old" + channel, PlayerPrefs.GetFloat("PitPanic." + channel + "Volume", -1));
         PlayerPrefs.DeleteKey("PitPanic.TutorialComplete");
@@ -28,6 +33,9 @@ public static class FirstShiftPlayModeValidation
         SessionState.SetBool(Key, true);
         EditorApplication.isPlaying = true;
     }
+
+    private static string[] ProgressKeys() => new[] { CasinoDemoProgression.CreditsKey,
+        CasinoDemoProgression.UpgradeKeys[0], CasinoDemoProgression.UpgradeKeys[1], CasinoDemoProgression.UpgradeKeys[2] };
 
     private static void StartTest()
     {
@@ -53,7 +61,7 @@ public static class FirstShiftPlayModeValidation
         private IEnumerator RunTest()
         {
             IEnumerator test = Test();
-            float deadline = Time.realtimeSinceStartup + 240f;
+            float deadline = Time.realtimeSinceStartup + 420f;
             while (true)
             {
                 bool next;
@@ -81,6 +89,7 @@ public static class FirstShiftPlayModeValidation
         {
             RestoreKey("PitPanic.TutorialComplete", SessionState.GetInt("PitPanic.OldTutorial", -1));
             RestoreKey("PitPanic.UnlockedShift", SessionState.GetInt("PitPanic.OldUnlocked", -1));
+            foreach (string key in ProgressKeys()) RestoreKey(key, SessionState.GetInt("Old." + key, -1));
             foreach (string channel in new[] { "Music", "Ambience", "Effects" })
             {
                 float value = SessionState.GetFloat("PitPanic.Old" + channel, -1);
@@ -122,6 +131,12 @@ public static class FirstShiftPlayModeValidation
 
         private IEnumerator Test()
         {
+            Check(CasinoDemoProgression.Passed(1, 8, 4, 60) &&
+                !CasinoDemoProgression.Passed(1, 7, 4, 100) &&
+                !CasinoDemoProgression.Passed(1, 8, 3, 100) &&
+                !CasinoDemoProgression.Passed(1, 8, 4, 59) &&
+                CasinoDemoProgression.ServiceGoal(3) > CasinoDemoProgression.ServiceGoal(2),
+                "Demo goals have incorrect pass/fail boundaries or do not escalate");
             yield return null;
             InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
             InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
@@ -180,6 +195,11 @@ public static class FirstShiftPlayModeValidation
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
             GameObject intro = (GameObject)Get(shift, "intro");
             Check(intro.activeSelf && !shift.IsRunning, "Intro did not follow menu");
+            intro.transform.Find("Back").GetComponent<Button>().onClick.Invoke();
+            Check(menu.activeSelf && !intro.activeSelf && Camera.main.cullingMask == 0 &&
+                CasinoSoundscape.Focus == menu.transform && !PlayerPrefs.HasKey("PitPanic.TutorialComplete"),
+                "Backing out of New Game changed progress or leaked the gameplay camera/audio");
+            menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
             intro.transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
             Check(shift.IsRunning, "Start button failed");
             Check(Camera.main.cullingMask != 0, "Gameplay camera did not resume");
@@ -385,6 +405,15 @@ public static class FirstShiftPlayModeValidation
             Call(pit, "SendDealerOnBreak", readyIndex);
             yield return null;
             Check(PlayerPrefs.GetInt("PitPanic.TutorialComplete", 0) == 1, "Tutorial did not complete");
+            Check(shift.RemainingSeconds >= 179, "Training left no time for normal gameplay");
+            Debug.Log($"DEMO GOAL TEST: hands={shift.Accounting.SettledHands}, tasks={Get(shift, "completedTasks")}");
+            timeout = Time.realtimeSinceStartup + 60;
+            while (shift.Accounting.SettledHands < CasinoDemoProgression.ServiceGoal(1) && Time.realtimeSinceStartup < timeout)
+            {
+                spawner.TrySpawnGuidedCustomer(CasinoCustomerGame.Blackjack2, 2);
+                yield return null;
+            }
+            Check(shift.Accounting.SettledHands >= 8, "Demo service goal could not be reached with actual settled hands");
             Set(shift, "remaining", 0f);
             yield return null;
             Check(shift.IsRunning && !spawner.AcceptingArrivals,
@@ -396,11 +425,26 @@ public static class FirstShiftPlayModeValidation
                 "Shift results or progression failed");
             GameObject results = (GameObject)Get(shift, "results");
             Check(results.activeSelf, "Results are not visible");
+            Check(shift.PassedShift && CasinoDemoProgression.Credits > 0, "Cleared shift did not award upgrade stamps");
+            int awardedCredits = CasinoDemoProgression.Credits;
+            Call(shift, "FinishShift");
+            Check(CasinoDemoProgression.Credits == awardedCredits, "Results awarded stamps twice");
             results.transform.Find("Next shift").GetComponent<Button>().onClick.Invoke();
+            GameObject perks = (GameObject)Get(shift, "upgrades");
+            Check(perks.activeSelf && !results.activeSelf, "Results did not lead to upgrades");
+            if (CasinoDemoProgression.Credits < 3) CasinoDemoProgression.AwardShift(1, 3);
+            int beforePurchase = CasinoDemoProgression.Credits;
+            perks.transform.Find("Patience").GetComponent<Button>().onClick.Invoke();
+            Check(CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience) &&
+                CasinoDemoProgression.Credits == beforePurchase - 3, "Upgrade purchase was not persisted exactly once");
+            Check(!CasinoDemoProgression.TryBuy(CasinoDemoUpgrade.Patience), "Duplicate upgrade purchase was accepted");
+            perks.transform.Find("Next shift").GetComponent<Button>().onClick.Invoke();
             yield return null;
             yield return null;
             shift = FindFirstObjectByType<CasinoShiftController>();
             Check(shift != null && shift.IsRunning && shift.CurrentShift == 2, "Next shift did not start");
+            Check(FindFirstObjectByType<CasinoCustomerSpawner>().PatienceSeconds == 55,
+                "Purchased patience perk did not apply to the next shift");
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             yield return null;
             yield return null;
@@ -411,6 +455,7 @@ public static class FirstShiftPlayModeValidation
             continueButton.GetComponent<Button>().onClick.Invoke();
             Check(shift.IsRunning && shift.CurrentShift == 2 && !(bool)Get(shift, "tutorial"),
                 "Continue did not restore progression without repeating tutorial");
+            Check(CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience), "Continue lost the purchased upgrade");
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             yield return null;
             yield return null;
@@ -502,6 +547,46 @@ public static class FirstShiftPlayModeValidation
             Check(!shift.IsRunning && !CasinoMinigamePresentation.IsOpen && !AudioListener.pause &&
                 CasinoSoundscape.Focus == ((GameObject)Get(shift, "menu")).transform,
                 "Returning from a paused task leaked its minigame, pause or audio focus");
+            ((GameObject)Get(shift, "menu")).transform.Find("Start").GetComponent<Button>().onClick.Invoke();
+            ((GameObject)Get(shift, "intro")).transform.Find("Skip").GetComponent<Button>().onClick.Invoke();
+            Check(CasinoDemoProgression.Credits == 0 && !CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience),
+                "New Game did not reset the demo progression");
+            Set(shift, "remaining", 0f);
+            yield return null;
+            yield return null;
+            Check(!shift.IsRunning && !shift.PassedShift && CasinoDemoProgression.UnlockedShift == 1 &&
+                CasinoDemoProgression.Credits == 0, "Failed shift unlocked content or awarded stamps");
+            ((GameObject)Get(shift, "results")).transform.Find("Retry").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
+            Check(shift.IsRunning && shift.CurrentShift == 1 && shift.RemainingSeconds > 530,
+                "Results Retry did not start a fresh shift");
+            yield return Press(UnityEngine.InputSystem.Key.P);
+            ((GameObject)Get(shift, "pausePanel")).transform.Find("Pause card/Restart").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
+            Check(shift.IsRunning && Time.timeScale > 0 && !AudioListener.pause &&
+                !CasinoMinigamePresentation.IsOpen, "Restart from pause leaked a paused simulation");
+            spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
+            desk = FindFirstObjectByType<CasinoCashDeskInteraction>();
+            var cashCustomer = (CasinoCustomerAI)Call(spawner, "SpawnCustomer", 0);
+            Set(cashCustomer, "state", Enum.Parse(cashCustomer.GetType().GetField("state", Flags).FieldType, "VisitingCashier"));
+            cashCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().SetDestination(spawner.CashierWaypoint.position);
+            timeout = Time.realtimeSinceStartup + 30;
+            while (!cashCustomer.IsWaitingAtCashDesk && Time.realtimeSinceStartup < timeout) yield return null;
+            Check(cashCustomer.IsWaitingAtCashDesk && cashCustomer.GetComponent<CustomerPatience>().IsWaiting,
+                "Cashier arrival did not start a patience timer");
+            int cashPenalties = CustomerSatisfaction.PenaltyCount;
+            cashCustomer.GetComponent<CustomerPatience>().Begin(1);
+            yield return new WaitForSecondsRealtime(1.3f);
+            Check(!cashCustomer.IsWaitingAtCashDesk && CustomerSatisfaction.PenaltyCount > cashPenalties &&
+                desk.ActiveCustomer != cashCustomer, "Expired cashier customer retained the task and queue slot");
+            int beforeDestruction = spawner.ActiveCustomerCount;
+            Destroy(cashCustomer.gameObject);
+            yield return null;
+            Check(spawner.ActiveCustomerCount < beforeDestruction, "Destroyed customer leaked a spawner capacity slot");
         }
     }
 }

@@ -166,6 +166,14 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        if (gameCamera == null) return;
+        gameCamera.cullingMask = 0;
+        CasinoSoundscape.SetFocus(transform);
+        CasinoSoundscape.SetIntensity(0);
+    }
+
     private void OnDisable()
     {
         CasinoSoundscape.ReleaseFocus(transform);

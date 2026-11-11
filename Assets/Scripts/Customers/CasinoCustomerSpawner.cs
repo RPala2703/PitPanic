@@ -12,8 +12,15 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float seatChoiceChance = 0.28f;
     [SerializeField, Min(1f)] private float spawnInterval = 12f;
     private float shiftProgress;
+    private float difficulty = 1;
+    public void ConfigureShift(int number, bool patienceUpgrade)
+    {
+        difficulty = 1 + .12f * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1);
+        patienceSeconds = 55 - 5 * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1) +
+            (patienceUpgrade ? 5 : 0);
+    }
     public void SetShiftProgress(float progress) => shiftProgress = Mathf.Clamp01(progress);
-    private float CurrentSpawnInterval => Mathf.Max(6f, spawnInterval * Mathf.Lerp(1.4f, .75f, shiftProgress) * (finale ? .75f : 1f));
+    private float CurrentSpawnInterval => Mathf.Max(6f, spawnInterval * Mathf.Lerp(1.4f, .75f, shiftProgress) * (finale ? .75f : 1f) / difficulty);
     [SerializeField, Min(1)] private int minimumRoundsPerVisit = 2;
     [SerializeField, Min(1)] private int maximumRoundsPerVisit = 7;
     [SerializeField, Range(0f, 1f)] private float leaveAfterVisitChance = 0.35f;

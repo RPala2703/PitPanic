@@ -35,6 +35,11 @@ The shift duration defaults to nine minutes and can be changed on the
 **First Shift Controller** in the scene. When time runs out, arrivals stop and
 the results appear after the current interaction closes. Table profit is settled
 stakes minus gross returns; float deliveries are transfers, not income.
+Clear Shift 1 by serving **8 settled hands/bets**, completing **4 assistance,
+delivery or staff actions**, and keeping **at least 60% satisfaction**. Goals are
+shown on the existing objective HUD. Later demo shifts require 12 and 16 hands.
+Profit is reported but is not a pass condition: a lucky roulette result should
+not randomly fail an otherwise well-managed shift.
 Satisfaction reflects the share of spawned customers who did not leave because
 their patience expired. Missed tasks include pending minigames, unfinished
 float deliveries and tables awaiting dealer cover; a float's packing prompt is
@@ -42,8 +47,20 @@ not counted a second time. Failed or abandoned attempts are listed separately.
 
 Tutorial completion and the highest unlocked shift are stored locally in
 Unity PlayerPrefs. **Continue** resumes at the highest unlocked shift; **Next
-Shift** reloads the casino with the next shift number. Later shifts currently use
-the same floor and scheduling rather than bespoke content.
+Shift** opens **Pit Perks** before loading the next shift. A cleared shift awards
+1–3 stamps based on its rating; each permanent perk costs 3 stamps. Perks add
+5 seconds of customer patience, improve rest recovery by 20%, or add 5 seconds
+to PACK! orders. They apply on the next shift and survive Continue/relaunch.
+Failed shifts award nothing and do not unlock the next shift. Both results and
+pause provide retry/restart; upgrades can be skipped without purchasing.
+
+The demo has three shifts using the same floor rather than bespoke content.
+Arrivals increase by about 12% per shift and fatigue drain by 6%; patience starts
+at 55 seconds and drops by 5 seconds per shift before perks. Completing Shift 3
+shows a demo-complete message and allows replay. New Game resets progression
+and perks, as stated in the introduction, but leaves sound/settings unchanged.
+Training retains at least three minutes on the clock until lessons are complete,
+so a learner cannot time out before learning dealer management.
 
 The batch-mode interaction check can be run from the project directory:
 
@@ -130,12 +147,38 @@ Pause silences all channels until resumed.
 
 Customer arrivals ramp from about 17 seconds apart to 9 seconds, then about
 7 seconds in the finale, retaining the existing customer cap and task scheduler.
-Customer patience is 45 seconds and dealer recovery is about 45 seconds from
-the tired threshold to ready. Profit accounting, physical float requirements,
-fatigue drain and progression rules are unchanged by this pass.
+Dealer recovery is about 45 seconds from the tired threshold to ready before perks.
+Blackjack optional assistance has a 60-second per-table gap and becomes guaranteed
+after four eligible rounds once that gap has elapsed; tutorial requests bypass
+the gap. Essential float and staffing warnings are never suppressed.
+Cashier customers get 35 seconds more patience than table customers; abandoned
+cash-outs expire safely instead of filling the entire casino with an endless queue.
+Blocked journeys release customer reservations or use existing dealer route
+recovery after 20 stationary seconds, with a diagnostic warning rather than teleporting.
 
 Add `--pit-watch` to capture mode to run a minute of normal autonomous casino
 activity and save twelve spaced watch frames. It temporarily skips training,
 restores the tutorial preference before exiting normally, and does not finish
 a shift. Automated captures and synthetic-input shift tests do not assess
 human enjoyment, audio mix quality or a nine-minute natural playthrough.
+`--pit-demo-check` runs a full unattended shift at 10× simulation speed, checks
+failure/no-reward behaviour and results Retry, then exits. This development-only
+check is not a successful human playthrough. Capture modes restore all progression
+preferences on normal exit; force-killing a process prevents that cleanup.
+
+## Windows demo build
+
+Install **Windows Build Support (Mono)** for Unity 6000.3.26f1 through Unity Hub, then:
+
+```sh
+PIT_PANIC_BUILD_PATH="/absolute/output/WindowsDemo/PitPanic.exe" \
+  "/Applications/Unity/Hub/Editor/6000.3.26f1/Unity.app/Contents/MacOS/Unity" \
+  -batchmode -projectPath "$PWD" \
+  -executeMethod PitPanicPresentationBuild.RunWindowsDemo \
+  -quit -logFile /tmp/pit-windows-demo-build.log
+```
+
+This builds a non-development x64 Windows demo without capture/debug controls.
+Distribute the **entire output folder**, not just `PitPanic.exe`; UnityPlayer.dll,
+the data folder and Mono runtime are required. Extract the archive before launching.
+See [Playtesting.md](Playtesting.md) for the external test checklist and known limits.
