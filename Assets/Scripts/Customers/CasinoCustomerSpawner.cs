@@ -13,11 +13,15 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField, Min(1f)] private float spawnInterval = 12f;
     private float shiftProgress;
     private float difficulty = 1;
+    private float vipSpawnChance;
+    private int vipSpawnedThisShift;
     public void ConfigureShift(int number, bool patienceUpgrade)
     {
         difficulty = 1 + .12f * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1);
         patienceSeconds = 55 - 5 * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1) +
             (patienceUpgrade ? 5 : 0);
+        vipSpawnChance = number < 2 ? 0f : number == 2 ? .35f : .45f;
+        vipSpawnedThisShift = 0;
     }
     public void SetShiftProgress(float progress) => shiftProgress = Mathf.Clamp01(progress);
     private float CurrentSpawnInterval => Mathf.Max(6f, spawnInterval * Mathf.Lerp(1.4f, .75f, shiftProgress) * (finale ? .75f : 1f) / difficulty);
@@ -63,6 +67,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     public int InitialCustomerCount => initialCustomerCount;
     public int ActiveCustomerCount => activeCustomers.Count;
     public int TotalSpawned { get; private set; }
+    public float VipSpawnChance => vipSpawnChance;
     public bool AcceptingArrivals => acceptingArrivals;
 
     public void SetAcceptingArrivals(bool accepting)
@@ -298,6 +303,11 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
 
         customer.Configure(this, seats, exit, cashierWaypoint, visual.transform, bodyRenderer,
             color, wanderRadius, seatChoiceChance);
+        if (vipSpawnChance > 0 && (vipSpawnedThisShift == 0 || Random.value < vipSpawnChance))
+        {
+            customer.SetVip();
+            vipSpawnedThisShift++;
+        }
         activeCustomers.Add(customer);
         TotalSpawned++;
         return customer;

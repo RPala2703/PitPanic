@@ -69,6 +69,8 @@ public static class CasinoTaskFeedback
         if (attention.GetVisiblePendingCount(TableAttentionReason.RouletteSpinRequired) > 0 ||
             attention.GetVisiblePendingCount(TableAttentionReason.RouletteSweepRequired) > 0)
             return "E: Roulette needs SPIN! Clear losers, then pay winners exactly.";
+        if (attention.GetVisiblePendingCount(TableAttentionReason.SecurityReviewRequired) > 0)
+            return "E: PIT DESK CCTV alert! Review the real Roulette footage.";
         if (attention.GetVisiblePendingCount(TableAttentionReason.CashDeskPackRequired) > 0)
             return "E: PACK! Click chips to match the order. Undo removes the last chip.";
         if (attention.GetVisiblePendingCount(TableAttentionReason.DealerReadyForAssignment) > 0 ||

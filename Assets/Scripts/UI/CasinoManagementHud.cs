@@ -9,6 +9,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
     private static readonly TableAttentionReason[] DisplayPriority =
     {
         TableAttentionReason.DealerExhausted,
+        TableAttentionReason.SecurityReviewRequired,
         TableAttentionReason.DealerBreakRequired,
         TableAttentionReason.TableUnstaffed,
         TableAttentionReason.PitBossApproval,
@@ -212,7 +213,9 @@ public sealed class CasinoManagementHud : MonoBehaviour
                 {
                     bool timed = CasinoTaskFeedback.TryGetDeadline(attention, reason, out float remaining, out float duration);
                     string timer = timed ? $" {Mathf.CeilToInt(remaining)}s" : "";
-                    activeTaskLines.Add($"{GetTaskLabel(reason)}: {GetStationLabel(attention.name)}{timer}" +
+                    string station = reason == TableAttentionReason.SecurityReviewRequired
+                        ? "PIT DESK" : GetStationLabel(attention.name);
+                    activeTaskLines.Add($"{GetTaskLabel(reason)}: {station}{timer}" +
                                         (count > 1 ? $"  ×{count}" : string.Empty));
                     if (activeTaskLines.Count == 1)
                     {
@@ -335,6 +338,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
         switch (reason)
         {
             case TableAttentionReason.DealerExhausted: return "DEALER EXHAUSTED";
+            case TableAttentionReason.SecurityReviewRequired: return "CCTV REVIEW";
             case TableAttentionReason.DealerBreakRequired: return "BREAK NEEDED";
             case TableAttentionReason.TableUnstaffed: return "TABLE UNSTAFFED";
             case TableAttentionReason.PitBossApproval: return "APPROVAL NEEDED";

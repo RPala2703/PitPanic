@@ -45,14 +45,19 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         CasinoTitleScreen title = FindFirstObjectByType<CasinoTitleScreen>();
         title.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
         yield return new WaitForSecondsRealtime(1);
+        CasinoShiftController menuShift = FindFirstObjectByType<CasinoShiftController>();
+        GameObject levelSelect = (GameObject)typeof(CasinoShiftController)
+            .GetField("levelSelect", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(menuShift);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "level-select.png"));
+        yield return new WaitForEndOfFrame();
+        levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
+        yield return new WaitForSecondsRealtime(1);
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "intro.png"));
         yield return new WaitForSecondsRealtime(1);
-        foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
-            if (button.name == (watch || demoCheck || coverCheck ? "Skip" : "Begin") && button.transform.parent.name == "Introduction")
-            {
-                button.onClick.Invoke();
-                break;
-            }
+        GameObject introduction = (GameObject)typeof(CasinoShiftController)
+            .GetField("intro", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(menuShift);
+        string introAction = watch || demoCheck || coverCheck ? "Skip" : "Begin";
+        introduction.transform.Find(introAction).GetComponent<Button>().onClick.Invoke();
         yield return new WaitForSecondsRealtime(3);
         if (!watch && !demoCheck && !coverCheck)
         {

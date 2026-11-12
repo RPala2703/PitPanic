@@ -5,6 +5,16 @@ using UnityEngine;
 
 public static class PitPanicRichPixelArt
 {
+    private const int AnimationFrames = PixelCharacterVisual.AnimationFramesPerDirection;
+    private static readonly int[] Reach = { 0, -1, -2, -2, -1, 1, 3, 5, 6, 5, 3, 0 };
+    private static readonly int[] CollectReach = { 0, 1, 3, 5, 7, 6, 4, 2, 0, -1, -1, 0 };
+    private static readonly int[] Stride = { 0, 1, 2, 3, 3, 1, 0, -1, -2, -3, -3, -1 };
+    private static readonly int[] CarryEffort = { 0, -1, 0, 1, 2, 1, 0, -1, -2, -1, 0, 1 };
+    private static readonly int[] CelebrationLift = { 0, 1, 3, 6, 9, 12, 13, 11, 8, 5, 2, 0 };
+    private static readonly int[] HandMotion = { 0, 1, 2, 4, 6, 7, 6, 4, 2, 1, 0, -1 };
+    private static readonly int[] CharacterLean = { 0, -1, -2, -2, -1, 0, 2, 3, 2, 1, 0, 0 };
+    private static readonly int[] Crouch = { 0, 0, -1, -2, -2, -1, 0, 0, 1, 1, 0, 0 };
+    private static readonly int[] SitDrop = { 0, 0, 1, 2, 4, 6, 8, 9, 9, 9, 9, 9 };
     private static readonly Color32 Ink = new Color32(35, 20, 43, 255);
     private static readonly Color32 Cream = new Color32(255, 235, 184, 255);
     private static readonly Color32 Gold = new Color32(239, 178, 64, 255);
@@ -25,11 +35,11 @@ public static class PitPanicRichPixelArt
                     Save(t, $"Character_{species}_{direction}_{frame}", new Vector2(.5f, 0), 30);
                 }
             Sprite[] expressions = new Sprite[4];
-            Texture2D atlas = New(48 * 8, 64 * 4 * 13);
-            Texture2D customerAtlas = New(48 * 8, 64 * 4 * 13);
+            Texture2D atlas = New(48 * AnimationFrames, 64 * 4 * 13);
+            Texture2D customerAtlas = New(48 * AnimationFrames, 64 * 4 * 13);
             for (int pose = 0; pose < 13; pose++)
             for (int direction = 0; direction < 4; direction++)
-            for (int frame = 0; frame < 8; frame++)
+            for (int frame = 0; frame < AnimationFrames; frame++)
             {
                 Texture2D drawing = New(48, 64);
                 Character(drawing, species, direction, 0);
@@ -165,21 +175,17 @@ public static class PitPanicRichPixelArt
 
     private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false)
     {
-        int[] ease = { 0, -1, -2, 1, 4, 6, 3, 0 };
-        int reach = ease[frame];
-        if (pose == CasinoAnimationPose.Collect)
-            reach = new[] { 0, 2, 5, 6, 4, 2, -1, 0 }[frame];
+        int reach = pose == CasinoAnimationPose.Collect ? CollectReach[frame] : Reach[frame];
         Color32 sleeve = customer ? CustomerShirt(species) : new Color32(137, 42, 81, 255);
         bool action = pose == CasinoAnimationPose.Deal || pose == CasinoAnimationPose.Pay ||
             pose == CasinoAnimationPose.Collect || pose == CasinoAnimationPose.Shuffle;
         if (pose == CasinoAnimationPose.Walk || pose == CasinoAnimationPose.Carry)
         {
-            int[] stride = { 0, 1, 3, 2, 0, -1, -3, -2 };
             R(t, 5, 0, 39, 10, new Color32(0, 0, 0, 0));
-            R(t, 10 + stride[frame], 2, 11, 8, Ink);
-            R(t, 29 - stride[frame], 3, 11, 7, Ink);
-            R(t, 11 + stride[frame], 3, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
-            R(t, 30 - stride[frame], 4, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
+            R(t, 10 + Stride[frame], 2, 11, 8, Ink);
+            R(t, 29 - Stride[frame], 3, 11, 7, Ink);
+            R(t, 11 + Stride[frame], 3, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
+            R(t, 30 - Stride[frame], 4, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
         }
         if (action)
         {
@@ -187,7 +193,7 @@ public static class PitPanicRichPixelArt
             int y = direction == 1 ? 39 + Mathf.Clamp(reach, 0, 3) : 23 + reach;
             R(t, 35, y, 11, 8, Ink); R(t, 36, y + 2, 8, 4, sleeve);
             R(t, 40, y + 2, 6, 4, Cream);
-            if ((pose == CasinoAnimationPose.Deal && frame < 5) || pose == CasinoAnimationPose.Shuffle)
+            if ((pose == CasinoAnimationPose.Deal && frame < 8) || pose == CasinoAnimationPose.Shuffle)
             {
                 R(t, 39, y + 5, 7, 10, Ink); R(t, 40, y + 6, 5, 8, Cream);
                 R(t, 41, y + 11, 2, 2, Wood);
@@ -202,13 +208,13 @@ public static class PitPanicRichPixelArt
             R(t, 5, 19, 6, 17, new Color32(0, 0, 0, 0));
             R(t, 39, 19, 7, 17, new Color32(0, 0, 0, 0));
             int handY = direction == 1 ? 39 : 23;
-            int effort = new[] { 0, 0, 1, 1, 0, 0, -1, -1 }[frame];
+            int effort = CarryEffort[frame];
             if (direction != 3) { R(t, 7, handY + effort, 8, 6, sleeve); R(t, 8, handY + effort + 2, 6, 4, Cream); }
             if (direction != 2) { R(t, 34, handY + effort, 9, 6, sleeve); R(t, 36, handY + effort + 2, 6, 4, Cream); }
         }
         if (pose == CasinoAnimationPose.Celebrate)
         {
-            int lift = new[] { 0, 2, 5, 9, 11, 8, 4, 1 }[frame];
+            int lift = CelebrationLift[frame];
             R(t, 2, 21 + lift, 8, 13, Ink); R(t, 4, 30 + lift, 5, 5, Cream);
             R(t, 39, 21 + lift, 8, 13, Ink); R(t, 40, 30 + lift, 5, 5, Cream);
             if (direction == 0 && frame >= 2 && frame <= 6)
@@ -216,7 +222,9 @@ public static class PitPanicRichPixelArt
         }
         if (pose == CasinoAnimationPose.Tired || pose == CasinoAnimationPose.Rest || pose == CasinoAnimationPose.Disappointed)
         {
-            int hand = new[] { 0, 1, 3, 5, 6, 4, 2, 0 }[frame];
+            int hand = HandMotion[frame];
+            if (pose == CasinoAnimationPose.Tired)
+                E(t, 40 + frame % 2, 48 + frame / 3, 3, 4, new Color32(106, 207, 231, 255));
             if (pose == CasinoAnimationPose.Disappointed)
             {
                 int handY = direction == 1 ? 39 + hand / 2 : 27 + hand;
@@ -266,21 +274,28 @@ public static class PitPanicRichPixelArt
                 R(t, 25, 30 + Mathf.Max(0, reach), 6, 8, Cream);
             }
         }
-        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 3 && frame <= 4)
+        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 1 && frame <= 3)
+        {
+            int glance = frame - 2;
+            R(t, 15 + glance, 45, 2, 4, Ink);
+            R(t, 32 + glance, 45, 2, 4, Ink);
+            R(t, 21, 33 + frame, 6, 1, frame == 2 ? Gold : Cream);
+        }
+        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 4 && frame <= 6)
         { R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream); R(t, 14, 46, 4, 1, Ink); R(t, 31, 46, 4, 1, Ink); }
-        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 5)
+        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 7)
         {
             R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
-            int glance = frame == 5 ? -1 : 1;
+            int glance = frame < 9 ? -1 : 1;
             R(t, 15 + glance, 45, 2, 4, Ink); R(t, 32 + glance, 45, 2, 4, Ink);
             R(t, 30, 29, 10, 4, Cream);
         }
         if (pose == CasinoAnimationPose.Walk && direction != 1)
         {
-            int swing = new[] { 0, 1, 2, 1, 0, -1, -2, -1 }[frame];
+            int swing = Stride[frame];
             R(t, 6, 19 + swing, 6, 5, Cream); R(t, 39, 19 - swing, 6, 5, Cream);
         }
-        if (pose == CasinoAnimationPose.Examine && frame >= 3 && frame <= 5 && direction == 0)
+        if (pose == CasinoAnimationPose.Examine && frame >= 4 && frame <= 8 && direction == 0)
         {
             R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
             R(t, 15, 44, 2, 4, Ink); R(t, 32, 44, 2, 4, Ink);
@@ -293,9 +308,9 @@ public static class PitPanicRichPixelArt
         }
         if (action || pose == CasinoAnimationPose.Celebrate || pose == CasinoAnimationPose.Disappointed)
         {
-            int lean = new[] { 0, -1, -2, 0, 2, 3, 1, 0 }[frame];
+            int lean = CharacterLean[frame];
             if (direction == 2 || pose == CasinoAnimationPose.Collect) lean = -lean;
-            int crouch = new[] { 0, 0, -1, -1, 0, 0, 1, 0 }[frame];
+            int crouch = Crouch[frame];
             Color[] upper = t.GetPixels();
             R(t, 0, 13, 48, 51, new Color32(0, 0, 0, 0));
             for (int y = 13; y < 64; y++)
@@ -306,11 +321,17 @@ public static class PitPanicRichPixelArt
         if (pose == CasinoAnimationPose.Sit || pose == CasinoAnimationPose.Rest || pose == CasinoAnimationPose.Examine)
         {
             Color[] pixels = t.GetPixels();
-            int drop = pose == CasinoAnimationPose.Sit ? new[] { 0, 0, 1, 3, 5, 7, 8, 8 }[frame] : 8;
+            int drop = pose == CasinoAnimationPose.Sit ? SitDrop[frame] : 9;
             t.SetPixels(new Color[48 * 64]);
             for (int y = drop; y < 64; y++)
             for (int x = 0; x < 48; x++) t.SetPixel(x, y - drop, pixels[y * 48 + x]);
             R(t, 10, 3, 29, 6, Ink);
+            if (pose == CasinoAnimationPose.Rest)
+            {
+                int blanketShimmer = frame / 2;
+                R(t, 12 + blanketShimmer, 4, 3, 1,
+                    blanketShimmer % 2 == 0 ? Gold : Cream);
+            }
         }
     }
 

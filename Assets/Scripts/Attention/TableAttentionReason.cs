@@ -16,5 +16,6 @@ public enum TableAttentionReason
     RouletteSweepRequired,
     CashDeskPackRequired,
     FloatRefillRequired,
-    RouletteCoverRequired
+    RouletteCoverRequired,
+    SecurityReviewRequired
 }

@@ -79,6 +79,7 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     public event Action<RouletteRoundController> AssistanceOpportunity;
     public event Action<RouletteCustomerBet> BetSettled;
+    public event Action<CasinoSecurityEvidence> SecurityEvidenceRecorded;
 
     public RouletteRoundPhase Phase { get; private set; } = RouletteRoundPhase.WaitingForPlayers;
     public IReadOnlyList<RouletteCustomerBet> CurrentBets => currentBets;
@@ -515,7 +516,7 @@ public sealed class RouletteRoundController : MonoBehaviour
             CasinoCustomerAI customer = participants[i];
             RouletteBet bet = tutorialRound
                 ? new RouletteBet(i % 2 == 0 ? RouletteBetType.Red : RouletteBetType.Black, -1, 500)
-                : CreateCustomerBet();
+                : CreateCustomerBet(customer.IsVip);
             RouletteCustomerBet customerBet = new RouletteCustomerBet(activeRoundId, i, customer, bet);
             if (!TryAddWagerToFloat(bet.StakePence))
                 throw new InvalidOperationException($"Could not record {FormatPounds(bet.StakePence)} in the roulette table float.");
@@ -528,7 +529,7 @@ public sealed class RouletteRoundController : MonoBehaviour
         phaseTimer = bettingSeconds;
     }
 
-    private RouletteBet CreateCustomerBet()
+    private RouletteBet CreateCustomerBet(bool highRoller)
     {
         RouletteBetType[] types = activeRoundId <= 3
             ? new[] { RouletteBetType.StraightUp, RouletteBetType.Red, RouletteBetType.Black, RouletteBetType.Odd, RouletteBetType.Even }
@@ -562,7 +563,9 @@ public sealed class RouletteRoundController : MonoBehaviour
                 numbers = new[] { number, number + 1, number + 2, number + 3, number + 4, number + 5 };
                 break;
         }
-        int[] stakes = { 500, 1000, 2500 };
+        int[] stakes = highRoller
+            ? new[] { 2500, 5000, 10000 }
+            : new[] { 500, 1000, 2500 };
         int stake = stakes[UnityEngine.Random.Range(0, stakes.Length)];
         return type switch
         {
@@ -759,8 +762,43 @@ public sealed class RouletteRoundController : MonoBehaviour
             }
         }
 
+        RecordSecurityEvidence(winningNumber);
         Phase = RouletteRoundPhase.SettlingBets;
         phaseTimer = settlementSeconds;
+    }
+
+    private void RecordSecurityEvidence(int winningNumber)
+    {
+        CasinoShiftController shift = CasinoShiftController.Active;
+        if (shift == null || shift.CurrentShift != 3 ||
+            !CasinoSecurityEvidence.TryCreate(activeRoundId, winningNumber, currentBets,
+                out CasinoSecurityEvidence evidence))
+            return;
+
+        CasinoCustomerAI customer = evidence.Bet.Customer;
+        if (evidence.IsCheating)
+        {
+            if (betChipVisuals.TryGetValue(evidence.Bet, out List<GameObject> chips) &&
+                chips.Count > 0 && chips[0] != null)
+            {
+                GameObject chip = chips[0];
+                CasinoPropFlight oldFlight = chip.GetComponent<CasinoPropFlight>();
+                if (oldFlight != null) Destroy(oldFlight);
+                int column = winningNumber == 0 ? 1 : (winningNumber - 1) % 3;
+                int row = winningNumber == 0 ? 11 : (winningNumber - 1) / 3;
+                Vector3 target = winningNumber == 0
+                    ? new Vector3(0f, 1.34f, 1.12f)
+                    : new Vector3((column - 1) * .28f, 1.34f, (.5f - row) * .14f);
+                chip.AddComponent<CasinoPropFlight>().Configure(chip.transform.localPosition,
+                    target, .72f, CasinoSoundCue.Chip);
+            }
+        }
+        else
+        {
+            customer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
+                CasinoGesture.Pay, customer.transform.position + transform.forward, .8f);
+        }
+        SecurityEvidenceRecorded?.Invoke(evidence);
     }
 
     private bool TrySettleAutomaticPayouts()

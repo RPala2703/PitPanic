@@ -47,6 +47,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private int roundsRemaining;
     private Vector3 lastTravelPosition;
     private float stationarySeconds;
+    private bool vip;
     [SerializeField, Min(1)] private int minimumBetPence = 500;
     [SerializeField, Min(1)] private int maximumBetPence = 5000;
 
@@ -57,6 +58,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public bool IsVisitingCashier => state == CustomerState.VisitingCashier;
     public bool CanBeGuidedToCashier => state == CustomerState.Wandering && !serviceActive;
     public bool IsInService => serviceActive;
+    public bool IsVip => vip;
     public CasinoSeat Seat => reservedSeat;
     public float PatienceNormalized => patience != null ? patience.Normalized : 1f;
     public int RoundsRemaining => roundsRemaining;
@@ -150,7 +152,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
                 transform.rotation = reservedSeat.Facing;
                 state = CustomerState.Seated;
                 agent.isStopped = true;
-                patience.Begin(spawner.PatienceSeconds);
+                patience.Begin(WaitingPatienceSeconds);
                 Seated?.Invoke(this);
             }
             else
@@ -195,7 +197,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             {
                 cashierArrivalReported = true;
                 agent.isStopped = true;
-                patience.Begin(spawner.PatienceSeconds + 35);
+                patience.Begin(WaitingPatienceSeconds + 35);
                 spawner.NotifyCashierArrival(this);
             }
         }
@@ -271,6 +273,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
                 eligibleStakes.Add(stake);
             }
         }
+        if (vip && maximumBetPence >= 10000 && !eligibleStakes.Contains(10000))
+            eligibleStakes.Add(10000);
 
         if (eligibleStakes.Count == 0)
         {
@@ -281,6 +285,30 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         betPence = eligibleStakes[UnityEngine.Random.Range(0, eligibleStakes.Count)];
         return true;
     }
+
+    public void SetVip()
+    {
+        if (vip) return;
+        vip = true;
+        minimumBetPence = 2500;
+        maximumBetPence = 10000;
+        PixelCharacterVisual sprite = GetComponentInChildren<PixelCharacterVisual>();
+        sprite?.SetVip(true);
+        sprite?.PlayAction(CasinoAnimationPose.Celebrate, transform.position + transform.forward, 1.1f);
+        CasinoSoundscape.Play(CasinoSoundCue.Celebrate, transform.position);
+    }
+
+    public void EscortBySecurity()
+    {
+        if (state == CustomerState.Leaving) return;
+        GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+            CasinoAnimationPose.Disappointed, transform.position + transform.forward, .9f);
+        StartLeaving(false);
+    }
+
+    public void ReactToFalseAccusation() => StartLeaving(true);
+
+    private float WaitingPatienceSeconds => spawner.PatienceSeconds * (vip ? 0.62f : 1f);
 
     public void CompleteBlackjackRound()
     {
@@ -308,7 +336,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         roundsRemaining = RoundsAfterCompletedHand(roundsRemaining);
         if (roundsRemaining > 0)
         {
-            patience.Restart(spawner.PatienceSeconds);
+            patience.Restart(WaitingPatienceSeconds);
             reservedSeat.NotifyReadyForService(this);
             return;
         }
@@ -500,7 +528,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         if (frustrated && !penaltyRecorded)
         {
             penaltyRecorded = true;
-            CustomerSatisfaction.RecordPenalty(this);
+            CustomerSatisfaction.RecordPenalty(this, vip ? 2 : 1);
         }
 
         LeavingSeat?.Invoke(this);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -42,7 +43,9 @@ public static class FirstShiftPlayModeValidation
     }
 
     private static string[] ProgressKeys() => new[] { CasinoDemoProgression.CreditsKey,
-        CasinoDemoProgression.UpgradeKeys[0], CasinoDemoProgression.UpgradeKeys[1], CasinoDemoProgression.UpgradeKeys[2] };
+        CasinoDemoProgression.UpgradeKeys[0], CasinoDemoProgression.UpgradeKeys[1], CasinoDemoProgression.UpgradeKeys[2],
+        CasinoDemoProgression.BestStarsKey(1), CasinoDemoProgression.BestStarsKey(2),
+        CasinoDemoProgression.BestStarsKey(3) };
 
     private static void StartTest()
     {
@@ -266,17 +269,40 @@ public static class FirstShiftPlayModeValidation
             settings.transform.Find("Back").GetComponent<Button>().onClick.Invoke();
             Check(!settings.activeSelf, "Settings Back failed");
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
+            GameObject levelSelect = (GameObject)Get(shift, "levelSelect");
+            Check(levelSelect.activeSelf && !shift.IsRunning, "New Game did not open the campaign level selector");
+            levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
             GameObject intro = (GameObject)Get(shift, "intro");
             Check(intro.activeSelf && !shift.IsRunning, "Intro did not follow menu");
             yield return null;
             Check(!((Text)Get(FindFirstObjectByType<PitDeskInteraction>(), "promptText")).gameObject.activeSelf,
                 "Pit Desk interaction prompt leaked behind onboarding");
             intro.transform.Find("Back").GetComponent<Button>().onClick.Invoke();
-            Check(menu.activeSelf && !intro.activeSelf && Camera.main.cullingMask == 0 &&
-                CasinoSoundscape.Focus == menu.transform && !PlayerPrefs.HasKey("PitPanic.TutorialComplete"),
-                "Backing out of New Game changed progress or leaked the gameplay camera/audio");
+            Check(levelSelect.activeSelf && !intro.activeSelf &&
+                !PlayerPrefs.HasKey("PitPanic.TutorialComplete"),
+                "Backing out of a level briefing changed progress or failed to return to level selection");
+            levelSelect.transform.Find("Level Select Back").GetComponent<Button>().onClick.Invoke();
+            Check(menu.activeSelf && CasinoSoundscape.Focus == menu.transform,
+                "Level selection Back did not return to the title");
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
+            levelSelect = (GameObject)Get(shift, "levelSelect");
+            levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
+            intro = (GameObject)Get(shift, "intro");
             intro.transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
+            player = FindFirstObjectByType<CasinoPlayerController>();
+            spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
+            blackjack = Array.Find(FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None),
+                t => t.TableDisplayName == "BLACKJACK 1");
+            inspection = FindFirstObjectByType<RouletteInspectionView>();
+            roulette = FindFirstObjectByType<RouletteRoundController>();
+            shuffle = blackjack.GetComponent<BlackjackShuffleMinigame>();
+            rgame = FindFirstObjectByType<RouletteTableMinigame>();
+            pack = FindFirstObjectByType<CashDeskPackMinigame>();
+            desk = FindFirstObjectByType<CasinoCashDeskInteraction>();
+            manager = FindFirstObjectByType<DealerAssignmentManager>();
             Check(shift.IsRunning, "Start button failed");
             Check(CasinoSoundscape.CurrentMusicTrack == CasinoMusicTrack.Casino,
                 "Starting a shift did not select casino background music");
@@ -741,26 +767,36 @@ public static class FirstShiftPlayModeValidation
                 "Shift results or progression failed");
             GameObject results = (GameObject)Get(shift, "results");
             Check(results.activeSelf, "Results are not visible");
-            Check(shift.PassedShift && CasinoDemoProgression.Credits > 0, "Cleared shift did not award upgrade stamps");
-            int awardedCredits = CasinoDemoProgression.Credits;
+            Check(shift.PassedShift && CasinoDemoProgression.BestStars(1) > 0,
+                "Cleared level did not persist its star rating");
+            int bestStars = CasinoDemoProgression.BestStars(1);
             Call(shift, "FinishShift");
-            Check(CasinoDemoProgression.Credits == awardedCredits, "Results awarded stamps twice");
+            Check(CasinoDemoProgression.BestStars(1) == bestStars, "Repeated results awarded stars more than once");
             results.transform.Find("Next shift").GetComponent<Button>().onClick.Invoke();
-            GameObject perks = (GameObject)Get(shift, "upgrades");
-            Check(perks.activeSelf && !results.activeSelf, "Results did not lead to upgrades");
-            if (CasinoDemoProgression.Credits < 3) CasinoDemoProgression.AwardShift(1, 3);
-            int beforePurchase = CasinoDemoProgression.Credits;
-            perks.transform.Find("Patience").GetComponent<Button>().onClick.Invoke();
-            Check(CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience) &&
-                CasinoDemoProgression.Credits == beforePurchase - 3, "Upgrade purchase was not persisted exactly once");
-            Check(!CasinoDemoProgression.TryBuy(CasinoDemoUpgrade.Patience), "Duplicate upgrade purchase was accepted");
-            perks.transform.Find("Next shift").GetComponent<Button>().onClick.Invoke();
+            levelSelect = (GameObject)Get(shift, "levelSelect");
+            Check(levelSelect.activeSelf && !results.activeSelf, "Results did not lead to campaign level selection");
+            levelSelect.transform.Find("Level 2").GetComponent<Button>().onClick.Invoke();
+            GameObject intro2 = (GameObject)Get(shift, "intro");
+            Check(intro2.activeSelf && ((Text)Get(shift, "introTitle")).text == "HIGH ROLLERS",
+                "Unlocked High Rollers level did not show its briefing");
+            intro2.transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
             yield return null;
             yield return null;
             shift = FindFirstObjectByType<CasinoShiftController>();
-            Check(shift != null && shift.IsRunning && shift.CurrentShift == 2, "Next shift did not start");
-            Check(FindFirstObjectByType<CasinoCustomerSpawner>().PatienceSeconds == 55,
-                "Purchased patience perk did not apply to the next shift");
+            spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
+            Check(shift != null && shift.IsRunning && shift.CurrentShift == 2, "High Rollers did not start");
+            Check(Mathf.Approximately(spawner.PatienceSeconds, 50f) &&
+                Mathf.Approximately(spawner.VipSpawnChance, .35f) &&
+                CasinoCampaignPresentation.LayoutsAreSeparated(),
+                "High Rollers difficulty or campaign layout was not applied");
+            CasinoCustomerAI vip = Array.Find(FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None),
+                customer => customer != null && customer.IsVip);
+            if (vip == null) vip = (CasinoCustomerAI)Call(spawner, "SpawnCustomer", 0);
+            Check(vip != null && vip.IsVip && vip.GetComponentInChildren<PixelCharacterVisual>().IsVip,
+                "High Rollers did not create an animated VIP customer");
+            Check(vip.TryChooseBetPence(new[] { 1000 }, out int vipStake) && vipStake == 10000,
+                "VIP betting limits did not support the larger high-roller stake");
+            CasinoDemoProgression.AwardShift(2, 1);
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             yield return null;
             yield return null;
@@ -769,16 +805,68 @@ public static class FirstShiftPlayModeValidation
             var continueButton = menu.transform.Find("Continue");
             Check(continueButton != null, "Saved continue button missing");
             continueButton.GetComponent<Button>().onClick.Invoke();
-            Check(shift.IsRunning && shift.CurrentShift == 2 && !(bool)Get(shift, "tutorial"),
-                "Continue did not restore progression without repeating tutorial");
-            Check(CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience), "Continue lost the purchased upgrade");
+            levelSelect = (GameObject)Get(shift, "levelSelect");
+            Check(levelSelect.activeSelf && !shift.IsRunning, "Continue did not open the saved campaign level selection");
+            levelSelect.transform.Find("Level 3").GetComponent<Button>().onClick.Invoke();
+            GameObject intro3 = (GameObject)Get(shift, "intro");
+            Check(((Text)Get(shift, "introTitle")).text == "SHADY BUSINESS",
+                "Shady Business did not unlock after High Rollers");
+            intro3.transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
+            player = FindFirstObjectByType<CasinoPlayerController>();
+            Check(shift.IsRunning && shift.CurrentShift == 3 && !(bool)Get(shift, "tutorial") &&
+                shift.IsLessonOpen && ((Text)Get(shift, "lessonTitle")).text.Contains("SHADY BUSINESS"),
+                "Continue did not restore Shady Business or show its Tiger briefing");
+            ((GameObject)Get(shift, "lessonPanel")).transform.Find("Tiger's lesson/Practise")
+                .GetComponent<Button>().onClick.Invoke();
+            roulette = FindFirstObjectByType<RouletteRoundController>();
+            var actualBets = (List<RouletteCustomerBet>)Get(roulette, "currentBets");
+            actualBets.Add(new RouletteCustomerBet(3, 0, null,
+                new RouletteBet(RouletteBetType.Red, -1, 500)));
+            Set(roulette, "activeRoundId", 3L);
+            Call(roulette, "RecordSecurityEvidence", 1);
+            pit = FindFirstObjectByType<PitDeskInteraction>();
+            Check(pit.PendingSecurityCases == 1 &&
+                CasinoTaskFeedback.Message(pit.GetComponent<CasinoTableAttention>()).Contains("PIT DESK CCTV"),
+                "A real Roulette round did not surface a security review at the Pit Desk");
+            MoveNear(pit.transform, pit.IsPlayerInRange);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            Check(pit.IsOpen && ((Button)Get(pit, "reviewButton")).gameObject.activeSelf,
+                "CCTV alert was not actionable from the Pit Desk");
+            ((Button)Get(pit, "reviewButton")).onClick.Invoke();
+            GameObject reviewPanel = (GameObject)Get(pit, "reviewPanel");
+            Check(reviewPanel.activeSelf && Time.timeScale == 0 &&
+                ((Text)Get(pit, "footageStatus")).text.Contains("ACTUAL RESULT: 1"),
+                "CCTV review did not pause play and show the actual round result");
+            yield return Press(UnityEngine.InputSystem.Key.Escape);
+            Check(!reviewPanel.activeSelf && pit.PendingSecurityCases == 1 && Time.timeScale > 0,
+                "Cancelling CCTV review lost the alert or failed to restore play");
+            int tasksBeforeReview = (int)Get(shift, "completedTasks");
+            ((Button)Get(pit, "reviewButton")).onClick.Invoke();
+            reviewPanel.transform.Find("Clear Customer").GetComponent<Button>().onClick.Invoke();
+            Check(!reviewPanel.activeSelf && pit.PendingSecurityCases == 0 &&
+                (int)Get(shift, "completedTasks") == tasksBeforeReview + 1,
+                "A correct CCTV decision did not resolve and count the security case");
+            yield return Press(UnityEngine.InputSystem.Key.Escape);
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             yield return null;
             yield return null;
             shift = FindFirstObjectByType<CasinoShiftController>();
             menu = (GameObject)Get(shift, "menu");
             menu.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
+            levelSelect = (GameObject)Get(shift, "levelSelect");
+            levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
+            Check(CasinoDemoProgression.UnlockedShift == 1 &&
+                CasinoDemoProgression.BestStars(1) == 0 &&
+                CasinoDemoProgression.BestStars(2) == 0 &&
+                CasinoDemoProgression.BestStars(3) == 0,
+                "New Game did not reset campaign unlocks and star records");
             ((GameObject)Get(shift, "intro")).transform.Find("Skip").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
             spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
             Check(shift.IsRunning && !(bool)Get(shift, "tutorial") && spawner.AcceptingArrivals,
                 "Skip tutorial did not start normal scheduling");
@@ -839,7 +927,17 @@ public static class FirstShiftPlayModeValidation
                 "Returning to the main menu did not restore welcome music");
             Check(CasinoSoundscape.Focus == menu.transform, "Main Menu retained old task audio focus");
             menu.transform.Find("Continue").GetComponent<Button>().onClick.Invoke();
-            Check(shift.IsRunning && !AudioListener.pause && Time.timeScale > 0,
+            levelSelect = (GameObject)Get(shift, "levelSelect");
+            Check(levelSelect.activeSelf && !shift.IsRunning,
+                "Continue after Main Menu did not open the saved level selection");
+            levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
+            ((GameObject)Get(shift, "intro")).transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
+            player = FindFirstObjectByType<CasinoPlayerController>();
+            Check(shift.IsRunning && !(bool)Get(shift, "tutorial") &&
+                !AudioListener.pause && Time.timeScale > 0,
                 "Continue after Main Menu did not resume playable simulation");
             RouletteRoundController resumedRoulette = FindFirstObjectByType<RouletteRoundController>();
             timeout = Time.realtimeSinceStartup + 30;
@@ -873,8 +971,12 @@ public static class FirstShiftPlayModeValidation
                 CasinoSoundscape.Focus == ((GameObject)Get(shift, "menu")).transform,
                 "Returning from a paused task leaked its minigame, pause or audio focus");
             ((GameObject)Get(shift, "menu")).transform.Find("Start").GetComponent<Button>().onClick.Invoke();
+            levelSelect = (GameObject)Get(shift, "levelSelect");
+            levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
             ((GameObject)Get(shift, "intro")).transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
             yield return null;
+            yield return null;
+            shift = FindFirstObjectByType<CasinoShiftController>();
             GameObject tutorialCard = ((GameObject)Get(shift, "lessonPanel")).transform.Find("Tiger's lesson").gameObject;
             tutorialCard.transform.Find("Skip training").GetComponent<Button>().onClick.Invoke();
             Check(!shift.IsLessonOpen && PlayerPrefs.GetInt("PitPanic.TutorialComplete", 0) == 1,
