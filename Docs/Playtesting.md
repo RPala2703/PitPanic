@@ -7,9 +7,9 @@ do next. Record where they hesitate, not just whether they eventually succeed.
 | Check | Expected outcome |
 | --- | --- |
 | Title/settings | New Game, Continue, volume sliders, fullscreen and Quit work. No active casino is visible behind the title. |
-| New player | Tiger's large portrait lessons pause all simulation/audio; Let Me Try resumes real practice. Complete all 13 lessons without random-task waits. HELP revisits explanations without resetting progress. Skip Training works. |
+| New player | Tiger's short portrait lessons pause all simulation/audio; LET ME TRY! resumes real practice. Complete all 13 lessons without random-task waits. HELP revisits explanations without resetting progress. SKIP TRAINING works. |
 | Controls | WASD and arrow keys follow the screen axes; diagonal speed is normal. E opens tables or delivers a carried tray first. Q opens the same inspection. Escape exits every interaction. |
-| Blackjack | SHUFFLE! uses clicks on the shoe and deals the correct opening cards. It can succeed, fail, cancel and retry. Check finite float balances and exact payouts; no duplicate payouts on retry. |
+| Blackjack | SHUFFLE! presents two stacks and an eight-click sequence that interleaves cards into a deck; there is no shoe-dealing task. It can succeed, fail, cancel and retry. Check finite float balances and exact payouts; no duplicate payouts on retry. |
 | Roulette | A staffed table requests COVER!; an unstaffed table can be taken over. SPIN!, SWEEP! and PAY! each finish or cancel safely. Test straight, split, street, corner, six-line and outside bets including zero, their stated odds, finite chips and one-time settlement. |
 | Cash Desk | Both games accept clicks, not dragging. £2.50/£5/£25/£100 choices add visible chips; Undo works before finishing. Verify finite register counts and standard float value (£200). Cancellation/timeout refunds a float reservation; carry/deliver only to the named table. |
 | Urgency/markers | Real station meters match HUD seconds and actual patience/attempt time, with green/yellow/red transitions. No fake timer on float/staff jobs. Approach each ! for specific instructions. Expired customers lose satisfaction; their assistance marker clears when no recipients remain. |

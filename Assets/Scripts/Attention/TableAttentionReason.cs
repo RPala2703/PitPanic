@@ -11,7 +11,7 @@ public enum TableAttentionReason
     DealerExhausted,
     StaffRotationRequired,
     DealerReadyForAssignment,
-    FlickAssistanceRequired,
+    ShuffleAssistanceRequired,
     RouletteSpinRequired,
     RouletteSweepRequired,
     CashDeskPackRequired,

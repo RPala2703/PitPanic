@@ -13,7 +13,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         { 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000 };
     [SerializeField] private BlackjackChipDenomination[] chipDenominations = BlackjackChipDenomination.CreateDefaults();
     [SerializeField, Min(0.1f)] private float dealerActionInterval = 0.8f;
-    [SerializeField, Range(0f, 1f)] private float flickAssistanceChance = 0.18f;
+    [SerializeField, Range(0f, 1f)] private float shuffleAssistanceChance = 0.18f;
 
     private readonly Queue<CasinoCustomerAI> waitingCustomers = new Queue<CasinoCustomerAI>();
     private readonly HashSet<CasinoCustomerAI> waitingSet = new HashSet<CasinoCustomerAI>();
@@ -31,14 +31,14 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private bool panelOpen;
     private bool awaitingCustomerCard;
     private bool awaitingDealerCard;
-    private bool flickAssistanceForRound;
-    private bool flickDealerPaused;
-    private bool flickBoundaryReady;
-    private bool forceFlickNextRound;
-    private float nextFlickTaskTime;
-    private int roundsSinceFlick;
+    private bool shuffleAssistanceForRound;
+    private bool shuffleDealerPaused;
+    private bool shuffleBoundaryReady;
+    private bool forceShuffleNextRound;
+    private float nextShuffleTaskTime;
+    private int roundsSinceShuffle;
     private AIDealer assignedDealer;
-    [SerializeField] private CasinoMinigameStation flickStation;
+    [SerializeField] private CasinoMinigameStation shuffleStation;
     [SerializeField] private CasinoFloatRefillDestination floatDestination;
     [SerializeField] private string tableIdentifier;
     private float nextDealerActionTime;
@@ -57,11 +57,10 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     public bool IsInspectionOpen => panelOpen;
     public BlackjackTableRound ActiveRound => round;
     public BlackjackTableState State => state;
-    public int RemainingFlickCardCount => round == null
-        ? 0
-        : Mathf.Max(0, round.CustomerHands.Count * 2 + 2 - dealStep);
-    public bool IsFlickReady => flickBoundaryReady && flickDealerPaused && flickStation != null && flickStation.IsTaskPending;
-    public bool HasFlickAssistanceStation => flickStation != null;
+    public bool IsShuffleReady => shuffleBoundaryReady && shuffleDealerPaused &&
+                                  shuffleStation != null && shuffleStation.IsTaskPending &&
+                                  CanOfferShuffle(IsDealerStaffed, IsPlayerOperating);
+    public bool HasShuffleAssistanceStation => shuffleStation != null;
     public event System.Action<BlackjackTableRound> RoundSettled;
     public AIDealer AssignedDealer => assignedDealer;
     public string TableDisplayName
@@ -85,6 +84,9 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                                      state != BlackjackTableState.WaitingForCustomers &&
                                      state != BlackjackTableState.ClearingTable;
 
+    public static bool CanOfferShuffle(bool hasActiveDealer, bool playerOperating) =>
+        hasActiveDealer && !playerOperating;
+
     public void Configure(
         CasinoPlayerController player,
         TableInteractionZone tableInteractionZone,
@@ -99,9 +101,9 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         tableIdentifier = identifier;
     }
 
-    public void ConfigureFlickAssistance(CasinoMinigameStation station)
+    public void ConfigureShuffleAssistance(CasinoMinigameStation station)
     {
-        flickStation = station;
+        shuffleStation = station;
     }
 
     private void Start()
@@ -168,20 +170,27 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         ResolveAllAttention(TableAttentionReason.PayoutRequired);
-        ResolveAllAttention(TableAttentionReason.FlickAssistanceRequired);
+        ResolveAllAttention(TableAttentionReason.ShuffleAssistanceRequired);
     }
 
     private void Update()
     {
         if (Time.timeScale == 0) return;
+        if (shuffleStation != null && shuffleStation.IsTaskPending &&
+            !shuffleStation.IsMinigameRunning && (!IsDealerStaffed || IsPlayerOperating))
+        {
+            shuffleStation.ResolveTaskAfterFatalFailure();
+            shuffleBoundaryReady = false;
+            shuffleDealerPaused = false;
+        }
         if (IsPlayerOperating && IsDealerStaffed)
         {
             IsPlayerOperating = false;
             message = "Your dealer is back! Normal service has resumed.";
             RefreshView();
         }
-        if (IsFlickReady && !ArrayHasSeatedCustomer() && !flickStation.IsMinigameRunning)
-            AbortFlickAssistance();
+        if (IsShuffleReady && !ArrayHasSeatedCustomer() && !shuffleStation.IsMinigameRunning)
+            AbortShuffleAssistance();
         UpdateRoundProgress();
         UpdateAutomatedDealer();
 
@@ -202,11 +211,11 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 #if UNITY_EDITOR
         if (keyboard != null && keyboard.f8Key.wasPressedThisFrame)
         {
-            QueueFlickAssistanceTest();
+            QueueShuffleAssistanceTest();
         }
 #endif
 
-        if (flickStation != null && flickStation.IsMinigameRunning)
+        if (shuffleStation != null && shuffleStation.IsMinigameRunning)
         {
             tableView?.SetPromptVisible(false, "");
             return;
@@ -215,7 +224,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         if (panelOpen)
         {
             tableView.SetTakeover(!IsDealerStaffed, IsPlayerOperating, BeginPlayerTakeover);
-            tableView.SetAssistance(IsFlickReady, StartAssistance);
+            tableView.SetAssistance(IsShuffleReady, StartAssistance);
             if (IsPlayerOperating && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
                 ManualDealStep();
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
@@ -231,12 +240,12 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         bool inRange = IsPlayerInRange();
-        bool flickReady = IsFlickReady;
+        bool shuffleReady = IsShuffleReady;
         tableView.SetPromptVisible(
             inRange && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen() && !CasinoMinigamePresentation.IsOpen &&
                 playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying != true,
-            $"E  •  {TableDisplayName}{(flickReady ? "  •  SHUFFLE! READY" : "")}");
-        tableView.SetAssistance(IsFlickReady, StartAssistance);
+            $"E  •  {TableDisplayName}{(shuffleReady ? "  •  SHUFFLE! READY" : "")}");
+        tableView.SetAssistance(IsShuffleReady, StartAssistance);
     }
 
     private void OnCustomerSeated(CasinoCustomerAI customer)
@@ -311,7 +320,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     public bool TryOpenInspectionFromPlayerInput()
     {
         if (panelOpen || !IsPlayerInRange(playerController.transform) ||
-            flickStation != null && flickStation.IsMinigameRunning ||
+            shuffleStation != null && shuffleStation.IsMinigameRunning ||
             playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true ||
             CasinoMinigamePresentation.IsOpen)
         {
@@ -324,9 +333,9 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void StartAssistance()
     {
-        if (!IsFlickReady || flickStation == null) return;
+        if (!IsShuffleReady || shuffleStation == null) return;
         ClosePanel();
-        if (!flickStation.TryBegin())
+        if (!shuffleStation.TryBegin())
         {
             message = "Task not ready. Wait for the dealer and try again.";
             OpenPanel();
@@ -341,11 +350,11 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         if (!panelOpen || IsDealerStaffed || Time.timeScale == 0 ||
             playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true) return false;
         IsPlayerOperating = true;
-        if (IsFlickReady)
+        if (shuffleStation != null && shuffleStation.IsTaskPending)
         {
-            flickStation.ResolveTaskAfterFatalFailure();
-            flickDealerPaused = false;
-            flickBoundaryReady = false;
+            shuffleStation.ResolveTaskAfterFatalFailure();
+            shuffleDealerPaused = false;
+            shuffleBoundaryReady = false;
         }
         message = "YOU'RE DEALING! SPACE or DEAL CARD advances the hand. Pay the exact chips shown; ESC leaves.";
         playerController.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(CasinoAnimationPose.Deal, transform.position, .8f);
@@ -465,12 +474,12 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         awaitingCustomerCard = false;
         awaitingDealerCard = false;
         state = BlackjackTableState.TakingBets;
-        roundsSinceFlick++;
-        flickAssistanceForRound = !IsPlayerOperating && flickStation != null &&
-                                  (flickStation.IsTaskPending || forceFlickNextRound ||
-                                   Time.time >= nextFlickTaskTime && !CasinoMinigamePresentation.IsOpen &&
-                                   (roundsSinceFlick >= 4 || Random.value < flickAssistanceChance));
-        forceFlickNextRound = false;
+        roundsSinceShuffle++;
+        shuffleAssistanceForRound = !IsPlayerOperating && shuffleStation != null &&
+                                  (shuffleStation.IsTaskPending || forceShuffleNextRound ||
+                                   Time.time >= nextShuffleTaskTime && !CasinoMinigamePresentation.IsOpen &&
+                                   (roundsSinceShuffle >= 4 || Random.value < shuffleAssistanceChance));
+        forceShuffleNextRound = false;
         message = $"{string.Join(", ", bets)}. The dealer is starting the opening deal.";
         RefreshView();
     }
@@ -533,10 +542,10 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         dealStep++;
-        if (dealStep == round.CustomerHands.Count + 1 && flickAssistanceForRound)
+        if (dealStep == round.CustomerHands.Count + 1 && shuffleAssistanceForRound)
         {
-            flickAssistanceForRound = false;
-            if (RequestFlickAssistanceAtBoundary())
+            shuffleAssistanceForRound = false;
+            if (RequestShuffleAssistanceAtBoundary())
             {
                 return;
             }
@@ -951,7 +960,6 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         state = BlackjackTableState.WaitingForCustomers;
         message = "Waiting for the next customers.";
         ResolveAllAttention(TableAttentionReason.PayoutRequired);
-        GetComponent<FlickCardMinigame>()?.ClearPhysicalCards();
         RefreshView();
         if (waitingSet.Count > 0)
         {
@@ -1018,7 +1026,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void UpdateAutomatedDealer()
     {
-        if (!IsDealerStaffed || IsPlayerOperating || flickDealerPaused || Time.time < nextDealerActionTime)
+        if (!IsDealerStaffed || IsPlayerOperating || shuffleDealerPaused || Time.time < nextDealerActionTime)
         {
             return;
         }
@@ -1088,15 +1096,15 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         return $"Q  •  Inspect {TableDisplayName} and dealer";
     }
 
-    public void QueueFlickAssistanceTest()
+    public void QueueShuffleAssistanceTest()
     {
-        forceFlickNextRound = true;
+        forceShuffleNextRound = true;
         if (state == BlackjackTableState.InitialDeal && round != null &&
             dealStep >= round.CustomerHands.Count + 1)
         {
-            forceFlickNextRound = false;
-            flickAssistanceForRound = true;
-            RequestFlickAssistanceAtBoundary();
+            forceShuffleNextRound = false;
+            shuffleAssistanceForRound = true;
+            RequestShuffleAssistanceAtBoundary();
         }
         else
         {
@@ -1104,49 +1112,14 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
     }
 
-    public int GetNextFlickTarget()
+    public bool CanBeginShuffleAssistance()
     {
-        if (!IsFlickReady || round == null)
-        {
-            return -2;
-        }
-
-        int customerCount = round.CustomerHands.Count;
-        if (dealStep < customerCount)
-        {
-            return dealStep;
-        }
-
-        if (dealStep == customerCount || dealStep > customerCount * 2)
-        {
-            return -1;
-        }
-
-        return dealStep - customerCount - 1;
+        return IsShuffleReady && IsServiceAvailable && state == BlackjackTableState.InitialDeal;
     }
 
-    public Vector3 GetFlickTargetPosition(int customerHandIndex)
+    public bool TryPrepareShuffleAssistance()
     {
-        if (customerHandIndex >= 0 && round != null && customerHandIndex < round.CustomerHands.Count)
-        {
-            CasinoSeat seat = round.CustomerHands[customerHandIndex].Seat;
-            if (seat != null && seat.BettingPosition != null)
-            {
-                return seat.BettingPosition.position;
-            }
-        }
-
-        return transform.TransformPoint(new Vector3(0f, 1.46f, 0.48f));
-    }
-
-    public bool TryBeginFlickAssistance()
-    {
-        return IsFlickReady && IsServiceAvailable && state == BlackjackTableState.InitialDeal;
-    }
-
-    public bool TryPrepareFlickAssistance()
-    {
-        if (!TryBeginFlickAssistance())
+        if (!CanBeginShuffleAssistance())
         {
             return false;
         }
@@ -1169,80 +1142,69 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         return true;
     }
 
-    public bool TryDealFlickCard(int targetIndex, out BlackjackCard card, out int cardIndex, out bool holeCard)
+    public void PlayShuffleAssistanceAction()
     {
-        card = default;
-        cardIndex = -1;
-        holeCard = false;
-        if (!TryBeginFlickAssistance() || targetIndex != GetNextFlickTarget())
-        {
-            return false;
-        }
-
-        bool dealerRecipient = targetIndex < 0;
-        cardIndex = dealerRecipient ? round.DealerCards.Count : round.CustomerHands[targetIndex].Cards.Count;
-        DealNextOpeningCard();
-        card = dealerRecipient
-            ? round.DealerCards[cardIndex]
-            : round.CustomerHands[targetIndex].Cards[cardIndex];
-        holeCard = dealerRecipient && cardIndex == 1;
-        return true;
+        playerController.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+            CasinoAnimationPose.Shuffle, transform.position, 1.1f);
+        assignedDealer?.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+            CasinoAnimationPose.Shuffle, transform.position, 1.1f);
     }
 
-    public void EndFlickAssistance(bool cancelled = false)
+    public void EndShuffleAssistance(bool cancelled = false)
     {
         if (cancelled)
         {
-            flickBoundaryReady = flickStation != null && flickStation.IsTaskPending &&
-                                 round != null && state == BlackjackTableState.InitialDeal;
-            flickDealerPaused = flickBoundaryReady;
-            message = flickBoundaryReady
-                ? "SHUFFLE! is paused and ready to retry."
-                : "SHUFFLE! was cancelled; the dealer will continue.";
+            shuffleBoundaryReady = shuffleStation != null && shuffleStation.IsTaskPending &&
+                                   round != null && state == BlackjackTableState.InitialDeal &&
+                                   IsDealerStaffed && !IsPlayerOperating;
+            shuffleDealerPaused = shuffleBoundaryReady;
+            message = shuffleBoundaryReady
+                ? "SHUFFLE! is ready to retry."
+                : "SHUFFLE! ended; the dealer will continue.";
             RefreshView();
             return;
         }
 
-        flickDealerPaused = false;
-        flickBoundaryReady = false;
+        shuffleDealerPaused = false;
+        shuffleBoundaryReady = false;
         nextDealerActionTime = Time.time + dealerActionInterval;
         RefreshView();
     }
 
-    public void AbortFlickAssistance()
+    public void AbortShuffleAssistance()
     {
-        flickStation?.ResolveTaskAfterFatalFailure();
-        EndFlickAssistance();
+        shuffleStation?.ResolveTaskAfterFatalFailure();
+        EndShuffleAssistance();
     }
 
-    public void NotifyFlickAttemptFailed()
+    public void NotifyShuffleAttemptFailed()
     {
-        if (IsFlickReady)
+        if (IsShuffleReady)
         {
-            message = "SHUFFLE! was not completed. Press E to try again.";
+            message = "Not quite! Press E to try SHUFFLE! again.";
             RefreshView();
         }
     }
 
-    private bool RequestFlickAssistanceAtBoundary()
+    private bool RequestShuffleAssistanceAtBoundary()
     {
-        if (!IsDealerStaffed || state != BlackjackTableState.InitialDeal ||
-            round == null || flickStation == null)
+        if (!IsDealerStaffed || IsPlayerOperating || state != BlackjackTableState.InitialDeal ||
+            round == null || shuffleStation == null)
         {
             return false;
         }
 
-        if (!flickStation.IsTaskPending &&
-            !flickStation.RequestMinigame(CasinoMinigameType.Flick, TableAttentionReason.FlickAssistanceRequired))
+        if (!shuffleStation.IsTaskPending &&
+            !shuffleStation.RequestMinigame(CasinoMinigameType.Shuffle, TableAttentionReason.ShuffleAssistanceRequired))
         {
             return false;
         }
 
-        flickBoundaryReady = true;
-        flickDealerPaused = true;
-        nextFlickTaskTime = Time.time + 60f;
-        roundsSinceFlick = 0;
-        message = "The dealer needs a hand. Click the card shoe to send each card to the highlighted hand!";
+        shuffleBoundaryReady = true;
+        shuffleDealerPaused = true;
+        nextShuffleTaskTime = Time.time + 60f;
+        roundsSinceShuffle = 0;
+        message = "Help the dealer shuffle the cards!";
         RefreshView();
         return true;
     }

@@ -11001,8 +11001,8 @@ MonoBehaviour:
     valuePence: 10000
     color: {r: 0.08, g: 0.09, b: 0.11, a: 1}
   dealerActionInterval: 0.8
-  flickAssistanceChance: 0.18
-  flickStation: {fileID: 1264616963}
+  shuffleAssistanceChance: 0.18
+  shuffleStation: {fileID: 1264616963}
   tableIdentifier: BJ1
 --- !u!114 &1264616963
 MonoBehaviour:
@@ -11020,7 +11020,7 @@ MonoBehaviour:
   interactionZone: {fileID: 1264616966}
   attention: {fileID: 1264616967}
   minigame: {fileID: 1264616964}
-  minigameType: 0
+  minigameType: 7
   attentionReason: 11
 --- !u!114 &1264616964
 MonoBehaviour:
@@ -11033,12 +11033,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8e4a479477c914d168520bab2ab604aa, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FlickCardMinigame
+  m_EditorClassIdentifier: Assembly-CSharp::BlackjackShuffleMinigame
   timeAllowance: 20
-  cardFlightSeconds: 0.24
   table: {fileID: 1264616962}
   player: {fileID: 1974471242}
-  tableRoot: {fileID: 1264616965}
 --- !u!4 &1264616965
 Transform:
   m_ObjectHideFlags: 0
@@ -12988,8 +12986,8 @@ MonoBehaviour:
     valuePence: 10000
     color: {r: 0.08, g: 0.09, b: 0.11, a: 1}
   dealerActionInterval: 0.8
-  flickAssistanceChance: 0.18
-  flickStation: {fileID: 1400508471}
+  shuffleAssistanceChance: 0.18
+  shuffleStation: {fileID: 1400508471}
   tableIdentifier: BJ2
 --- !u!114 &1400508471
 MonoBehaviour:
@@ -13007,7 +13005,7 @@ MonoBehaviour:
   interactionZone: {fileID: 1400508474}
   attention: {fileID: 1400508475}
   minigame: {fileID: 1400508472}
-  minigameType: 0
+  minigameType: 7
   attentionReason: 11
 --- !u!114 &1400508472
 MonoBehaviour:
@@ -13020,12 +13018,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8e4a479477c914d168520bab2ab604aa, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FlickCardMinigame
+  m_EditorClassIdentifier: Assembly-CSharp::BlackjackShuffleMinigame
   timeAllowance: 20
-  cardFlightSeconds: 0.24
   table: {fileID: 1400508470}
   player: {fileID: 1974471242}
-  tableRoot: {fileID: 1400508473}
 --- !u!4 &1400508473
 Transform:
   m_ObjectHideFlags: 0

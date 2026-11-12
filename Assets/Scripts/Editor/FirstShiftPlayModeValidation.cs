@@ -84,9 +84,33 @@ public static class FirstShiftPlayModeValidation
             {
                 Check(Time.timeScale == 0 && AudioListener.pause && !CasinoMinigamePresentation.IsOpen,
                     "Tutorial explanation did not pause or overlapped a minigame");
+                GameObject lessonPanel = (GameObject)Get(shift, "lessonPanel");
+                Transform lessonCard = lessonPanel.transform.Find("Tiger's lesson");
+                Check(lessonCard != null && lessonCard.Find("Practice animation prop") == null &&
+                      lessonCard.Find("Practice animation arrow") == null &&
+                      lessonCard.Find("Animated demonstration") == null &&
+                      lessonCard.Find("Previous lesson") == null &&
+                      lessonCard.Find("Next lesson") == null,
+                    "Tutorial popup still contains decorative arrows, duplicate instructions, or page navigation");
+                Button[] lessonButtons = lessonCard.GetComponentsInChildren<Button>(true);
+                Check(lessonButtons.Length == 2 &&
+                      lessonCard.Find("Practise").GetComponentInChildren<Text>().text == "LET ME TRY!" &&
+                      lessonCard.Find("Skip training").GetComponentInChildren<Text>().text == "SKIP TRAINING",
+                    "Tutorial must keep only the LET ME TRY! and SKIP TRAINING controls");
+                string instruction = ((Text)Get(shift, "lessonText")).text;
+                int sentenceCount = 0;
+                foreach (char character in instruction)
+                    if (character == '.' || character == '!' || character == '?') sentenceCount++;
+                Check(sentenceCount <= 2, $"Tutorial popup is longer than two short sentences: {instruction}");
                 if (lessonObservedAt < 0) { lessonObservedAt = Time.realtimeSinceStartup; lessonShiftTime = shift.RemainingSeconds; }
                 Check(shift.RemainingSeconds == lessonShiftTime, "Tutorial explanation advanced the shift timer");
-                if (Time.realtimeSinceStartup - lessonObservedAt > .12f) shift.DismissLesson();
+                if (Time.realtimeSinceStartup - lessonObservedAt > .12f)
+                {
+                    if (shift.TutorialStage == 0)
+                        lessonCard.Find("Practise").GetComponent<Button>().onClick.Invoke();
+                    else
+                        shift.DismissLesson();
+                }
             }
             catch (Exception e) { lessonFailure = e; }
         }
@@ -192,7 +216,7 @@ public static class FirstShiftPlayModeValidation
                 t => t.TableDisplayName == "BLACKJACK 1");
             var inspection = FindFirstObjectByType<RouletteInspectionView>();
             var roulette = FindFirstObjectByType<RouletteRoundController>();
-            var flick = blackjack.GetComponent<FlickCardMinigame>();
+            var shuffle = blackjack.GetComponent<BlackjackShuffleMinigame>();
             var rgame = FindFirstObjectByType<RouletteTableMinigame>();
             var pack = FindFirstObjectByType<CashDeskPackMinigame>();
             var desk = FindFirstObjectByType<CasinoCashDeskInteraction>();
@@ -302,58 +326,77 @@ public static class FirstShiftPlayModeValidation
             yield return null;
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             float timeout = Time.realtimeSinceStartup + 60;
-            while (!blackjack.IsFlickReady && Time.realtimeSinceStartup < timeout) yield return null;
-            Check(blackjack.IsFlickReady, "DEAL did not become ready");
+            while (!blackjack.IsShuffleReady && Time.realtimeSinceStartup < timeout) yield return null;
+            Check(blackjack.IsShuffleReady, "SHUFFLE did not become ready");
             yield return Press(UnityEngine.InputSystem.Key.E);
             Check(blackjack.IsInspectionOpen, "E did not open unified BJ1 interface");
             Check(!blackjack.GetComponent<CasinoMinigameStation>().TryBegin(), "Minigame overlapped table inspection");
             Check(!inspection.TryOpenInspectionFromPlayerInput(), "Roulette overlapped Blackjack inspection");
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
-            Check(flick.IsRunning, "E failed to start DEAL");
-            Check(CasinoSoundscape.Focus == flick.transform && !CasinoSoundscape.AllowsEffect(null) &&
-                CasinoSoundscape.AllowsEffect(flick.transform) && !CasinoSoundscape.AllowsEffect(rgame.transform),
+            Check(shuffle.IsRunning, "E failed to start SHUFFLE");
+            Check(blackjack.IsDealerStaffed && blackjack.IsShuffleReady,
+                "SHUFFLE was offered without an active dealer needing assistance");
+            Button shuffleButton = (Button)Get(Get(blackjack, "tableView"), "assistanceButton");
+            Check(shuffleButton.GetComponentInChildren<Text>().text == "SHUFFLE!",
+                "The Blackjack action button must say only SHUFFLE!");
+            Check(shuffle.ExpectedStack is 0 or 1 && shuffle.RequiredCards == 8,
+                "New SHUFFLE did not present a two-stack sequence");
+            Check(!BlackjackTableInteraction.CanOfferShuffle(false, false) &&
+                  !BlackjackTableInteraction.CanOfferShuffle(true, true) &&
+                  BlackjackTableInteraction.CanOfferShuffle(true, false),
+                "SHUFFLE availability did not require a staffed, dealer-operated table");
+            CasinoMinigamePresentation shufflePresentation = FindFirstObjectByType<CasinoMinigamePresentation>();
+            Check(shufflePresentation != null &&
+                  shufflePresentation.GameArea.Find("SHUFFLE Clickable Card Shoe") == null &&
+                  shufflePresentation.GameArea.Find("LEFT STACK") != null &&
+                  shufflePresentation.GameArea.Find("RIGHT STACK") != null,
+                "SHUFFLE does not show two card stacks or still contains the old shoe");
+            Check(CasinoSoundscape.Focus == shuffle.transform && !CasinoSoundscape.AllowsEffect(null) &&
+                CasinoSoundscape.AllowsEffect(shuffle.transform) && !CasinoSoundscape.AllowsEffect(rgame.transform),
                 "Minigame audio did not isolate the active task");
             Check(CasinoSoundscape.CurrentMusicTrack == CasinoMusicTrack.Casino,
                 "Opening a minigame changed the casino soundtrack");
             yield return Press(UnityEngine.InputSystem.Key.P);
-            float flickPausedAt = (float)Get(flick, "timeRemaining");
+            float shufflePausedAt = shuffle.TimeRemaining;
             Vector3 pausedPlayer = player.transform.position;
             Check(AudioListener.pause && Time.timeScale == 0, "Pause did not stop audio and simulation");
             yield return Press(UnityEngine.InputSystem.Key.E);
             yield return Press(UnityEngine.InputSystem.Key.W);
             yield return new WaitForSecondsRealtime(.4f);
-            Check(flick.IsRunning && (float)Get(flick, "timeRemaining") == flickPausedAt &&
+            Check(shuffle.IsRunning && shuffle.TimeRemaining == shufflePausedAt &&
                 player.transform.position == pausedPlayer, "Paused minigame or character continued updating");
             ((GameObject)Get(shift, "pausePanel")).transform.Find("Pause card/Resume").GetComponent<Button>().onClick.Invoke();
-            Check(!AudioListener.pause && Time.timeScale > 0 && flick.IsRunning,
+            Check(!AudioListener.pause && Time.timeScale > 0 && shuffle.IsRunning,
                 "Resume did not restore the existing minigame");
             yield return Press(UnityEngine.InputSystem.Key.Escape);
-            Check(!flick.IsRunning && blackjack.IsFlickReady, "DEAL cancellation failed");
+            Check(!shuffle.IsRunning && blackjack.IsShuffleReady, "SHUFFLE cancellation failed");
             Check(CasinoSoundscape.Focus == null && CasinoSoundscape.AllowsEffect(null),
                 "Closing minigame did not restore casino audio");
             yield return Press(UnityEngine.InputSystem.Key.E);
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
-            Check(flick.IsRunning, "DEAL retry failed");
-            Set(flick, "timeRemaining", 0f);
+            Check(shuffle.IsRunning, "SHUFFLE retry failed");
+            Button wrongStack = (Button)Get(shuffle, shuffle.ExpectedStack == 0 ? "rightStackButton" : "leftStackButton");
+            wrongStack.onClick.Invoke();
+            Check(shuffle.CompletedCards == 0 && (int)Get(shuffle, "misses") == 1,
+                "Incorrect SHUFFLE stack advanced the card sequence");
+            Set(shuffle, "timeRemaining", 0f);
             yield return null;
-            Check(!flick.IsRunning && blackjack.IsFlickReady, "Failed DEAL did not allow retry");
+            Check(!shuffle.IsRunning && blackjack.IsShuffleReady, "Failed SHUFFLE did not allow retry");
             yield return Press(UnityEngine.InputSystem.Key.E);
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
-            Check(flick.IsRunning, "DEAL retry after failure failed");
-            while (flick.IsRunning)
+            Check(shuffle.IsRunning, "SHUFFLE retry after failure failed");
+            while (shuffle.IsRunning)
             {
-                var shoe = (RectTransform)Get(flick, "shoeRect");
-                Vector2 start = RectTransformUtility.WorldToScreenPoint(null, shoe.position);
-                InputSystem.QueueStateEvent(mouse, new MouseState { position = start, buttons = 1 });
-                yield return null;
-                InputSystem.QueueStateEvent(mouse, new MouseState { position = start, buttons = 0 });
-                yield return null;
-                yield return new WaitForSeconds(0.35f);
+                Button stackButton = (Button)Get(shuffle, shuffle.ExpectedStack == 0 ? "leftStackButton" : "rightStackButton");
+                stackButton.onClick.Invoke();
+                while (shuffle.IsAnimatingCard && shuffle.IsRunning) yield return null;
             }
-            Check((bool)Get(shift, "flickDone"), "DEAL did not advance tutorial");
-            MoveNear(inspection.transform, inspection.IsPlayerInRange);
-            yield return Press(UnityEngine.InputSystem.Key.Q);
-            Check(inspection.IsOpen, "Q failed to inspect roulette");
+            Check((bool)Get(shift, "shuffleDone"), "SHUFFLE did not advance tutorial");
+            BlackjackTableInteraction[] blackjackTables =
+                FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None);
+            MoveNear(inspection.transform, candidate => inspection.IsPlayerInRange(candidate) &&
+                Array.TrueForAll(blackjackTables, table => !table.IsPlayerInRange(candidate)));
+            Check(inspection.TryOpenInspectionFromPlayerInput(), "Could not open Roulette inspection after SHUFFLE");
             yield return null;
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(roulette.FloatDestination.TryAddChips(new[] { 100, 100, 100, 100 }),
@@ -547,7 +590,8 @@ public static class FirstShiftPlayModeValidation
             Set(roulette.AssignedDealer, "energy", 100f);
             yield return null;
             Check(!roulette.IsDealerStaffed, "Early cover made protected manual Roulette practice impossible");
-            MoveNear(inspection.transform, inspection.IsPlayerInRange);
+            MoveNear(inspection.transform, candidate => inspection.IsPlayerInRange(candidate) &&
+                Array.TrueForAll(blackjackTables, table => !table.IsPlayerInRange(candidate)));
             yield return Press(UnityEngine.InputSystem.Key.E);
             Call(inspection, "StartManualRound");
             Check(roulette.IsPlayerOperating && !roulette.IsDealerStaffed, "Pit boss could not take over Roulette");
@@ -772,15 +816,15 @@ public static class FirstShiftPlayModeValidation
                 t => t.TableDisplayName == "BLACKJACK 1");
             player = FindFirstObjectByType<CasinoPlayerController>();
             MoveNear(blackjack.transform, blackjack.IsPlayerInRange);
-            blackjack.QueueFlickAssistanceTest();
+            blackjack.QueueShuffleAssistanceTest();
             FindFirstObjectByType<CasinoCustomerSpawner>().TrySpawnGuidedCustomer(CasinoCustomerGame.Blackjack1);
             timeout = Time.realtimeSinceStartup + 60;
-            while (!blackjack.IsFlickReady && Time.realtimeSinceStartup < timeout) yield return null;
-            Check(blackjack.IsFlickReady, "Menu-return task did not reach a safe deal boundary");
+            while (!blackjack.IsShuffleReady && Time.realtimeSinceStartup < timeout) yield return null;
+            Check(blackjack.IsShuffleReady, "Menu-return task did not reach a safe deal boundary");
             yield return Press(UnityEngine.InputSystem.Key.E);
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
-            flick = blackjack.GetComponent<FlickCardMinigame>();
-            Check(flick.IsRunning, "Could not start menu-return task");
+            shuffle = blackjack.GetComponent<BlackjackShuffleMinigame>();
+            Check(shuffle.IsRunning, "Could not start menu-return task");
             yield return Press(UnityEngine.InputSystem.Key.P);
             ((GameObject)Get(shift, "pausePanel")).transform.Find("Pause card/Main Menu").GetComponent<Button>().onClick.Invoke();
             yield return null;
@@ -790,7 +834,12 @@ public static class FirstShiftPlayModeValidation
                 CasinoSoundscape.Focus == ((GameObject)Get(shift, "menu")).transform,
                 "Returning from a paused task leaked its minigame, pause or audio focus");
             ((GameObject)Get(shift, "menu")).transform.Find("Start").GetComponent<Button>().onClick.Invoke();
-            ((GameObject)Get(shift, "intro")).transform.Find("Skip").GetComponent<Button>().onClick.Invoke();
+            ((GameObject)Get(shift, "intro")).transform.Find("Begin").GetComponent<Button>().onClick.Invoke();
+            yield return null;
+            GameObject tutorialCard = ((GameObject)Get(shift, "lessonPanel")).transform.Find("Tiger's lesson").gameObject;
+            tutorialCard.transform.Find("Skip training").GetComponent<Button>().onClick.Invoke();
+            Check(!shift.IsLessonOpen && PlayerPrefs.GetInt("PitPanic.TutorialComplete", 0) == 1,
+                "SKIP TRAINING did not close the lesson and complete the tutorial");
             Check(CasinoDemoProgression.Credits == 0 && !CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience),
                 "New Game did not reset the demo progression");
             Set(shift, "remaining", 0f);
