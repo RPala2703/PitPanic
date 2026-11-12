@@ -119,5 +119,13 @@ public static class BlackjackRules
             default:
                 return 0;
         }
+
+    }
+
+    public static int GetWinningsPence(BlackjackOutcome outcome, int betPence)
+    {
+        int grossReturn = GetPayoutPence(outcome, betPence);
+        return outcome == BlackjackOutcome.Win || outcome == BlackjackOutcome.Blackjack
+            ? checked(grossReturn - betPence) : 0;
     }
 }

@@ -202,7 +202,7 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
         }
 
         if (minigameStation.RequestMinigame(
-                CasinoMinigameType.Spin,
+                CasinoMinigameType.Cover,
                 TableAttentionReason.RouletteCoverRequired))
         {
             if (!roundController.TryPauseForAssistance())
@@ -229,7 +229,8 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
             minigameStation != null && minigameStation.IsTaskPending,
             minigameStation != null && minigameStation.IsMinigameRunning,
             CasinoMinigamePresentation.IsOpen,
-            roundController != null && roundController.Phase == RouletteRoundPhase.AcceptingBets &&
+            roundController != null && roundController.Phase == RouletteRoundPhase.Spinning &&
+            !roundController.IsPlayerOperating &&
             roundController.ParticipantCount > 0 &&
             rouletteDealerStation.PendingReplacement == null);
     }
@@ -238,7 +239,7 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
     public bool ForceTaskForDevelopment()
     {
         return CanRequestAssistance() &&
-               minigameStation.RequestMinigame(CasinoMinigameType.Spin, TableAttentionReason.RouletteSpinRequired) &&
+               minigameStation.RequestMinigame(CasinoMinigameType.Cover, TableAttentionReason.RouletteCoverRequired) &&
                roundController.TryPauseForAssistance();
     }
 #endif

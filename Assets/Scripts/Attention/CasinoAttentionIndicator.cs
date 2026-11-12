@@ -88,6 +88,13 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (attention != null && CasinoShiftController.Active != null &&
+            CasinoShiftController.Active.IsTraining && !attention.HasVisibleTasks)
+        {
+            indicatorCanvas.enabled = false;
+            contextCanvas.enabled = false;
+            return;
+        }
         if (AudioListener.pause) return;
         if (Time.unscaledTime >= nextRefresh)
         {
@@ -103,17 +110,17 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
                 urgencyTime.text = $"{Mathf.CeilToInt(remaining)}s";
                 urgencyTime.color = urgencyFill.color;
             }
-            indicatorCanvas.enabled = attention.HasPendingTasks || timed;
-            badge.gameObject.SetActive(attention.HasPendingTasks);
+            indicatorCanvas.enabled = attention.HasVisibleTasks || timed;
+            badge.gameObject.SetActive(attention.HasVisibleTasks);
             CasinoPlayerController player = FindFirstObjectByType<CasinoPlayerController>();
             bool closest = player != null && Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z),
                 new Vector3(player.transform.position.x, 0, player.transform.position.z)) < 5;
             if (closest)
                 foreach (CasinoAttentionIndicator other in FindObjectsByType<CasinoAttentionIndicator>(FindObjectsSortMode.None))
-                    if (other != this && other.Attention.HasPendingTasks &&
+                    if (other != this && other.Attention.HasVisibleTasks &&
                         (other.transform.position - player.transform.position).sqrMagnitude <
                         (transform.position - player.transform.position).sqrMagnitude) { closest = false; break; }
-            contextCanvas.enabled = Time.timeScale > 0 && closest && attention.HasPendingTasks &&
+            contextCanvas.enabled = Time.timeScale > 0 && closest && attention.HasVisibleTasks &&
                 !CasinoMinigamePresentation.IsOpen && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen();
             contextText.text = CasinoTaskFeedback.Message(attention) + (timed ? $"\n{Mathf.CeilToInt(remaining)}s until consequence" : "");
         }
@@ -139,7 +146,7 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
     {
         if (indicatorCanvas != null)
         {
-            indicatorCanvas.enabled = visible;
+            indicatorCanvas.enabled = visible && attention != null && attention.HasVisibleTasks;
         }
     }
 }

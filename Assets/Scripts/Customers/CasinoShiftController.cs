@@ -8,6 +8,47 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class CasinoShiftController : MonoBehaviour
 {
+    public static CasinoShiftController Active { get; private set; }
+    public bool IsTraining => running && tutorial;
+
+    public bool AllowsTrainingAttention(CasinoTableAttention source, TableAttentionReason reason)
+    {
+        if (!IsTraining) return true;
+        if (source == null) return false;
+        bool bj = source.gameObject == blackjack.gameObject;
+        bool rt = source.gameObject == roulette.gameObject;
+        bool cash = source.gameObject == cashDesk.gameObject;
+        bool pit = source.gameObject == pitDesk.gameObject;
+        return TutorialStage switch
+        {
+            2 => bj && reason == TableAttentionReason.ShuffleAssistanceRequired,
+            4 => rt && (reason == TableAttentionReason.RouletteCoverRequired ||
+                        reason == TableAttentionReason.FloatRefillRequired) ||
+                 cash && roulette.FloatDestination.NeedsRefill(),
+            5 => cash,
+            6 => cash || bj && reason == TableAttentionReason.FloatRefillRequired,
+            7 or 8 => pit || bj && reason == TableAttentionReason.DealerBreakRequired,
+            9 => bj && reason != TableAttentionReason.ShuffleAssistanceRequired ||
+                 cash && blackjack.GetComponent<CasinoFloatRefillDestination>().NeedsRefill(),
+            10 => rt && reason != TableAttentionReason.RouletteCoverRequired ||
+                  cash && roulette.FloatDestination.NeedsRefill(),
+            11 => pit || (bj || rt) && (reason == TableAttentionReason.TableUnstaffed ||
+                    reason == TableAttentionReason.DealerExhausted || reason == TableAttentionReason.DealerBreakRequired),
+            _ => false
+        };
+    }
+
+    public bool AllowsTrainingTask(CasinoTableAttention source, CasinoMinigameType type) =>
+        !IsTraining || type switch
+        {
+            CasinoMinigameType.Shuffle => TutorialStage == 2 && source.gameObject == blackjack.gameObject,
+            CasinoMinigameType.Cover => TutorialStage == 4 && source.gameObject == roulette.gameObject,
+            CasinoMinigameType.Spin => TutorialStage == 10 && source.gameObject == roulette.gameObject,
+            CasinoMinigameType.Pack => TutorialStage == 5 || TutorialStage == 6 ||
+                TutorialStage == 9 && blackjack.GetComponent<CasinoFloatRefillDestination>().NeedsRefill() ||
+                (TutorialStage == 4 || TutorialStage == 10) && roulette.FloatDestination.NeedsRefill(),
+            _ => false
+        };
     private const string SaveTutorial = "PitPanic.TutorialComplete";
     private static int requestedShift;
     private static bool skipMenu;
@@ -26,7 +67,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         "This is Blackjack 1! Walk over and press E to see what's happening.",
         "Let's help the dealer shuffle! At BJ1, press E, then SHUFFLE!",
         "Here's Roulette! Walk over and press E to see the bets.",
-        "Help Roulette finish this round: spin, sweep, then pay the winners.",
+        "The wheel has stopped! Click every bet that matches the winning number.",
         "A customer needs cash! Click the chips to make their change.",
         "Tables can run out of chips. Pack BJ1's refill and carry it over.",
         "Tired dealers slow down. Assign a ready teammate to keep the table going.",
@@ -122,6 +163,7 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void Awake()
     {
+        Active = this;
         player = FindFirstObjectByType<CasinoPlayerController>();
         spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
         dealers = FindFirstObjectByType<DealerAssignmentManager>();
@@ -389,7 +431,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 if (!queuedRoulette) { rouletteScheduler.RequestTutorialAssistance(); queuedRoulette = true; }
                 EnsureGuidedCustomer(CasinoCustomerGame.Roulette, 2);
                 objectiveText.text = roulette.HasPendingAssistance
-                    ? "ROULETTE: OPEN WITH E, THEN PLAY!"
+                    ? "ROULETTE: OPEN WITH E, THEN COVER!"
                     : "ROULETTE: WAIT FOR THE DEALER'S CALL";
                 target = roulette.transform;
                 break;
@@ -642,6 +684,7 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (Active == this) Active = null;
         AudioListener.pause = false;
         foreach (BlackjackTableInteraction table in FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
             table.RoundSettled -= OnBlackjackSettled;

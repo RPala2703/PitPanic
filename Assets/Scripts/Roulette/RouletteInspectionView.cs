@@ -111,7 +111,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
                 ? "SPACE  •  RUN SPIN / SWEEP / PAY" : "NO DEALER? TAKE OVER!";
             if (roundController.IsPlayerOperating && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
                 StartManualRound();
-            assistanceButton.gameObject.SetActive(roundController.HasPendingAssistance);
+            assistanceButton.gameObject.SetActive(roundController.IsCoverReady);
+            assistanceButton.GetComponentInChildren<Text>().text = "COVER!";
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 Close();
@@ -231,7 +232,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
             new Vector2(608f, 351f), new Vector2(190f, 48f), Close);
         takeoverButton = CreateButton(board.transform, "Take over", "NO DEALER? TAKE OVER!",
             new Vector2(-240, -357), new Vector2(490, 52), StartManualRound);
-        assistanceButton = CreateButton(board.transform, "Start assistance", "PLAY TABLE TASK!",
+        assistanceButton = CreateButton(board.transform, "Start assistance", "COVER!",
             new Vector2(315f, -357f), new Vector2(420f, 52f), () =>
             {
                 CasinoMinigameStation station = roundController.GetComponent<CasinoMinigameStation>();
@@ -399,7 +400,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         }
         RenderBetMarkers(bets);
 
-        int winningNumber = roundController.LatestWinningNumber;
+        int winningNumber = roundController.IsCoverReady
+            ? roundController.AssistanceWinningNumber : roundController.LatestWinningNumber;
         resultText.text = winningNumber < 0
             ? "NO RESULT YET"
             : $"LAST RESULT  •  {winningNumber}  {GetColorName(winningNumber)}";

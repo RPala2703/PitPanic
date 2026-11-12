@@ -54,13 +54,14 @@ public static class EuropeanRouletteRules
         });
 
     public static bool IsLegalSplit(int[] numbers) => numbers != null && numbers.Length == 2 &&
-        numbers[0] > 0 && numbers[1] > 0 && IsValidNumber(numbers[0]) && IsValidNumber(numbers[1]) &&
-        (Math.Abs(numbers[0] - numbers[1]) == 3 ||
-         Math.Abs(numbers[0] - numbers[1]) == 1 && Math.Min(numbers[0], numbers[1]) % 3 != 0);
+        numbers[0] != numbers[1] && IsValidNumber(numbers[0]) && IsValidNumber(numbers[1]) &&
+        (Math.Min(numbers[0], numbers[1]) == 0 && Math.Max(numbers[0], numbers[1]) <= 3 ||
+         numbers[0] > 0 && numbers[1] > 0 && (Math.Abs(numbers[0] - numbers[1]) == 3 ||
+         Math.Abs(numbers[0] - numbers[1]) == 1 && Math.Min(numbers[0], numbers[1]) % 3 != 0));
     public static bool IsLegalStreet(int[] numbers) => IsConsecutiveLine(numbers, 3) &&
         numbers[0] % 3 == 1 && numbers[0] <= 34;
     public static bool IsLegalCorner(int[] numbers) => numbers != null && numbers.Length == 4 &&
-        IsValidNumber(numbers[0]) && numbers[0] % 3 != 0 && numbers[0] <= 32 &&
+        numbers[0] > 0 && IsValidNumber(numbers[0]) && numbers[0] % 3 != 0 && numbers[0] <= 32 &&
         Contains(numbers, numbers[0] + 1) && Contains(numbers, numbers[0] + 3) && Contains(numbers, numbers[0] + 4);
     public static bool IsLegalSixLine(int[] numbers) => numbers != null && numbers.Length == 6 &&
         IsLegalStreet(new[] { numbers[0], numbers[1], numbers[2] }) &&

@@ -11,7 +11,8 @@ public enum CasinoMinigameType
     Spot,
     Approve,
     Shuffle,
-    Rotate
+    Rotate,
+    Cover
 }
 
 [DisallowMultipleComponent]

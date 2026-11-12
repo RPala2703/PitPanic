@@ -371,7 +371,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             if (payoutHandIndex >= 0)
             {
                 selectedPayoutChips.Clear();
-                if (TryGetAvailablePayout(round.CustomerHands[payoutHandIndex].PayoutPence, out int[] counts))
+                if (TryGetAvailablePayout(round.CustomerHands[payoutHandIndex].WinningsPence, out int[] counts))
                 {
                     int[] values = { 500, 250, 2500, 10000 };
                     for (int i = 0; i < counts.Length; i++)
@@ -454,15 +454,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         {
             CasinoCustomerAI customer = participants[i];
             int betPence = participantBetsPence[i];
-            List<BlackjackChipDenomination> wager = BlackjackChipDenomination.GetExactComposition(betPence, chipDenominations);
-            int[] wagerCounts = new int[4];
-            foreach (BlackjackChipDenomination chip in wager)
-            {
-                int index = chip.ValuePence switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
-                if (index >= 0) wagerCounts[index]++;
-            }
-            if (floatDestination != null && !floatDestination.TryAddChips(wagerCounts))
-                Debug.LogError($"Could not record the wager from {GetCustomerName(customer)} at {TableDisplayName}.", this);
+            // Stakes stay on the felt until settlement; only losing stakes enter the float.
             round.AddCustomer(customer, customer.Seat, betPence);
             bets.Add($"{GetCustomerName(customer)} {FormatPounds(betPence)}");
         }
@@ -735,6 +727,13 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             return;
         }
 
+        if (!round.NeedsDealerComparison)
+        {
+            message = "No hands need comparing. Return surviving stakes and settle the winnings.";
+            BeginSettlement();
+            return;
+        }
+
         if (BlackjackRules.DealerMustHit(round.DealerCards))
         {
             awaitingDealerCard = true;
@@ -788,6 +787,18 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         state = BlackjackTableState.Settlement;
         round.Settle();
         foreach (BlackjackHand hand in round.CustomerHands)
+        {
+            if (hand.Outcome != BlackjackOutcome.Lose) continue;
+            int[] wagerCounts = new int[4];
+            foreach (BlackjackChipDenomination chip in BlackjackChipDenomination.GetExactComposition(hand.BetPence, chipDenominations))
+            {
+                int index = chip.ValuePence switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+                if (index >= 0) wagerCounts[index]++;
+            }
+            if (!floatDestination.TryAddChips(wagerCounts))
+                throw new System.InvalidOperationException($"Could not collect a losing stake at {TableDisplayName}.");
+        }
+        foreach (BlackjackHand hand in round.CustomerHands)
             if (hand.Customer != null)
                 hand.Customer.GetComponentInChildren<PixelCharacterVisual>()?.React(hand.PayoutPence >= hand.BetPence);
         RoundSettled?.Invoke(round);
@@ -818,7 +829,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         BlackjackHand hand = round.CustomerHands[payoutHandIndex];
-        message = $"{OutcomeName(hand.Outcome)} for {GetCustomerName(hand)}. Build and confirm {FormatPounds(hand.PayoutPence)} in chips.";
+        message = $"{OutcomeName(hand.Outcome)} for {GetCustomerName(hand)}. Stake returned; pay {FormatPounds(hand.WinningsPence)} winnings.";
         RefreshView();
     }
 
@@ -831,7 +842,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         int selected = GetSelectedPayoutTotal();
-        int required = round.CustomerHands[payoutHandIndex].PayoutPence;
+        int required = round.CustomerHands[payoutHandIndex].WinningsPence;
         if (!HasChipAvailable(denomination))
         {
             floatDestination?.RequestAttention();
@@ -861,7 +872,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         selectedPayoutChips.RemoveAt(selectedPayoutChips.Count - 1);
         BlackjackHand hand = round.CustomerHands[payoutHandIndex];
-        message = $"Selected {FormatPounds(GetSelectedPayoutTotal())} of {FormatPounds(hand.PayoutPence)}.";
+        message = $"Selected {FormatPounds(GetSelectedPayoutTotal())} of {FormatPounds(hand.WinningsPence)} winnings.";
         RefreshView();
     }
 
@@ -874,7 +885,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         BlackjackHand hand = round.CustomerHands[payoutHandIndex];
         int selectedTotal = GetSelectedPayoutTotal();
-        if (selectedTotal != hand.PayoutPence)
+        if (selectedTotal != hand.WinningsPence)
         {
             payoutPenaltyCount++;
             selectedPayoutChips.Clear();
@@ -1055,7 +1066,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                 if (!hand.PayoutPaid && hand.PayoutPence > 0)
                 {
                     if (floatDestination == null ||
-                        !TryGetAvailablePayout(hand.PayoutPence, out int[] counts) ||
+                        !TryGetAvailablePayout(hand.WinningsPence, out int[] counts) ||
                         !floatDestination.TryConsumeChips(counts))
                     {
                         floatDestination?.RequestAttention();

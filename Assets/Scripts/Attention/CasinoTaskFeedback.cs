@@ -9,7 +9,8 @@ public static class CasinoTaskFeedback
     {
         remaining = float.PositiveInfinity;
         duration = 0;
-        if (attention == null) return false;
+        if (attention == null || CasinoShiftController.Active != null &&
+            CasinoShiftController.Active.IsTraining && !attention.HasVisibleTasks) return false;
         CasinoMinigame game = attention.GetComponent<CasinoMinigame>();
         if (game != null && game.TryGetDeadline(out float taskTime, out float taskDuration))
         { remaining = taskTime; duration = taskDuration; }
@@ -42,12 +43,12 @@ public static class CasinoTaskFeedback
 
     public static string Message(CasinoTableAttention attention)
     {
-        if (attention == null || !attention.HasPendingTasks) return "";
-        if (attention.GetPendingCount(TableAttentionReason.DealerExhausted) > 0 ||
-            attention.GetPendingCount(TableAttentionReason.TableUnstaffed) > 0)
+        if (attention == null || !attention.HasVisibleTasks) return "";
+        if (attention.GetVisiblePendingCount(TableAttentionReason.DealerExhausted) > 0 ||
+            attention.GetVisiblePendingCount(TableAttentionReason.TableUnstaffed) > 0)
             return "E: Dealer unavailable - TAKE OVER, or assign cover at Pit Desk!";
-        if (attention.GetPendingCount(TableAttentionReason.FloatRefillRequired) > 0 ||
-            attention.GetPendingCount(TableAttentionReason.ChipRefillRequired) > 0)
+        if (attention.GetVisiblePendingCount(TableAttentionReason.FloatRefillRequired) > 0 ||
+            attention.GetVisiblePendingCount(TableAttentionReason.ChipRefillRequired) > 0)
         {
             CasinoFloatRefillDestination destination = attention.GetComponent<CasinoFloatRefillDestination>();
             if (destination != null)
@@ -58,22 +59,22 @@ public static class CasinoTaskFeedback
             }
             return "Cash Desk E: prepare and deliver a float tray!";
         }
-        if (attention.GetPendingCount(TableAttentionReason.DealerBreakRequired) > 0)
+        if (attention.GetVisiblePendingCount(TableAttentionReason.DealerBreakRequired) > 0)
             return "Pit Desk E: assign cover, then send the tired dealer on break!";
-        if (attention.GetPendingCount(TableAttentionReason.ShuffleAssistanceRequired) > 0 ||
-            attention.GetPendingCount(TableAttentionReason.DealCards) > 0)
+        if (attention.GetVisiblePendingCount(TableAttentionReason.ShuffleAssistanceRequired) > 0 ||
+            attention.GetVisiblePendingCount(TableAttentionReason.DealCards) > 0)
             return "E: Blackjack needs SHUFFLE! Click the glowing card stack.";
-        if (attention.GetPendingCount(TableAttentionReason.RouletteCoverRequired) > 0)
-            return "E: Roulette needs COVER! Spin, sweep losing bets, then pay the winners.";
-        if (attention.GetPendingCount(TableAttentionReason.RouletteSpinRequired) > 0 ||
-            attention.GetPendingCount(TableAttentionReason.RouletteSweepRequired) > 0)
+        if (attention.GetVisiblePendingCount(TableAttentionReason.RouletteCoverRequired) > 0)
+            return "E: COVER! Click every winning bet. The dealer handles the chips.";
+        if (attention.GetVisiblePendingCount(TableAttentionReason.RouletteSpinRequired) > 0 ||
+            attention.GetVisiblePendingCount(TableAttentionReason.RouletteSweepRequired) > 0)
             return "E: Roulette needs SPIN! Clear losers, then pay winners exactly.";
-        if (attention.GetPendingCount(TableAttentionReason.CashDeskPackRequired) > 0)
+        if (attention.GetVisiblePendingCount(TableAttentionReason.CashDeskPackRequired) > 0)
             return "E: PACK! Click chips to match the order. Undo removes the last chip.";
-        if (attention.GetPendingCount(TableAttentionReason.DealerReadyForAssignment) > 0 ||
-            attention.GetPendingCount(TableAttentionReason.StaffRotationRequired) > 0)
+        if (attention.GetVisiblePendingCount(TableAttentionReason.DealerReadyForAssignment) > 0 ||
+            attention.GetVisiblePendingCount(TableAttentionReason.StaffRotationRequired) > 0)
             return "Pit Desk E: dealer waiting - assign a table or send on break!";
-        if (attention.GetPendingCount(TableAttentionReason.PayoutRequired) > 0)
+        if (attention.GetVisiblePendingCount(TableAttentionReason.PayoutRequired) > 0)
             return "E: pay the exact winnings shown to finish the round!";
         return "E: customers are waiting for table service!";
     }

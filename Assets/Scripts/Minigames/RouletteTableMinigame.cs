@@ -4,14 +4,15 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
-public sealed class RouletteTableMinigame : CasinoMinigame
+public sealed partial class RouletteTableMinigame : CasinoMinigame
 {
     private enum RouletteStage
     {
         Spin,
         Spinning,
         Sweep,
-        Pay
+        Pay,
+        Cover
     }
 
     private static readonly int[] EuropeanWheelOrder = CasinoPixelArt.WheelOrder;
@@ -100,12 +101,13 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     public bool IsConfigured => player != null && tableRoot != null && wheel != null && roundController != null;
     public override bool CanBegin => IsConfigured && Mouse.current != null &&
                                      roundController.Phase == RouletteRoundPhase.AwaitingAssistance &&
-                                     roundController.AssistanceBets.Count > 0;
+                                     roundController.AssistanceBets.Count > 0 &&
+                                     (roundController.IsCoverReady || roundController.IsPlayerOperating);
     protected override string PresentationTitle =>
-        roundController != null && !roundController.IsPlayerOperating ? "COVER!" : "SPIN!";
+        roundController != null && roundController.IsCoverAssistance ? "COVER!" : "SPIN!";
     protected override string PresentationInstructions =>
-        roundController != null && !roundController.IsPlayerOperating
-            ? "COVER THIS ROUND  •  SPIN, SWEEP LOSERS, PAY WINNERS."
+        roundController != null && roundController.IsCoverAssistance
+            ? "CLICK EVERY WINNING BET. YOUR DEALER HANDLES THE CHIPS."
             : "DRAG THE WHEEL  •  LET IT FLY!";
     public int WinningNumber => winningNumber;
     public int SweptChipCount => sweptCount;
@@ -317,6 +319,12 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         sweepStageRoot = null;
         payoutStageRoot = null;
         gameArea = Presentation.GameArea;
+        if (roundController.IsCoverAssistance)
+        {
+            stage = RouletteStage.Cover;
+            BuildCover();
+            return;
+        }
         BuildPopup();
         if (winningNumber >= 0)
         {
@@ -335,6 +343,12 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
             Abandon();
+            return;
+        }
+
+        if (stage == RouletteStage.Cover)
+        {
+            TickCover(deltaTime);
             return;
         }
 
@@ -470,16 +484,15 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         panelOutline.effectColor = new Color(0.64f, 0.53f, 0.27f);
         panelOutline.effectDistance = new Vector2(3f, -3f);
         CasinoMinigamePresentation.CreateText(panel.transform, "Betting Layout Label",
-            "EUROPEAN ROULETTE  •  3 × 12", new Vector2(0f, height * 0.5f - 22f),
-            new Vector2(width - 20f, 30f), 17,
+            "EUROPEAN ROULETTE  •  3 × 12", new Vector2(0f, height * 0.5f - 14f),
+            new Vector2(width - 20f, 20f), 13,
             new Color(1f, 0.85f, 0.42f));
 
         float rowSpacing = compact ? 27f : 31f;
         float columnSpacing = compact ? 68f : 88f;
         float firstCellX = -columnSpacing;
         float firstCellY = compact ? 147f : 170f;
-        float zeroX = firstCellX - (compact ? 65f : 82f);
-        Vector2 zeroPosition = new Vector2(zeroX, firstCellY - rowSpacing * 5.5f);
+        Vector2 zeroPosition = new Vector2(0f, firstCellY + rowSpacing);
         for (int number = 0; number <= 36; number++)
         {
             Vector2 position = number == 0
@@ -487,7 +500,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
                 : RouletteBettingLayout.GetNumberCellPosition(
                     number, new Vector2(firstCellX, firstCellY), columnSpacing, rowSpacing);
             Vector2 size = number == 0
-                ? new Vector2(compact ? 54f : 70f, rowSpacing * 12f - 2f)
+                ? new Vector2(columnSpacing * 3f - 3f, rowSpacing - 3f)
                 : new Vector2(columnSpacing - 3f, rowSpacing - 3f);
             Color color = number == 0
                 ? new Color(0.11f, 0.52f, 0.28f)
@@ -1073,7 +1086,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     {
         if (winningNumber < 0)
         {
-            winningNumber = roundController.IsTutorialRound ? 1 : Random.Range(0, 37);
+            winningNumber = Random.Range(0, 37);
             if (!roundController.TrySetAssistanceWinningNumber(assistanceRoundId, winningNumber))
             {
                 winningNumber = -1;
@@ -1166,8 +1179,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             string region = GetBetRegionKey(customerBet.Bet);
             stackCounts.TryGetValue(region, out int stackIndex);
             stackCounts[region] = stackIndex + 1;
-            RectTransform cell = GetBetCell(customerBet.Bet, sweepNumberCells, sweepOutsideCells);
-            Vector2 home = GetGameAreaPosition(cell) + new Vector2(
+            Vector2 home = GetBetBoardPosition(customerBet.Bet, sweepNumberCells, sweepOutsideCells) + new Vector2(
                 ((stackIndex % 3) - 1) * 13f, (stackIndex / 3) * 14f);
             bool protectedChip = customerBet.IsWinning;
             if (protectedChip)
@@ -1284,8 +1296,7 @@ public sealed class RouletteTableMinigame : CasinoMinigame
             string region = GetBetRegionKey(customerBet.Bet);
             stackCounts.TryGetValue(region, out int stackIndex);
             stackCounts[region] = stackIndex + 1;
-            RectTransform cell = GetBetCell(customerBet.Bet, payoutNumberCells, payoutOutsideCells);
-            Vector2 home = GetGameAreaPosition(cell) + new Vector2(
+            Vector2 home = GetBetBoardPosition(customerBet.Bet, payoutNumberCells, payoutOutsideCells) + new Vector2(
                 ((stackIndex % 3) - 1) * 13f, (stackIndex / 3) * 14f + 7f);
             GameObject chipObject = CasinoMinigamePresentation.CreateImage(
                 $"Winning Roulette Bet {customerBet.BetId}", payoutStageRoot,
@@ -1302,21 +1313,9 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         }
     }
 
-    private RectTransform GetBetCell(
-        RouletteBet bet,
-        Dictionary<int, RectTransform> numberCells,
-        Dictionary<RouletteBetType, RectTransform> outsideCells)
-    {
-        if (bet.Type == RouletteBetType.StraightUp)
-        {
-            return numberCells.TryGetValue(bet.Number, out RectTransform cell) ? cell : null;
-        }
-
-        return outsideCells.TryGetValue(bet.Type, out RectTransform outside) ? outside : null;
-    }
-
     private static string GetBetRegionKey(RouletteBet bet) =>
-        bet.Type == RouletteBetType.StraightUp ? $"NUMBER_{bet.Number}" : bet.Type.ToString();
+        bet.Type == RouletteBetType.StraightUp ? $"NUMBER_{bet.Number}" :
+        bet.Numbers.Length > 0 ? $"{bet.Type}_{string.Join("_", bet.Numbers)}" : bet.Type.ToString();
 
     private static Color GetBetAreaColor(RouletteBetType betType) => betType switch
     {

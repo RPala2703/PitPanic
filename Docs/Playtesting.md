@@ -7,10 +7,12 @@ do next. Record where they hesitate, not just whether they eventually succeed.
 | Check | Expected outcome |
 | --- | --- |
 | Title/settings | New Game, Continue, volume sliders, fullscreen and Quit work. No active casino is visible behind the title. |
-| New player | Tiger's short portrait lessons pause all simulation/audio; LET ME TRY! resumes real practice. Complete all 13 lessons without random-task waits. HELP revisits explanations without resetting progress. SKIP TRAINING works. |
+| New player | Tiger's short portrait lessons pause all simulation/audio; LET ME TRY! resumes real practice. Only the current lesson's stations show ! markers, timers and task-HUD entries. Complete all 13 lessons without random-task waits. HELP revisits explanations without resetting progress. SKIP TRAINING restores normal task visibility. |
 | Controls | WASD and arrow keys follow the screen axes; diagonal speed is normal. E opens tables or delivers a carried tray first. Q opens the same inspection. Escape exits every interaction. |
-| Blackjack | SHUFFLE! presents two stacks and an eight-click sequence that interleaves cards into a deck; there is no shoe-dealing task. It can succeed, fail, cancel and retry. Check finite float balances and exact payouts; no duplicate payouts on retry. |
-| Roulette | A staffed table requests COVER!; an unstaffed table can be taken over. SPIN!, SWEEP! and PAY! each finish or cancel safely. Test straight, split, street, corner, six-line and outside bets including zero, their stated odds, finite chips and one-time settlement. |
+| Blackjack | All-bust hands end without dealer draws. Stakes return automatically on non-losses; pay only 1× winnings on a win, 1.5× on Blackjack, nothing on a push. Check the finite float and accounting separately. SHUFFLE! remains a retryable two-stack sequence. |
+| Roulette COVER! | A working dealer reveals the actual round result before requesting COVER! Click winning bets or numbered chips, not losers. Test every bet type, zero, overlapping/identical customer bets, NO WINNERS and BET GUIDE. Escape/timeout must preserve the same result and unpaid bets. The button says only COVER! |
+| Roulette settlement | COVER! automatically clears and pays with actual inventory. Force a shortage after a partial payout, deliver float and verify only unpaid bets resume. No duplicate settlement or invented chips. Straight-up profit remains 35:1; split/street/corner/six-line are 17/11/8/5:1. |
+| Roulette takeover | Exhaust the dealer before and after the wheel spins. COVER! becomes unavailable. TAKE OVER uses SPIN!/SWEEP!/PAY!, retaining an existing result and payouts on cancel/retry. Do not mix it with COVER! |
 | Cash Desk | Both games accept clicks, not dragging. £2.50/£5/£25/£100 choices add visible chips; Undo works before finishing. Verify finite register counts and standard float value (£200). Cancellation/timeout refunds a float reservation; carry/deliver only to the named table. |
 | Urgency/markers | Real station meters match HUD seconds and actual patience/attempt time, with green/yellow/red transitions. No fake timer on float/staff jobs. Approach each ! for specific instructions. Expired customers lose satisfaction; their assistance marker clears when no recipients remain. |
 | Manual dealing | Exhaust every dealer. E → Take Over runs a real Blackjack hand with Space and a real Roulette SPIN/SWEEP/PAY round. Verify exact payouts and no second settlement on retry. Escape releases control; returning cover resumes the current round. |
@@ -40,9 +42,16 @@ The expanded driver acknowledges paused lessons, clicks both chip racks, undoes
 selections, checks real deadlines, completes both manual table types, sends
 outgoing exhausted staff to recover, and verifies automatic return to staffing.
 Any Unity Console error or exception fails this regression.
+Rule fixtures exercise every COVER! bet type against all 37 results, identical
+winning bets, no winners, real refill delivery after partial payment, duplicate
+settlement guards, all-bust Blackjack, and profit-only Blackjack payments.
 
 The macOS development capture can exercise an accelerated full unattended shift
-and retry. A successful Windows build does **not** prove Windows runtime behaviour.
+and retry. Add `--pit-cover-check` alongside `--pit-capture-dir <folder>` to capture
+the actual COVER! board and BET GUIDE, select that round's winning bets, and check
+settlement in the standalone app. This check waits for a real dealer spin; it
+does not invent a result or replace the customer bets.
+A successful Windows build does **not** prove Windows runtime behaviour.
 Human nine-minute playthroughs, Windows execution, minimum-spec performance,
 high-DPI/accessibility testing and subjective difficulty/audio quality must be
 signed off by external testers before a Steam release. No Steamworks integration,
