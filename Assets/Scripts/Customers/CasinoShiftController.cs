@@ -276,7 +276,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 spawner.SetAcceptingArrivals(false);
             }
             if (!tutorial && !ending)
-                objectiveText.text = $"HELP {completedTasks}/4  •  KEEP 60% HAPPY  •  MISSES {failedAttempts}/5";
+                objectiveText.text = $"TASKS COMPLETED {completedTasks}  •  MISSED {failedAttempts}";
         }
         int seconds = Mathf.CeilToInt(remaining);
         timerText.text = $"SHIFT {shift}  •  {seconds / 60:00}:{seconds % 60:00}";

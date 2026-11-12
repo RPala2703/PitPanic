@@ -23,7 +23,85 @@ public static class CasinoGameplayValidation
         CheckAllBust();
         CheckBlackjackWinnings();
         CheckChipPaletteAndRefills();
+        CheckTaskDeadlines();
+        CheckLargePayoutRefills();
         Debug.Log("Casino gameplay validation passed: COVER rules, zero, duplicates, finite payout recovery and Blackjack all-bust.");
+    }
+
+    private static void CheckTaskDeadlines()
+    {
+        GameObject root = new GameObject("Task deadline lifecycle test");
+        try
+        {
+            CasinoTableAttention attention = root.AddComponent<CasinoTableAttention>();
+            CashDeskPackMinigame game = root.AddComponent<CashDeskPackMinigame>();
+            Set(game, "timeRemaining", 30f);
+            Set(game, "totalRequired", 32);
+            typeof(CasinoMinigame).GetField("<IsRunning>k__BackingField", Flags).SetValue(game, true);
+            Check(!CasinoTaskFeedback.TryGetDeadline(attention, out _, out _),
+                "A deadline appeared with no active task.");
+            attention.RequestAttentionOnce(TableAttentionReason.CashDeskPackRequired);
+            Check(CasinoTaskFeedback.TryGetDeadline(attention, out float seconds, out _) && seconds == 30,
+                "Packing deadline did not use the running task.");
+            Check(!CasinoTaskFeedback.TryGetDeadline(attention, TableAttentionReason.DealerBreakRequired, out _, out _),
+                "A different task borrowed the packing timer.");
+            attention.ResolveAttention(TableAttentionReason.CashDeskPackRequired);
+            Check(!CasinoTaskFeedback.TryGetDeadline(attention, out _, out _),
+                "A completed task left a deadline behind.");
+            attention.RequestAttentionOnce(TableAttentionReason.FloatRefillRequired);
+            Check(!CasinoTaskFeedback.TryGetDeadline(attention, out _, out _),
+                "An untimed float request borrowed a stale task deadline.");
+            attention.ResolveAttention(TableAttentionReason.FloatRefillRequired);
+            foreach (TableAttentionReason reason in Enum.GetValues(typeof(TableAttentionReason)))
+            {
+                attention.RequestAttentionOnce(reason);
+                string message = CasinoTaskFeedback.Message(attention);
+                Check(message.Length > 0 && message.Split(' ').Length <= 3,
+                    $"Task speech must contain at most three words: {reason}.");
+                attention.ResolveAttention(reason);
+            }
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    private static void CheckLargePayoutRefills()
+    {
+        GameObject root = new GameObject("Large payout refill test");
+        try
+        {
+            CasinoTableAttention attention = root.AddComponent<CasinoTableAttention>();
+            CasinoFloatRefillDestination stock = root.AddComponent<CasinoFloatRefillDestination>();
+            TableInteractionZone zone = root.AddComponent<TableInteractionZone>();
+            zone.Configure(root.AddComponent<BoxCollider>());
+            stock.Configure("BIG", "BIG", zone, attention);
+            CashDeskPackMinigame pack = root.AddComponent<CashDeskPackMinigame>();
+            CasinoCashDeskInteraction desk = root.AddComponent<CasinoCashDeskInteraction>();
+            Set(desk, "packMinigame", pack);
+            var destinations = (List<CasinoFloatRefillDestination>)typeof(CasinoCashDeskInteraction)
+                .GetField("destinations", Flags).GetValue(desk);
+            destinations.Add(stock);
+            Check(stock.TryConsumeChips(new[] { 12, 0, 0, 0 }), "Could not create an initial red-chip request.");
+            desk.RefreshFloatRequests();
+            CasinoFloatRefillOrder original = desk.GetRequestedOrders()[0];
+            Check(original.CountFor(3) == 0, "Initial low-denomination order unexpectedly contained pinks.");
+            stock.RequestAttention(87500);
+            desk.RefreshFloatRequests();
+            CasinoFloatRefillOrder expanded = desk.GetRequestedOrders()[0];
+            Check(expanded.Id == original.Id && expanded.CountFor(3) >= 8 && expanded.CountFor(2) > 0,
+                "An existing refill request did not expand for an £875 payout and reserve.");
+            Check(desk.TryBeginPacking(expanded.Id), "Large refill could not reserve real register stock.");
+            Check(desk.CancelPacking(expanded.Id), "Large refill could not be cancelled.");
+            stock.RequestAttention(175000);
+            desk.RefreshFloatRequests();
+            Check(desk.GetRequestedOrders()[0].HasExactContents(expanded.Counts),
+                "A reserved refill changed contents during retry.");
+            Check(stock.Receive(expanded, expanded.Counts) && !stock.Receive(expanded, expanded.Counts),
+                "Large refill delivery failed or duplicated.");
+            Check(stock.TryGetAvailableComposition(87500, out int[] payment) && stock.TryConsumeChips(payment) &&
+                stock.InventoryValuePence > 0 && stock.GetChipCount(3) >= 2,
+                "£875 refill did not cover the payout while leaving a real reserve.");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
     }
 
     private static void CheckChipPaletteAndRefills()

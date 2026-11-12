@@ -157,6 +157,8 @@ public sealed class AIDealer : MonoBehaviour
 
     private void Start()
     {
+        if (GetComponent<CasinoSpeechBubble>() == null)
+            gameObject.AddComponent<CasinoSpeechBubble>();
         if (manager == null || breakRoomPosition == null ||
             pitDeskPosition == null && initialAssignedStation == null)
         {

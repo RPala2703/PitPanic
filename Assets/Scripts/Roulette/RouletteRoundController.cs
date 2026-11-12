@@ -757,6 +757,7 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         RecordSecurityEvidence(winningNumber);
+        RequestUnpaidPayoutRefill();
         Phase = RouletteRoundPhase.SettlingBets;
         phaseTimer = settlementSeconds;
     }
@@ -803,7 +804,7 @@ public sealed class RouletteRoundController : MonoBehaviour
             if (!floatDestination.TryGetAvailableComposition((int)bet.WinningsPence, out int[] counts) ||
                 !floatDestination.TryConsumeChips(counts))
             {
-                floatDestination.RequestAttention((int)bet.WinningsPence);
+                RequestUnpaidPayoutRefill();
                 return false;
             }
 
@@ -813,6 +814,16 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         return true;
+    }
+
+    public void RequestUnpaidPayoutRefill()
+    {
+        int unpaid = 0;
+        foreach (RouletteCustomerBet bet in currentBets)
+            if (bet.IsWinning && !bet.IsPaid)
+                unpaid = checked(unpaid + (int)bet.WinningsPence);
+        if (unpaid > 0 && !floatDestination.TryGetAvailableComposition(unpaid, out _))
+            floatDestination.RequestAttention(unpaid);
     }
 
     private void FinishRound()

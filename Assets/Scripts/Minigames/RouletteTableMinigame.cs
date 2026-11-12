@@ -74,7 +74,6 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
     private Text payoutAmountText;
     private Text selectedAmountText;
     private Text payoutFeedbackText;
-    private Text payoutQuantityText;
     private Button payoutConfirmButton;
     private RouletteCustomerBet currentPayoutBet;
     private SweepChip heldChip;
@@ -89,7 +88,6 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
     private int winningNumber = -1;
     private int sweptCount;
     private int requiredSweepCount;
-    private int payoutQuantity = 1;
     private int selectedPayoutPence;
     private long assistanceRoundId;
     private Coroutine paymentAnimation;
@@ -296,7 +294,6 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         winningNumber = roundController.AssistanceWinningNumber;
         sweptCount = 0;
         requiredSweepCount = 0;
-        payoutQuantity = 1;
         selectedPayoutPence = 0;
         currentPayoutBet = null;
         angularTravel = 0f;
@@ -607,19 +604,6 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             CreatePayoutChipButton(panel.transform, denominationIndex, new Vector2(chipX[i], 54f));
         }
 
-        CasinoMinigamePresentation.CreateText(panel.transform, "Quantity Label",
-            "ADD CHIP STACK", new Vector2(-255f, -65f), new Vector2(190f, 28f),
-            15, new Color(1f, 0.87f, 0.44f));
-        CreatePayButton(panel.transform, "Quantity One", "×1", new Vector2(-310f, -105f),
-            new Vector2(70f, 42f), () => SetPayoutQuantity(1));
-        CreatePayButton(panel.transform, "Quantity Five", "×5", new Vector2(-230f, -105f),
-            new Vector2(70f, 42f), () => SetPayoutQuantity(5));
-        CreatePayButton(panel.transform, "Quantity Ten", "×10", new Vector2(-150f, -105f),
-            new Vector2(70f, 42f), () => SetPayoutQuantity(10));
-        payoutQuantityText = CasinoMinigamePresentation.CreateText(
-            panel.transform, "Selected Quantity", "ADDING ×1", new Vector2(120f, -105f),
-            new Vector2(220f, 36f), 16, Color.white);
-
         payoutTray = CasinoMinigamePresentation.CreateImage(
             "Payout Chip Tray", panel.transform, new Vector2(190f, -165f),
             new Vector2(570f, 65f), new Color(0.07f, 0.3f, 0.19f, 0.98f))
@@ -633,7 +617,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         payoutFeedbackText = CasinoMinigamePresentation.CreateText(
             panel.transform, "Payout Feedback", "", new Vector2(0f, -220f),
             new Vector2(340f, 42f), 16, new Color(1f, 0.83f, 0.4f));
-        CreatePayButton(panel.transform, "Undo Payout Chip", "UNDO STACK",
+        CreatePayButton(panel.transform, "Undo Payout Chip", "UNDO CHIP",
             new Vector2(-310f, -225f), new Vector2(170f, 46f), UndoPayoutAction);
         payoutConfirmButton = CreatePayButton(panel.transform, "Confirm Payout",
             "CONFIRM PAYOUT", new Vector2(310f, -225f), new Vector2(260f, 46f),
@@ -685,15 +669,6 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         return button;
     }
 
-    private void SetPayoutQuantity(int quantity)
-    {
-        payoutQuantity = Mathf.Max(1, quantity);
-        if (payoutQuantityText != null)
-        {
-            payoutQuantityText.text = $"ADDING ×{payoutQuantity}";
-        }
-    }
-
     private void AddPayoutChips(int denominationIndex)
     {
         if (stage != RouletteStage.Pay || currentPayoutBet == null ||
@@ -703,22 +678,22 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         }
 
         int stock = roundController.FloatDestination.GetChipCount(denominationIndex);
-        if (selectedPayoutCounts[denominationIndex] + payoutQuantity > stock)
+        if (selectedPayoutCounts[denominationIndex] + 1 > stock)
         {
-            roundController.FloatDestination.RequestAttention();
+            roundController.RequestUnpaidPayoutRefill();
             payoutFeedbackText.text = $"ONLY {stock} {PayoutChipNames[denominationIndex]} CHIPS IN THIS FLOAT";
             return;
         }
 
-        selectedPayoutCounts[denominationIndex] += payoutQuantity;
+        selectedPayoutCounts[denominationIndex]++;
         CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position, transform);
-        selectedPayoutPence += PayoutDenominationsPence[denominationIndex] * payoutQuantity;
-        payoutActions.Add(new[] { denominationIndex, payoutQuantity });
+        selectedPayoutPence += PayoutDenominationsPence[denominationIndex];
+        payoutActions.Add(new[] { denominationIndex, 1 });
         RenderPayoutSelection();
         if (payoutFeedbackText != null)
         {
             payoutFeedbackText.text = selectedPayoutPence > currentPayoutBet.WinningsPence
-                ? "TOO MUCH — UNDO A CHIP STACK"
+                ? "TOO MUCH — UNDO A CHIP"
                 : $"{RouletteRoundController.FormatPounds(currentPayoutBet.WinningsPence - selectedPayoutPence)} LEFT";
         }
     }
@@ -738,7 +713,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         RenderPayoutSelection();
         if (payoutFeedbackText != null)
         {
-            payoutFeedbackText.text = "LAST CHIP STACK REMOVED";
+            payoutFeedbackText.text = "LAST CHIP REMOVED";
         }
     }
 
@@ -814,7 +789,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
                 selectedPayoutPence,
                 (int[])selectedPayoutCounts.Clone()))
         {
-            roundController.FloatDestination.RequestAttention();
+            roundController.RequestUnpaidPayoutRefill();
             if (payoutFeedbackText != null)
             {
                 payoutFeedbackText.text = "TABLE FLOAT SHORT — ESCAPE, REFILL, THEN RETRY PAY!";
@@ -921,14 +896,12 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         payoutCustomerText.text = $"WINNER  •  {currentPayoutBet.Customer.name}  •  {RouletteRoundController.GetBetLabel(currentPayoutBet.Bet)}";
         payoutAmountText.text =
             $"TARGET  {RouletteRoundController.FormatPounds(currentPayoutBet.WinningsPence)}";
-        payoutFeedbackText.text = "Build the exact total. Chip-stack buttons add up to ten chips.";
-        if (payoutQuantityText != null)
-        {
-            payoutQuantityText.text = $"ADDING ×{payoutQuantity}";
-        }
+        bool funded = roundController.FloatDestination.TryGetAvailableComposition((int)currentPayoutBet.WinningsPence, out _);
+        roundController.RequestUnpaidPayoutRefill();
+        payoutFeedbackText.text = funded ? "Click chips to match the total." : "FLOAT REFILL NEEDED";
 
         SetStatus($"PAY!  •  {currentPayoutBet.Customer.name}");
-        SetInstruction("Select chip denominations, choose a stack size, then confirm the exact payout.");
+        SetInstruction("Click chips, then confirm the exact payout.");
         RenderPayoutSelection();
     }
 

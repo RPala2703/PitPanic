@@ -17,6 +17,8 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
     private readonly HashSet<string> receivedOrderIds = new HashSet<string>();
     private bool refillRequested;
     private int unpaidPayoutPence;
+    public bool HasBlockedPayout => unpaidPayoutPence > 0 &&
+        !TryGetAvailableComposition(unpaidPayoutPence, out _);
 
     public string DestinationId => destinationId;
     public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName;
@@ -56,11 +58,15 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
         for (int i = 0; i < needed.Length; i++)
             if (refillOrderCounts[i] > 0 && chipCounts[i] <= refillThresholdCounts[i])
                 needed[i] = Mathf.Max(startingChipCounts[i], refillOrderCounts[i]) - chipCounts[i];
-        if (unpaidPayoutPence > 0 && !TryGetAvailableComposition(unpaidPayoutPence, out _))
+        if (HasBlockedPayout)
         {
             int[] payout = RouletteTableMinigame.GetPayoutComposition(unpaidPayoutPence);
             for (int i = 0; i < needed.Length; i++)
-                needed[i] = Mathf.Max(needed[i], payout[i] - chipCounts[i]);
+            {
+                if (payout[i] == 0) continue;
+                int reserve = Mathf.Max(startingChipCounts[i], Mathf.CeilToInt(payout[i] * .25f), 1);
+                needed[i] = Mathf.Max(needed[i], payout[i] + reserve - chipCounts[i]);
+            }
         }
         bool any = Array.Exists(needed, count => count > 0);
         // Explicit practice/crew requests can top up a healthy float, too.

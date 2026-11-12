@@ -30,6 +30,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
     private readonly Dictionary<string, CasinoFloatRefillOrder> orders = new Dictionary<string, CasinoFloatRefillOrder>();
     private readonly Dictionary<string, CasinoFloatRefillStatus> orderStatuses = new Dictionary<string, CasinoFloatRefillStatus>();
     private readonly Dictionary<string, CasinoFloatRefillOrder> activeOrdersByDestination = new Dictionary<string, CasinoFloatRefillOrder>();
+    private readonly HashSet<string> startedOrders = new HashSet<string>();
     private CasinoCustomerAI activeCustomer;
     private CasinoFloatRefillOrder activeOrder;
     private CasinoFloatRefillOrder carryingOrder;
@@ -159,6 +160,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
         }
 
         activeOrder = order;
+        startedOrders.Add(order.Id);
         orderStatuses[orderId] = CasinoFloatRefillStatus.Packing;
         packMinigame.SetFloatOrder(order);
         return true;
@@ -264,7 +266,20 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
                 continue;
             }
 
-            if (!activeOrdersByDestination.ContainsKey(destination.DestinationId))
+            if (activeOrdersByDestination.TryGetValue(destination.DestinationId, out CasinoFloatRefillOrder existing))
+            {
+                if (GetOrderStatus(existing.Id) != CasinoFloatRefillStatus.Requested ||
+                    startedOrders.Contains(existing.Id) || !destination.HasBlockedPayout) continue;
+                int[] demand = destination.GetRequiredRefillCounts();
+                for (int denomination = 0; denomination < demand.Length; denomination++)
+                    demand[denomination] = Mathf.Max(demand[denomination], existing.CountFor(denomination));
+                if (existing.HasExactContents(demand)) continue;
+                CasinoFloatRefillOrder expanded = new CasinoFloatRefillOrder(existing.Id,
+                    existing.DestinationId, destination, demand);
+                orders[existing.Id] = expanded;
+                activeOrdersByDestination[destination.DestinationId] = expanded;
+            }
+            else
             {
                 string orderId = $"float-{destination.DestinationId}-{nextOrderSequence++}";
                 CasinoFloatRefillOrder order = new CasinoFloatRefillOrder(
@@ -487,6 +502,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
         orders.Clear();
         orderStatuses.Clear();
         activeOrdersByDestination.Clear();
+        startedOrders.Clear();
         nextOrderSequence = 0;
         if (configuredDestinations == null)
         {

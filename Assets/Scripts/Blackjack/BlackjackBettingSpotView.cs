@@ -17,7 +17,6 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
     private RectTransform betStack;
     private Font font;
     private string seatLabel;
-    private Image customerPortrait;
 
     public void Configure(int seatNumber, Font runtimeFont, Canvas canvas, RectTransform shoe, IReadOnlyList<BlackjackChipDenomination> chipDenominations)
     {
@@ -33,10 +32,6 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
         emptyImage.preserveAspect = false;
         emptyImage.raycastTarget = false;
 
-        GameObject portrait = CreateRectObject("Guest Portrait", transform, new Vector2(-110, 75), new Vector2(48, 64));
-        customerPortrait = portrait.AddComponent<Image>();
-        customerPortrait.preserveAspect = true;
-        customerPortrait.raycastTarget = false;
         nameText = CreateText("Seat Name", transform, font, new Vector2(20f, 87f), new Vector2(210f, 28f), 16, TextAnchor.MiddleCenter);
         statusText = CreateText("Hand Status", transform, font, new Vector2(0f, -78f), new Vector2(270f, 26f), 15, TextAnchor.MiddleCenter);
         betText = CreateText("Stake", transform, font, new Vector2(-70f, -99f), new Vector2(108f, 22f), 13, TextAnchor.MiddleCenter);
@@ -60,10 +55,6 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
         CasinoCustomerAI customer = hand != null ? hand.Customer : seat != null ? seat.Occupant : null;
         emptyCard.SetActive(customer == null);
         nameText.text = customer != null ? customer.name.ToUpperInvariant() : seatLabel;
-        customerPortrait.enabled = customer != null;
-        if (customer != null)
-            customerPortrait.sprite = customer.GetComponentInChildren<PixelCharacterVisual>()?.TitleFrame(Time.time);
-
         if (hand != null)
         {
             handView.Render(hand.Cards, hiddenCardIndex, revealAll, hand.Status, true);

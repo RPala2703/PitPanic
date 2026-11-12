@@ -252,7 +252,45 @@ public static class FirstShiftPlayModeValidation
                         path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete,
                         $"Level {level}: {seat.name} cannot be reached");
                 }
+
             }
+        }
+
+        private static void ValidatePackingCapacity(CashDeskPackMinigame pack)
+        {
+            int[] packed = (int[])Get(pack, "packedCounts");
+            int[] required = (int[])Get(pack, "requiredCounts");
+            int[] oldPacked = (int[])packed.Clone();
+            int[] oldRequired = (int[])required.Clone();
+            RectTransform tray = (RectTransform)Get(pack, "floatTrayRect");
+            var views = (List<RectTransform>[])Get(pack, "trayChipViews");
+            foreach (int count in new[] { 32, 128, 1000 })
+            {
+                for (int denomination = 0; denomination < packed.Length; denomination++)
+                    packed[denomination] = required[denomination] = count;
+                Call(pack, "RenderTrayStacks");
+                Canvas.ForceUpdateCanvases();
+                for (int denomination = 0; denomination < packed.Length; denomination++)
+                {
+                    Check(views[denomination].Count <= 15, "Large refill rendered an unbounded page of chips");
+                    foreach (RectTransform chip in views[denomination])
+                    {
+                        Vector3[] corners = new Vector3[4];
+                        chip.GetWorldCorners(corners);
+                        foreach (Vector3 corner in corners)
+                        {
+                            Vector3 local = tray.InverseTransformPoint(corner);
+                            Check(tray.rect.Contains(local), "Packed chips spill outside the float tray");
+                        }
+                    }
+                    Text[] counts = (Text[])Get(pack, "stackCountTexts");
+                    Check(counts[denomination].text == $"{count}/{count}",
+                        "Compacted chip stacks lost their exact counts");
+                }
+            }
+            Array.Copy(oldPacked, packed, packed.Length);
+            Array.Copy(oldRequired, required, required.Length);
+            Call(pack, "RenderTrayStacks");
         }
 
         private IEnumerator Test()
@@ -390,7 +428,6 @@ public static class FirstShiftPlayModeValidation
             unrelatedAttention.RequestAttention(TableAttentionReason.CustomerComplaint);
             foreach (CasinoAttentionIndicator indicator in FindObjectsByType<CasinoAttentionIndicator>(FindObjectsSortMode.None))
             {
-                Set(indicator, "nextRefresh", 0f);
                 Call(indicator, "LateUpdate");
                 Check(!((Canvas)Get(indicator, "indicatorCanvas")).enabled,
                     "Unrelated task marker interrupted the movement lesson");
@@ -643,6 +680,7 @@ public static class FirstShiftPlayModeValidation
             Check(pack.TryGetDeadline(out float packTime, out _) &&
                 CasinoTaskFeedback.TryGetDeadline(desk.GetComponent<CasinoTableAttention>(), out float stationTime, out _) &&
                 stationTime <= packTime, "Cash Desk urgency did not use a real deadline");
+            ValidatePackingCapacity(pack);
             ClickRack(pack, 0);
             pack.UndoLastChip();
             Check(pack.PackedChipCount == 0, "Float Undo failed");
@@ -810,6 +848,11 @@ public static class FirstShiftPlayModeValidation
             Check(shift.RemainingSeconds >= 179, "Training left no time for normal gameplay");
             Debug.Log($"SHIFT GOAL TEST: tasks={Get(shift, "completedTasks")}");
             Check((int)Get(shift, "completedTasks") >= 4, "Training did not complete real service tasks");
+            Set(shift, "completedTasks", 26);
+            yield return null;
+            string taskCounts = ((Text)Get(shift, "objectiveText")).text;
+            Check(taskCounts.Contains("26") && taskCounts.Contains("MISSED") && !taskCounts.Contains("/4"),
+                "Shift HUD still shows a meaningless help target fraction");
             // Earlier fixtures deliberately cancel/time out tasks; isolate the successful-result case.
             Set(shift, "failedAttempts", 0);
             MoveNear(pit.transform, pit.IsPlayerInRange);
@@ -888,7 +931,7 @@ public static class FirstShiftPlayModeValidation
             Call(roulette, "RecordSecurityEvidence", 1);
             pit = FindFirstObjectByType<PitDeskInteraction>();
             Check(pit.PendingSecurityCases == 1 &&
-                CasinoTaskFeedback.Message(pit.GetComponent<CasinoTableAttention>()).Contains("PIT DESK CCTV"),
+                CasinoTaskFeedback.Message(pit.GetComponent<CasinoTableAttention>()) == "Review CCTV",
                 "A real Roulette round did not surface a security review at the Pit Desk");
             MoveNear(pit.transform, pit.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.E);
@@ -966,6 +1009,14 @@ public static class FirstShiftPlayModeValidation
             yield return null;
             Check(!exhaustedDealer.CanServe && !exhaustedTable.IsDealerStaffed,
                 "Zero energy dealer still serves the table");
+            yield return null;
+            Check(exhaustedDealer.GetComponent<CasinoSpeechBubble>().Message == "Zzz",
+                "An exhausted dealer is missing the sleeping speech bubble");
+            MoveNear(exhaustedTable.transform, exhaustedTable.IsPlayerInRange);
+            yield return null;
+            yield return null;
+            Check(player.GetComponent<CasinoSpeechBubble>().Message == "Dealer needs break",
+                "The player is missing a short task speech bubble near the exhausted table");
             CustomerPatience patience = servedCustomer.GetComponent<CustomerPatience>();
             Check(patience.IsWaiting, "Exhausted dealer did not restart customer patience");
             int penalties = CustomerSatisfaction.PenaltyCount;
@@ -980,8 +1031,8 @@ public static class FirstShiftPlayModeValidation
                 "Neglected exhausted table did not lose its customer and satisfaction");
             Check(servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
                 "Customer did not resume navigation after leaving their chair");
-            Check(CasinoTaskFeedback.Message(exhaustedTable.GetComponent<CasinoTableAttention>()).Contains("TAKE OVER"),
-                "Exhausted station marker did not explain its actionable takeover");
+            Check(CasinoTaskFeedback.Message(exhaustedTable.GetComponent<CasinoTableAttention>()) == "Dealer needs break",
+                "Exhausted station did not provide the short speech-bubble cue");
             Set(exhaustedDealer, "energy", oldEnergy);
             yield return null;
             Check(exhaustedTable.IsDealerStaffed, "Restored dealer cannot serve");

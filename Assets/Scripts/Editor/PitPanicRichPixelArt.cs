@@ -281,8 +281,8 @@ public static class PitPanicRichPixelArt
         if (pose == CasinoAnimationPose.Examine)
         {
             float peek = Beat(time, .12f, .38f, .62f, .92f);
-            leftHand = new Vector2(direction == 1 ? 10 : 19, (direction == 1 ? 42 : 30) + peek * 4 + bodyY);
-            rightHand = new Vector2(direction == 1 ? 38 : 30, leftHand.y);
+            leftHand = new Vector2(16, 25 + peek + bodyY);
+            rightHand = new Vector2(33, leftHand.y);
             headY -= Mathf.RoundToInt(peek);
         }
         if (pose == CasinoAnimationPose.Rest)
@@ -354,7 +354,7 @@ public static class PitPanicRichPixelArt
         Vector2 propHand = direction == 2 ? leftHand : rightHand;
         int px = Mathf.RoundToInt(propHand.x);
         int py = Mathf.RoundToInt(propHand.y);
-        if (pose == CasinoAnimationPose.Deal && time > .12f && time < .68f)
+        if (!customer && pose == CasinoAnimationPose.Deal && time > .12f && time < .68f)
             SmallCard(t, px - 3, py + 1, 1 - release);
         if (pose == CasinoAnimationPose.Pay || pose == CasinoAnimationPose.Collect)
         {
@@ -362,18 +362,13 @@ public static class PitPanicRichPixelArt
             if (held > .15f && time < .9f)
             { E(t, px, py + 2, 4, 2, Ink); E(t, px, py + 3, 3, 1, Gold); }
         }
-        if (pose == CasinoAnimationPose.Shuffle && reach > .1f)
+        if (!customer && pose == CasinoAnimationPose.Shuffle && reach > .1f)
         {
             SmallCard(t, Mathf.RoundToInt(leftHand.x) - 3, Mathf.RoundToInt(leftHand.y) + 1, 1);
             SmallCard(t, Mathf.RoundToInt(rightHand.x) - 3, Mathf.RoundToInt(rightHand.y) + 2, 1);
             if (time > .45f && time < .72f)
                 for (int i = 0; i < 3; i++)
                     R(t, 21 + i * 2, 34 + bodyY + i, 7, 1, i % 2 == 0 ? Cream : Wood);
-        }
-        if (pose == CasinoAnimationPose.Examine)
-        {
-            SmallCard(t, Mathf.RoundToInt(leftHand.x) - 3, Mathf.RoundToInt(leftHand.y) + 1, 1);
-            SmallCard(t, Mathf.RoundToInt(rightHand.x) - 3, Mathf.RoundToInt(rightHand.y) + 1, 1);
         }
     }
 
