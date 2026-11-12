@@ -114,7 +114,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             AIDealer dealer = reservedSeat.DealerStation != null ? reservedSeat.DealerStation.AssignedDealer : null;
             BlackjackTableInteraction blackjack = reservedSeat.DealerStation?.BlackjackTable;
             RouletteRoundController roulette = reservedSeat.DealerStation?.GetComponent<RouletteRoundController>();
-            bool available = blackjack != null ? blackjack.IsServiceAvailable && !blackjack.IsFlickReady :
+            bool available = blackjack != null ? blackjack.IsServiceAvailable && !blackjack.IsShuffleReady :
                 roulette != null ? roulette.IsServiceAvailable && !roulette.HasPendingAssistance :
                 dealer != null && dealer.CanServe;
             if (available) patience.Pause();

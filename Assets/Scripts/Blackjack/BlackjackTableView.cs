@@ -61,12 +61,12 @@ public sealed class BlackjackTableView : MonoBehaviour
         if (board == null) return;
         if (assistanceButton == null)
         {
-            GameObject root = CasinoMinigamePresentation.CreateImage("Start DEAL", board.transform,
+            GameObject root = CasinoMinigamePresentation.CreateImage("Start SHUFFLE", board.transform,
                 new Vector2(0f, -240f), new Vector2(300f, 48f), CasinoHudStyle.Coral, true);
             assistanceButton = root.AddComponent<Button>();
             assistanceButton.targetGraphic = root.GetComponent<Image>();
             CasinoHudStyle.Button(assistanceButton);
-            CasinoMinigamePresentation.CreateText(root.transform, "Action", "PLAY SHUFFLE!",
+            CasinoMinigamePresentation.CreateText(root.transform, "Action", "SHUFFLE!",
                 Vector2.zero, new Vector2(280f, 40f), 22, CasinoHudStyle.Ink);
             assistanceButton.onClick.AddListener(() => start());
         }

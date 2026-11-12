@@ -446,19 +446,30 @@ public static class PitPanicPrototypeGenerator
         UnityEngine.Object.DestroyImmediate(secondReplacementObject);
         UnityEngine.Object.DestroyImmediate(dealerPoint);
         UnityEngine.Object.DestroyImmediate(stationObject);
-        int[] expectedFlickTargets = { 0, 1, 2, -1, 0, 1, 2, -1, -2 };
-        if (FlickCardMinigame.RemainingOpeningCards(3) != 4 ||
-            FlickCardMinigame.RemainingOpeningCards(3, 4) != 4 ||
-            FlickCardMinigame.RemainingOpeningCards(3, 5) != 3 ||
-            FlickCardMinigame.RemainingOpeningCards(3, 8) != 0 ||
-            FlickCardMinigame.CanCompleteChallenge(4, 4, 1) ||
-            FlickCardMinigame.CanCompleteChallenge(5, 4, 0) ||
-            !FlickCardMinigame.CanCompleteChallenge(4, 4, 0) ||
-            CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Flick) ||
+        int[] shuffleSequence = BlackjackShuffleMinigame.CreateStackSequence(8, 41);
+        int leftPicks = 0;
+        int rightPicks = 0;
+        for (int i = 0; i < shuffleSequence.Length; i++)
+        {
+            if (shuffleSequence[i] == 0) leftPicks++;
+            else if (shuffleSequence[i] == 1) rightPicks++;
+            else throw new System.InvalidOperationException("SHUFFLE! generated an unknown stack.");
+            if (i >= 2 && shuffleSequence[i] == shuffleSequence[i - 1] &&
+                shuffleSequence[i] == shuffleSequence[i - 2])
+                throw new System.InvalidOperationException("SHUFFLE! generated a rhythm with three repeated stacks.");
+        }
+
+        if (leftPicks != 4 || rightPicks != 4 ||
+            !System.Linq.Enumerable.SequenceEqual(shuffleSequence, BlackjackShuffleMinigame.CreateStackSequence(8, 41)) ||
+            BlackjackShuffleMinigame.IsCorrectStack(0, 1) ||
+            !BlackjackShuffleMinigame.IsCorrectStack(1, 1) ||
+            BlackjackShuffleMinigame.CanCompleteSequence(8, 8, true) ||
+            !BlackjackShuffleMinigame.CanCompleteSequence(8, 8, false) ||
+            CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Shuffle) ||
             CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Spin) ||
             !CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Pack))
         {
-            throw new System.InvalidOperationException("SHUFFLE! retry state or remaining-card counts are incorrect.");
+            throw new System.InvalidOperationException("SHUFFLE! stack sequence or completion rules are incorrect.");
         }
 
         if (DealerAssignmentManager.ShouldRequestPitDeskDecision(false) ||
@@ -467,23 +478,6 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Only dealers returning after replacement should create a pit-desk decision task.");
         }
         AssertInitialPitDeskAttention();
-
-        AssertFlickChallengeLifecycle();
-        for (int dealStep = 0; dealStep < expectedFlickTargets.Length; dealStep++)
-        {
-            if (FlickCardMinigame.OpeningTargetForStep(3, dealStep) != expectedFlickTargets[dealStep])
-            {
-                throw new System.InvalidOperationException($"SHUFFLE! recipient at opening-deal step {dealStep} is incorrect.");
-            }
-        }
-
-        if (FlickCardMinigame.IsValidFlickTarget(1, 1, false) == false ||
-            FlickCardMinigame.IsValidFlickTarget(2, 1, false) ||
-            FlickCardMinigame.IsValidFlickTarget(1, 1, true) ||
-            FlickCardMinigame.IsValidFlickTarget(-2, -2, false))
-        {
-            throw new System.InvalidOperationException("SHUFFLE! accepted an invalid, duplicate, or in-flight card target.");
-        }
 
         if (!RouletteTableMinigame.TryGetWinningNumber(0f, out int firstPocket) || firstPocket != 0 ||
             !RouletteTableMinigame.TryGetWinningNumber(0.99f, out int lastPocket) || lastPocket != 36 ||
@@ -692,7 +686,6 @@ public static class PitPanicPrototypeGenerator
         UnityEngine.Object.DestroyImmediate(floatDestinationObject);
 
         AssertCardViewLayout(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
-        AssertFlickCardFaceHierarchy();
         AssertHiddenHandRendering(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
         AssertPopupScreenSpaceHitTesting();
         AssertInteractionPriority();
@@ -758,10 +751,10 @@ public static class PitPanicPrototypeGenerator
         }
 
         attention.ResolveAttention(TableAttentionReason.CustomerComplaint);
-        attention.RequestAttentionOnce(TableAttentionReason.FlickAssistanceRequired);
-        bool duplicateFlickTaskAdded = attention.RequestAttentionOnce(TableAttentionReason.FlickAssistanceRequired);
-        if (duplicateFlickTaskAdded ||
-            attention.GetPendingCount(TableAttentionReason.FlickAssistanceRequired) != 1)
+        attention.RequestAttentionOnce(TableAttentionReason.ShuffleAssistanceRequired);
+        bool duplicateShuffleTaskAdded = attention.RequestAttentionOnce(TableAttentionReason.ShuffleAssistanceRequired);
+        if (duplicateShuffleTaskAdded ||
+            attention.GetPendingCount(TableAttentionReason.ShuffleAssistanceRequired) != 1)
         {
             throw new System.InvalidOperationException("Repeated DEAL assistance requests created duplicate attention tasks.");
         }
@@ -1142,15 +1135,15 @@ public static class PitPanicPrototypeGenerator
 
         foreach (BlackjackTableInteraction blackjackTable in blackjackTables)
         {
-            CasinoMinigameStation flickStation = blackjackTable.GetComponent<CasinoMinigameStation>();
-            FlickCardMinigame flickMinigame = blackjackTable.GetComponent<FlickCardMinigame>();
+            CasinoMinigameStation shuffleStation = blackjackTable.GetComponent<CasinoMinigameStation>();
+            BlackjackShuffleMinigame shuffleMinigame = blackjackTable.GetComponent<BlackjackShuffleMinigame>();
             if (!blackjackTable.IsConfigured || blackjackTable.GetComponent<TableInteractionZone>() == null ||
                 !blackjackTable.GetComponent<TableInteractionZone>().IsConfigured ||
                 blackjackTable.GetComponent<BlackjackTableView>() == null ||
                 blackjackTable.GetComponent<CasinoTableAttention>() == null ||
-                !blackjackTable.HasFlickAssistanceStation ||
-                flickStation == null || !flickStation.IsConfigured ||
-                flickMinigame == null || !flickMinigame.IsConfigured ||
+                !blackjackTable.HasShuffleAssistanceStation ||
+                shuffleStation == null || !shuffleStation.IsConfigured ||
+                shuffleMinigame == null || !shuffleMinigame.IsConfigured ||
                 !HasBettingSpots(blackjackTable.transform))
             {
                 throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or SHUFFLE! system.");
@@ -2152,94 +2145,6 @@ public static class PitPanicPrototypeGenerator
         UnityEngine.Object.DestroyImmediate(canvasObject);
     }
 
-    private static void AssertFlickCardFaceHierarchy()
-    {
-        GameObject card = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        Transform cardTransform = card.transform;
-        cardTransform.localPosition = new Vector3(1f, 2f, 3f);
-        cardTransform.localRotation = Quaternion.Euler(5f, 15f, 25f);
-        cardTransform.localScale = new Vector3(0.48f, 0.035f, 0.68f);
-        Vector3 positionBefore = cardTransform.localPosition;
-        Quaternion rotationBefore = cardTransform.localRotation;
-        Vector3 scaleBefore = cardTransform.localScale;
-
-        if (!FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(12, 1), out TextMesh face) ||
-            face == null || face.transform.parent != cardTransform ||
-            cardTransform.GetComponent<TextMesh>() != null ||
-            cardTransform.localPosition != positionBefore ||
-            cardTransform.localRotation != rotationBefore ||
-            cardTransform.localScale != scaleBefore ||
-            face.text != "Q♥")
-        {
-            throw new System.InvalidOperationException("DEAL card face text is missing, attached to the physical card, or changed its transform.");
-        }
-
-        if (!FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(1, 3), out TextMesh updatedFace) ||
-            updatedFace != face || updatedFace.text != "A♣" ||
-            cardTransform.Find("Card Face") == null ||
-            FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(0, 0), out _))
-        {
-            throw new System.InvalidOperationException("DEAL card face update duplicated its child or accepted an invalid card.");
-        }
-
-        UnityEngine.Object.DestroyImmediate(card);
-    }
-
-    private static void AssertFlickChallengeLifecycle()
-    {
-        int cancelledDealStep = 4;
-        int firstAttemptCards = FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep);
-        if (firstAttemptCards != 4)
-        {
-            throw new System.InvalidOperationException("A new DEAL challenge did not begin with all four remaining opening cards.");
-        }
-
-        int firstAttemptTarget = FlickCardMinigame.OpeningTargetForStep(3, cancelledDealStep);
-        cancelledDealStep++;
-        if (firstAttemptTarget != 0 || FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep) != 3)
-        {
-            throw new System.InvalidOperationException("Cancelling after one successful flick did not preserve exactly three remaining cards.");
-        }
-
-        int retryCards = FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep);
-        int retrySuccesses = 0;
-        while (FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep) > 0)
-        {
-            if (FlickCardMinigame.OpeningTargetForStep(3, cancelledDealStep) == -2)
-            {
-                throw new System.InvalidOperationException("A DEAL retry produced an invalid remaining-card target.");
-            }
-
-            cancelledDealStep++;
-            retrySuccesses++;
-        }
-
-        if (!FlickCardMinigame.CanCompleteChallenge(retrySuccesses, retryCards, 0))
-        {
-            throw new System.InvalidOperationException("A cancelled DEAL challenge could not complete on retry.");
-        }
-
-        int nextRoundDealStep = 4;
-        int nextRoundCards = FlickCardMinigame.RemainingOpeningCards(3, nextRoundDealStep);
-        for (int i = 0; i < nextRoundCards; i++)
-        {
-            if (FlickCardMinigame.OpeningTargetForStep(3, nextRoundDealStep) == -2)
-            {
-                throw new System.InvalidOperationException("A consecutive DEAL challenge produced an invalid target.");
-            }
-
-            nextRoundDealStep++;
-        }
-
-        if (!FlickCardMinigame.CanCompleteChallenge(
-                nextRoundCards,
-                nextRoundCards,
-                FlickCardMinigame.RemainingOpeningCards(3, nextRoundDealStep)))
-        {
-            throw new System.InvalidOperationException("A second consecutive DEAL challenge did not complete cleanly.");
-        }
-    }
-
     private static void AssertHiddenHandRendering(Font font)
     {
         GameObject canvasObject = new GameObject("Hidden Hand Rule Test Canvas", typeof(RectTransform), typeof(Canvas));
@@ -2519,17 +2424,17 @@ public static class PitPanicPrototypeGenerator
                 GetOrCreateMaterial("TableChipGreen", new Color(0.08f, 0.55f, 0.28f)),
                 GetOrCreateMaterial("TableChipGold", new Color(0.95f, 0.72f, 0.22f))
             });
-        CasinoMinigameStation flickStation = table.AddComponent<CasinoMinigameStation>();
-        FlickCardMinigame flickMinigame = table.AddComponent<FlickCardMinigame>();
-        interaction.ConfigureFlickAssistance(flickStation);
-        flickMinigame.Configure(interaction, playerController, table.transform);
-        flickStation.Configure(
+        CasinoMinigameStation shuffleStation = table.AddComponent<CasinoMinigameStation>();
+        BlackjackShuffleMinigame shuffleMinigame = table.AddComponent<BlackjackShuffleMinigame>();
+        interaction.ConfigureShuffleAssistance(shuffleStation);
+        shuffleMinigame.Configure(interaction, playerController);
+        shuffleStation.Configure(
             playerController,
             interactionZone,
             attention,
-            flickMinigame,
-            CasinoMinigameType.Flick,
-            TableAttentionReason.FlickAssistanceRequired);
+            shuffleMinigame,
+            CasinoMinigameType.Shuffle,
+            TableAttentionReason.ShuffleAssistanceRequired);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
         dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.35f);

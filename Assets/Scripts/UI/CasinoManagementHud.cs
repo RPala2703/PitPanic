@@ -12,7 +12,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
         TableAttentionReason.DealerBreakRequired,
         TableAttentionReason.TableUnstaffed,
         TableAttentionReason.PitBossApproval,
-        TableAttentionReason.FlickAssistanceRequired,
+        TableAttentionReason.ShuffleAssistanceRequired,
         TableAttentionReason.RouletteCoverRequired,
         TableAttentionReason.RouletteSpinRequired,
         TableAttentionReason.RouletteSweepRequired,
@@ -338,7 +338,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
             case TableAttentionReason.DealerBreakRequired: return "BREAK NEEDED";
             case TableAttentionReason.TableUnstaffed: return "TABLE UNSTAFFED";
             case TableAttentionReason.PitBossApproval: return "APPROVAL NEEDED";
-            case TableAttentionReason.FlickAssistanceRequired: return "SHUFFLE!";
+            case TableAttentionReason.ShuffleAssistanceRequired: return "SHUFFLE!";
             case TableAttentionReason.RouletteCoverRequired: return "COVER!";
             case TableAttentionReason.RouletteSpinRequired: return "SPIN!";
             case TableAttentionReason.RouletteSweepRequired: return "SWEEP!";

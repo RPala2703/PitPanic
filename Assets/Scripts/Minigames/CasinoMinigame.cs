@@ -3,7 +3,7 @@ using UnityEngine;
 
 public enum CasinoMinigameType
 {
-    Flick,
+    LegacyFlick,
     Stack,
     Pack,
     Sweep,

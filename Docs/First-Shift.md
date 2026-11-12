@@ -2,10 +2,10 @@
 
 Open `Assets/Scenes/PitPanicPrototype.unity` in Unity and press Play. Choose
 **New Game** for the introduction and Tiger's guided shift, or **Skip Training** on the introduction to start without
-the lessons. Tiger's large lesson cards pause the casino and audio. **Let Me Try**
+the lessons. Tiger's large lesson cards pause the casino and audio. **LET ME TRY!**
 or Enter dismisses the explanation and resumes practice; Escape dismisses a lesson
 rather than opening another menu. **HELP** revisits all 13 explanations without
-changing progress. Gold arrows point to the relevant station. Use WASD or the
+changing progress. The lesson card uses a short prompt and points to the relevant station. Use WASD or the
 arrow keys to move, E to open a table and play its available task, and P to pause, including
 during a minigame. The tutorial can also be skipped using the HUD button.
 Q remains a compatibility shortcut to the same table interface. When carrying
@@ -68,7 +68,8 @@ at 55 seconds and drops by 5 seconds per shift before perks. Completing Shift 3
 shows a demo-complete message and allows replay. New Game resets progression
 and perks, as stated in the introduction, but leaves sound/settings unchanged.
 Training retains at least three minutes on the clock until lessons are complete,
-so a learner cannot time out before learning dealer management. Practice covers
+so a learner cannot time out before learning dealer management. Each lesson is
+one short prompt; casino practice resumes only after **LET ME TRY!**. Practice covers
 movement, table inspection, SHUFFLE!, staffed Roulette COVER!, SPIN!/SWEEP!/PAY!,
 customer cash-out, float
 packing/delivery, assignments/breaks, both manual table takeovers, returning
