@@ -7,7 +7,7 @@ do next. Record where they hesitate, not just whether they eventually succeed.
 | Check | Expected outcome |
 | --- | --- |
 | Title/settings | New Game, Continue, volume sliders, fullscreen and Quit work. No active casino is visible behind the title. |
-| New player | Tiger's short portrait lessons pause all simulation/audio; LET ME TRY! resumes real practice. Only the current lesson's stations show ! markers, timers and task-HUD entries. Complete all 13 lessons without random-task waits. HELP revisits explanations without resetting progress. SKIP TRAINING restores normal task visibility. |
+| New player | Tiger's short portrait lessons pause all simulation/audio; Okay resumes real practice. Only the current lesson's stations show ! markers, timers and task-HUD entries. Complete all 13 lessons without random-task waits. HELP revisits explanations without resetting progress. SKIP TRAINING restores normal task visibility. |
 | Controls | WASD and arrow keys follow the screen axes; diagonal speed is normal. E opens tables or delivers a carried tray first. Q opens the same inspection. Escape exits every interaction. |
 | Blackjack | All-bust hands end without dealer draws. Stakes return automatically on non-losses; pay only 1× winnings on a win, 1.5× on Blackjack, nothing on a push. Check the finite float and accounting separately. SHUFFLE! remains a retryable two-stack sequence. |
 | Roulette COVER! | A working dealer reveals the actual round result before requesting COVER! Click winning bets or numbered chips, not losers. Test every bet type, zero, overlapping/identical customer bets, NO WINNERS and BET GUIDE. Escape/timeout must preserve the same result and unpaid bets. The button says only COVER! |
@@ -24,6 +24,9 @@ do next. Record where they hesitate, not just whether they eventually succeed.
 | High Rollers | Confirm VIP guests wear the gold crown/lapel, make larger bets, and have shorter patience. Verify a VIP is introduced during the level and the table remains serviceable. |
 | Shady Business CCTV | Resolve scheduled alerts at the Pit Desk. Pause/replay the evidence, verify its displayed original bet and winning number match the real Roulette round, and confirm the chip movement does not change the wager or payout. Test both a correct decision and a false accusation. |
 | Level layouts | Start each unlocked level and verify the Blackjack tables, Roulette table, seats, dealers, interaction zones and customer routes remain accessible in the themed layout. |
+| Seating | Watch arrivals at all ten seats in all three layouts. Customers settle onto the visible cushion, including diagonal Roulette seats; chairs stay beside their own table. No floating, compressed bodies, stale table obstacles or persistent offsets after leaving. |
+| Animation | Watch more than one full idle/walk/rest cycle. Loops keep playing; deal/collect/pay/shuffle/reaction actions anticipate, make contact and recover through 60 baked frames per direction. No frozen last frames, abrupt limb jumps or transform-squashed sitting. |
+| Popup spacing | Okay and SKIP TRAINING are separate, aligned and inset. Blackjack Deal, payout chips/Remove/Confirm, Roulette Spin, staff controls and CCTV decisions stay inside their panels without overlapping. Keyboard Space still works. Also try 1024×768 and 2560×1080; popups must fit without clipping. |
 | Demo ending | Third level is harder but achievable; clearing it shows demo complete and allows replay. No invisible fourth-level requirement. |
 | Performance/readability | Try 1280×720, 1600×900 and 1920×1080, windowed/fullscreen. No clipped controls, blocking labels, stationary agents or sustained stutter at the customer cap. Record average/minimum FPS and hardware. |
 
@@ -48,12 +51,20 @@ Any Unity Console error or exception fails this regression.
 Rule fixtures exercise every COVER! bet type against all 37 results, identical
 winning bets, no winners, real refill delivery after partial payment, duplicate
 settlement guards, all-bust Blackjack, and profit-only Blackjack payments.
+Presentation checks also cover 60-frame playback, action clamping versus looping,
+adjacent-frame continuity and loop seams in every direction/species. Play Mode
+checks chair anchors and reachable approaches across all layouts, actual seated
+customer alignment, action-frame advancement, and popup button bounds/overlaps.
 
 The macOS development capture can exercise an accelerated full unattended shift
 and retry. Add `--pit-cover-check` alongside `--pit-capture-dir <folder>` to capture
 the actual COVER! board and BET GUIDE, select that round's winning bets, and check
 settlement in the standalone app. This check waits for a real dealer spin; it
 does not invent a result or replace the customer bets.
+Use `--pit-seating-check` with the capture directory to route ten real customers
+to all ten chairs in each campaign layout, verify their visual anchors, and save
+overview/close-up screenshots. This controlled presentation fixture holds table
+settlement while navigation and sitting run; it is not a full service playthrough.
 A successful Windows build does **not** prove Windows runtime behaviour.
 Human nine-minute playthroughs, Windows execution, minimum-spec performance,
 high-DPI/accessibility testing and subjective difficulty/audio quality must be

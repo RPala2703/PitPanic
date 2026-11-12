@@ -146,6 +146,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1280f, 720f);
         scaler.matchWidthOrHeight = 0.5f;
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
         panel = CreateRect("Staff Management", canvas.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1040f, 620f));
         Image panelImage = panel.AddComponent<Image>();
@@ -154,14 +155,14 @@ public sealed class PitDeskInteraction : MonoBehaviour
         title.text = "DEALER CREW!";
         title.color = CasinoHudStyle.Gold;
         statusText = CreateText("Assignment Status", panel.transform, new Vector2(0f, -276f), new Vector2(820f, 30f), 16);
-        statusText.rectTransform.anchoredPosition = new Vector2(0f, -235f);
+        statusText.rectTransform.anchoredPosition = new Vector2(0f, -216f);
         promptText = CreateText("Pit Desk Prompt", canvas.transform, new Vector2(0f, -314f), new Vector2(760f, 46f), 20);
         promptText.fontStyle = FontStyle.Bold;
         promptText.text = "E  •  DEALER CREW";
         promptText.gameObject.SetActive(false);
-        CreateButton("Close", panel.transform, "ESC  •  CLOSE", new Vector2(0f, -310f), new Vector2(170f, 38f), Close);
+        CreateButton("Close", panel.transform, "ESC  •  CLOSE", new Vector2(340f, -267f), new Vector2(170f, 38f), Close);
         reviewButton = CreateButton("Open CCTV Review", panel.transform, "CCTV REVIEW  •  0 ALERTS",
-            new Vector2(0f, -276f), new Vector2(360f, 38f), OpenReview);
+            new Vector2(-100f, -267f), new Vector2(360f, 38f), OpenReview);
         reviewButton.gameObject.SetActive(false);
         panel.SetActive(false);
         BuildReviewInterface();
@@ -176,13 +177,16 @@ public sealed class PitDeskInteraction : MonoBehaviour
         backdrop.anchorMax = Vector2.one;
         backdrop.offsetMin = backdrop.offsetMax = Vector2.zero;
         CasinoHudStyle.Panel(reviewPanel.AddComponent<Image>(), CasinoHudStyle.Ink);
-        GameObject monitor = CreateRect("Recorded Roulette Footage", reviewPanel.transform,
-            new Vector2(.5f, .5f), new Vector2(0, 35), new Vector2(1180, 520));
+        GameObject reviewCard = CreateRect("CCTV Review Card", reviewPanel.transform,
+            new Vector2(.5f, .5f), Vector2.zero, new Vector2(1220, 660));
+        CasinoHudStyle.Panel(reviewCard.AddComponent<Image>(), CasinoHudStyle.Ink);
+        GameObject monitor = CreateRect("Recorded Roulette Footage", reviewCard.transform,
+            new Vector2(.5f, .5f), new Vector2(0, 0), new Vector2(1160, 430));
         CasinoHudStyle.Panel(monitor.AddComponent<Image>(), new Color(.035f, .15f, .13f, .98f));
-        CreateText("CCTV Header", reviewPanel.transform, new Vector2(0, 385), new Vector2(1100, 55), 30)
+        CreateText("CCTV Header", reviewCard.transform, new Vector2(0, 280), new Vector2(1100, 45), 30)
             .text = "PIT DESK CCTV  •  ROULETTE CAMERA";
-        footageClock = CreateText("CCTV Playback Clock", reviewPanel.transform,
-            new Vector2(0, 335), new Vector2(920, 35), 16);
+        footageClock = CreateText("CCTV Playback Clock", reviewCard.transform,
+            new Vector2(0, 238), new Vector2(920, 30), 16);
         footageClock.color = CasinoHudStyle.Mint;
         footageCustomer = CreateRect("Recorded Customer", monitor.transform,
             new Vector2(.5f, .5f), new Vector2(-390, 35), new Vector2(190, 250)).AddComponent<Image>();
@@ -197,13 +201,13 @@ public sealed class PitDeskInteraction : MonoBehaviour
         CreateText("CCTV Fairness", monitor.transform,
             new Vector2(0, -185), new Vector2(940, 35), 16).text =
             "REVIEW THE RECORDED BET, RESULT AND CUSTOMER ACTION. PAUSE OR REPLAY ANY TIME.";
-        CreateButton("Pause CCTV", reviewPanel.transform, "PAUSE / PLAY", new Vector2(-350, -315),
+        CreateButton("Pause CCTV", reviewCard.transform, "PAUSE / PLAY", new Vector2(-380, -275),
             new Vector2(230, 48), ToggleReviewPlayback);
-        CreateButton("Replay CCTV", reviewPanel.transform, "REPLAY", new Vector2(-100, -315),
+        CreateButton("Replay CCTV", reviewCard.transform, "REPLAY", new Vector2(-140, -275),
             new Vector2(190, 48), ReplayReview);
-        CreateButton("Accuse Cheating", reviewPanel.transform, "CHEATING", new Vector2(190, -315),
+        CreateButton("Accuse Cheating", reviewCard.transform, "CHEATING", new Vector2(140, -275),
             new Vector2(220, 48), () => ResolveReview(true));
-        CreateButton("Clear Customer", reviewPanel.transform, "CLEAR", new Vector2(440, -315),
+        CreateButton("Clear Customer", reviewCard.transform, "CLEAR", new Vector2(380, -275),
             new Vector2(190, 48), () => ResolveReview(false));
         reviewPanel.SetActive(false);
     }
@@ -365,7 +369,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
             AIDealer dealer = dealers[i];
             if (dealer == null) continue;
             float y = rowY - i * 98f;
-            GameObject row = CreateRect($"Dealer Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(-260f, y), new Vector2(490f, 80f));
+            GameObject row = CreateRect($"Dealer Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(-260f, y), new Vector2(490f, 88f));
             Image rowImage = row.AddComponent<Image>();
             CasinoHudStyle.Panel(rowImage, dealer == selectedDealer
                 ? new Color(0.24f, 0.39f, 0.28f, 0.95f)
@@ -404,20 +408,20 @@ public sealed class PitDeskInteraction : MonoBehaviour
         {
             CasinoDealerStation station = stations[i];
             float y = stationY - i * 98f;
-            GameObject stationRow = CreateRect($"Table Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(275f, y), new Vector2(500f, 80f));
+            GameObject stationRow = CreateRect($"Table Row {i + 1}", panel.transform, new Vector2(0.5f, 0.5f), new Vector2(255f, y), new Vector2(460f, 88f));
             CasinoHudStyle.Panel(stationRow.AddComponent<Image>(), new Color(0.28f, 0.18f, 0.20f, 0.95f));
             string currentName = station.AssignedDealer != null
                 ? $"{station.AssignedDealer.DealerId}  {station.AssignedDealer.StatusLabel}"
                 : "UNSTAFFED";
             string incomingName = station.PendingReplacement != null ? $"ON THE WAY: {station.PendingReplacement.DealerId}" : "";
-            CreateText("Table Details", stationRow.transform, new Vector2(-80f, 10f), new Vector2(280f, 55f), 15).text =
+            CreateText("Table Details", stationRow.transform, new Vector2(-76f, 10f), new Vector2(260f, 55f), 15).text =
                 $"{station.StationName}  •  {currentName}\n{incomingName}";
             int stationIndex = i;
             Button assignmentButton = CreateButton(
                 "Assign Selected Dealer",
                 stationRow.transform,
                 selectedDealer == null ? "PICK A DEALER" : "SEND HERE!",
-                new Vector2(165f, 0f),
+                new Vector2(135f, 0f),
                 new Vector2(150f, 36f),
                 () => AssignSelectedDealer(stationIndex));
             assignmentButton.interactable = selectedDealer != null &&

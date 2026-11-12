@@ -23,6 +23,7 @@ public sealed class CasinoSeat : MonoBehaviour
     public CasinoCustomerAI Occupant { get; private set; }
     public bool IsAvailable => ReservedBy == null && Occupant == null;
     public Vector3 Position => approachPosition != null ? approachPosition.position : transform.position;
+    public Vector3 SittingPosition => customerPosition != null ? customerPosition.position : transform.position;
     public Quaternion Facing => customerPosition != null ? customerPosition.rotation : transform.rotation;
     public Transform BettingPosition => bettingPosition;
     public CasinoCustomerGame GameType => gameType;

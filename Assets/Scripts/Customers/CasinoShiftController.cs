@@ -919,8 +919,8 @@ public sealed class CasinoShiftController : MonoBehaviour
         foreach (AIDealer dealer in dealers.Dealers)
             if (dealer != null && dealer.DealerId == "Tiger") guideVisual = dealer.GetComponentInChildren<PixelCharacterVisual>();
         Label(lessonCard.transform, "Guide name", "TIGER\nYOUR PIT PAL", new Vector2(-365, -90), new Vector2(180, 62), 18);
-        MakeButton(lessonCard.transform, "Practise", "LET ME TRY!", new Vector2(80, -205), DismissLesson, new Vector2(300, 54));
-        MakeButton(lessonCard.transform, "Skip training", "SKIP TRAINING", new Vector2(345, -205), CompleteTutorial, new Vector2(250, 44));
+        MakeButton(lessonCard.transform, "Practise", "Okay", new Vector2(-65, -205), DismissLesson, new Vector2(300, 54));
+        MakeButton(lessonCard.transform, "Skip training", "SKIP TRAINING", new Vector2(265, -205), CompleteTutorial, new Vector2(300, 54));
         lessonPanel.SetActive(false);
         MakeButton(hud.transform, "Review training", "HELP", new Vector2(140, -20),
             () => ShowLesson(Mathf.Min(TutorialStage, 12), true), new Vector2(100, 32));

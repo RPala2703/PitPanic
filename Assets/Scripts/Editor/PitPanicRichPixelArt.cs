@@ -6,15 +6,6 @@ using UnityEngine;
 public static class PitPanicRichPixelArt
 {
     private const int AnimationFrames = PixelCharacterVisual.AnimationFramesPerDirection;
-    private static readonly int[] Reach = { 0, -1, -2, -2, -1, 1, 3, 5, 6, 5, 3, 0 };
-    private static readonly int[] CollectReach = { 0, 1, 3, 5, 7, 6, 4, 2, 0, -1, -1, 0 };
-    private static readonly int[] Stride = { 0, 1, 2, 3, 3, 1, 0, -1, -2, -3, -3, -1 };
-    private static readonly int[] CarryEffort = { 0, -1, 0, 1, 2, 1, 0, -1, -2, -1, 0, 1 };
-    private static readonly int[] CelebrationLift = { 0, 1, 3, 6, 9, 12, 13, 11, 8, 5, 2, 0 };
-    private static readonly int[] HandMotion = { 0, 1, 2, 4, 6, 7, 6, 4, 2, 1, 0, -1 };
-    private static readonly int[] CharacterLean = { 0, -1, -2, -2, -1, 0, 2, 3, 2, 1, 0, 0 };
-    private static readonly int[] Crouch = { 0, 0, -1, -2, -2, -1, 0, 0, 1, 1, 0, 0 };
-    private static readonly int[] SitDrop = { 0, 0, 1, 2, 4, 6, 8, 9, 9, 9, 9, 9 };
     private static readonly Color32 Ink = new Color32(35, 20, 43, 255);
     private static readonly Color32 Cream = new Color32(255, 235, 184, 255);
     private static readonly Color32 Gold = new Color32(239, 178, 64, 255);
@@ -35,9 +26,9 @@ public static class PitPanicRichPixelArt
                     Save(t, $"Character_{species}_{direction}_{frame}", new Vector2(.5f, 0), 30);
                 }
             Sprite[] expressions = new Sprite[4];
-            Texture2D atlas = New(48 * AnimationFrames, 64 * 4 * 13);
-            Texture2D customerAtlas = New(48 * AnimationFrames, 64 * 4 * 13);
-            for (int pose = 0; pose < 13; pose++)
+            Texture2D atlas = New(48 * AnimationFrames, 64 * 4 * PixelCharacterVisual.PoseCount);
+            Texture2D customerAtlas = New(48 * AnimationFrames, 64 * 4 * PixelCharacterVisual.PoseCount);
+            for (int pose = 0; pose < PixelCharacterVisual.PoseCount; pose++)
             for (int direction = 0; direction < 4; direction++)
             for (int frame = 0; frame < AnimationFrames; frame++)
             {
@@ -137,6 +128,12 @@ public static class PitPanicRichPixelArt
         Texture2D floor = New(512, 352);
         Floor(floor);
         Save(floor, "CasinoFloor", new Vector2(.5f, .5f), 16);
+        Texture2D rug = New(192, 96);
+        E(rug, 96, 48, 94, 44, new Color32(141, 74, 101, 255));
+        E(rug, 96, 48, 91, 41, new Color32(84, 39, 73, 255));
+        E(rug, 96, 48, 84, 35, new Color32(119, 50, 87, 255));
+        for (int x = 36; x <= 156; x += 24) R(rug, x, 20, 3, 3, Gold);
+        Save(rug, "TableRug", new Vector2(.5f, .5f), 24);
         foreach (string kind in new[] { "Plant", "Lamp", "Sofa", "Chair", "Window", "Curtain", "Column", "Arch" })
         {
             Texture2D t = New(kind == "Arch" ? 128 : 64, 96);
@@ -175,164 +172,197 @@ public static class PitPanicRichPixelArt
 
     private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false)
     {
-        int reach = pose == CasinoAnimationPose.Collect ? CollectReach[frame] : Reach[frame];
-        Color32 sleeve = customer ? CustomerShirt(species) : new Color32(137, 42, 81, 255);
-        bool action = pose == CasinoAnimationPose.Deal || pose == CasinoAnimationPose.Pay ||
+        float time = frame / (float)(AnimationFrames - 1);
+        float cycle = Mathf.Sin(time * Mathf.PI * 2);
+        float breath = (1 - Mathf.Cos(time * Mathf.PI * 2)) * .5f;
+        bool locomotion = pose == CasinoAnimationPose.Walk || pose == CasinoAnimationPose.Carry;
+        bool seated = pose == CasinoAnimationPose.Sit || pose == CasinoAnimationPose.Rest ||
+            pose == CasinoAnimationPose.Examine || pose == CasinoAnimationPose.SeatedIdle;
+        bool working = pose == CasinoAnimationPose.Deal || pose == CasinoAnimationPose.Pay ||
             pose == CasinoAnimationPose.Collect || pose == CasinoAnimationPose.Shuffle;
-        if (pose == CasinoAnimationPose.Walk || pose == CasinoAnimationPose.Carry)
+
+        // Authored beats: anticipate, reach, contact, follow-through, recover.
+        float anticipate = Beat(time, 0, .13f, .22f, .34f);
+        float reach = Beat(time, .18f, .48f, .62f, 1f);
+        float release = Beat(time, .46f, .63f, .72f, .94f);
+        float sit = seated ? pose == CasinoAnimationPose.Sit ? Ease(time, .08f, .85f) : 1 : 0;
+        float stride = locomotion ? cycle : 0;
+        int bodyY = Mathf.RoundToInt((locomotion ? Mathf.Abs(cycle) * 1.4f : breath) - sit * 3);
+        int headY = bodyY;
+        int lean = working ? Mathf.RoundToInt(-anticipate + reach * 2) : 0;
+        if (pose == CasinoAnimationPose.Idle || pose == CasinoAnimationPose.SeatedIdle) lean = Mathf.RoundToInt(cycle);
+        if (direction == 2) lean = -lean;
+
+        Vector2 leftHand = new Vector2(8, 23 + stride * 3 + bodyY);
+        Vector2 rightHand = new Vector2(40, 23 - stride * 3 + bodyY);
+        if (working)
         {
-            R(t, 5, 0, 39, 10, new Color32(0, 0, 0, 0));
-            R(t, 10 + Stride[frame], 2, 11, 8, Ink);
-            R(t, 29 - Stride[frame], 3, 11, 7, Ink);
-            R(t, 11 + Stride[frame], 3, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
-            R(t, 30 - Stride[frame], 4, 8, 2, species == CasinoAnimalSpecies.Penguin ? Gold : Wood);
-        }
-        if (action)
-        {
-            R(t, 37, 17, 10, 18, new Color32(0, 0, 0, 0));
-            int y = direction == 1 ? 39 + Mathf.Clamp(reach, 0, 3) : 23 + reach;
-            R(t, 35, y, 11, 8, Ink); R(t, 36, y + 2, 8, 4, sleeve);
-            R(t, 40, y + 2, 6, 4, Cream);
-            if ((pose == CasinoAnimationPose.Deal && frame < 8) || pose == CasinoAnimationPose.Shuffle)
+            float contact = pose == CasinoAnimationPose.Collect ? 1 - reach : reach;
+            Vector2 rest = new Vector2(40, 23 + bodyY);
+            Vector2 extended = direction == 1 ? new Vector2(40, 44 + bodyY) :
+                new Vector2(43, 32 + bodyY);
+            rightHand = Vector2.Lerp(rest + Vector2.down * anticipate * 2, extended, contact);
+            if (pose == CasinoAnimationPose.Collect)
+                rightHand = Vector2.Lerp(rest, extended, Beat(time, .03f, .27f, .4f, .94f));
+            if (pose == CasinoAnimationPose.Pay)
+                leftHand = Vector2.Lerp(leftHand, new Vector2(18, 29 + bodyY), reach);
+            if (pose == CasinoAnimationPose.Shuffle)
             {
-                R(t, 39, y + 5, 7, 10, Ink); R(t, 40, y + 6, 5, 8, Cream);
-                R(t, 41, y + 11, 2, 2, Wood);
-                if (pose == CasinoAnimationPose.Shuffle)
-                { R(t, 6, y + 4, 9, 8, Ink); R(t, 7, y + 5, 7, 6, Cream); }
+                float riffle = Mathf.Sin(Mathf.Clamp01((time - .36f) / .32f) * Mathf.PI * 6) * release;
+                leftHand = Vector2.Lerp(leftHand, new Vector2(20, 32 + riffle + bodyY), reach);
+                rightHand = Vector2.Lerp(rightHand, new Vector2(29, 32 - riffle + bodyY), reach);
             }
-            else if (pose == CasinoAnimationPose.Pay || pose == CasinoAnimationPose.Collect)
-            { E(t, 43, y + 6, 4, 2, Gold); R(t, 40, y + 5, 6, 1, Wood); }
         }
         if (pose == CasinoAnimationPose.Carry)
         {
-            R(t, 5, 19, 6, 17, new Color32(0, 0, 0, 0));
-            R(t, 39, 19, 7, 17, new Color32(0, 0, 0, 0));
-            int handY = direction == 1 ? 39 : 23;
-            int effort = CarryEffort[frame];
-            if (direction != 3) { R(t, 7, handY + effort, 8, 6, sleeve); R(t, 8, handY + effort + 2, 6, 4, Cream); }
-            if (direction != 2) { R(t, 34, handY + effort, 9, 6, sleeve); R(t, 36, handY + effort + 2, 6, 4, Cream); }
+            leftHand = new Vector2(10, (direction == 1 ? 39 : 25) + Mathf.Abs(cycle));
+            rightHand = new Vector2(38, leftHand.y);
         }
         if (pose == CasinoAnimationPose.Celebrate)
         {
-            int lift = CelebrationLift[frame];
-            R(t, 2, 21 + lift, 8, 13, Ink); R(t, 4, 30 + lift, 5, 5, Cream);
-            R(t, 39, 21 + lift, 8, 13, Ink); R(t, 40, 30 + lift, 5, 5, Cream);
-            if (direction == 0 && frame >= 2 && frame <= 6)
-            { R(t, 21, 37, 8, 4, Ink); R(t, 23, 37, 4, 2, new Color32(238, 136, 157, 255)); }
+            float cheer = Beat(time, .08f, .4f, .65f, 1);
+            bodyY -= Mathf.RoundToInt(anticipate * 2);
+            headY = bodyY;
+            leftHand = Vector2.Lerp(leftHand, new Vector2(7, 49), cheer);
+            rightHand = Vector2.Lerp(rightHand, new Vector2(41, 49), cheer);
         }
-        if (pose == CasinoAnimationPose.Tired || pose == CasinoAnimationPose.Rest || pose == CasinoAnimationPose.Disappointed)
+        if (pose == CasinoAnimationPose.Disappointed || pose == CasinoAnimationPose.Tired)
         {
-            int hand = HandMotion[frame];
-            if (pose == CasinoAnimationPose.Tired)
-                E(t, 40 + frame % 2, 48 + frame / 3, 3, 4, new Color32(106, 207, 231, 255));
-            if (pose == CasinoAnimationPose.Disappointed)
-            {
-                int handY = direction == 1 ? 39 + hand / 2 : 27 + hand;
-                R(t, 35, handY, 7, 5, Cream);
-                R(t, 36, handY - 2, 6, 3, sleeve);
-            }
-            if (pose == CasinoAnimationPose.Rest)
-            {
-                if (direction == 1)
-                {
-                    R(t, 5, 34 + hand / 2, 7, 4, Cream);
-                    R(t, 36, 34 + hand / 2, 7, 4, Cream);
-                }
-                else
-                {
-                    R(t, 10, 18 + hand / 2, 12, 4, Cream);
-                    R(t, 28, 18 + hand / 2, 12, 4, Cream);
-                }
-            }
-            if (direction == 0)
-            {
-                R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
-                R(t, 14, 46, 4, 1, Ink); R(t, 31, 46, 4, 1, Ink);
-                R(t, 21, 38, 8, 1, Ink);
-                if (pose == CasinoAnimationPose.Tired && frame >= 2 && frame <= 5)
-                { E(t, 24, 39, 3, 3, Ink); R(t, 30, 38 + reach, 9, 5, Cream); }
-            }
-            if (pose == CasinoAnimationPose.Rest)
-            { R(t, 10, 10, 29, 8, Ink); R(t, 10, 12, 12, 3, Wood); }
+            float sigh = Beat(time, .08f, .4f, .65f, 1);
+            headY -= Mathf.RoundToInt(sigh * 3);
+            rightHand = Vector2.Lerp(rightHand, new Vector2(33, 39 + bodyY), sigh);
         }
         if (pose == CasinoAnimationPose.Examine)
         {
-            if (direction == 1)
+            float peek = Beat(time, .12f, .38f, .62f, .92f);
+            leftHand = new Vector2(direction == 1 ? 10 : 19, (direction == 1 ? 42 : 30) + peek * 4 + bodyY);
+            rightHand = new Vector2(direction == 1 ? 38 : 30, leftHand.y);
+            headY -= Mathf.RoundToInt(peek);
+        }
+        if (pose == CasinoAnimationPose.Rest)
+        {
+            leftHand = new Vector2(19, 22 + bodyY + breath * 2);
+            rightHand = new Vector2(30, 22 + bodyY + breath * 2);
+            headY -= 2 + Mathf.RoundToInt(breath * 2);
+        }
+        if (direction == 2 && working)
+        {
+            Vector2 swap = leftHand;
+            leftHand = new Vector2(48 - rightHand.x, rightHand.y);
+            rightHand = new Vector2(48 - swap.x, swap.y);
+        }
+
+        Color32[] reference = t.GetPixels32();
+        Color32 coat = customer ? CustomerShirt(species) : reference[24 * 48 + 18];
+        Color32 shoe = species == CasinoAnimalSpecies.Penguin ? Gold : new Color32(96, 82, 101, 255);
+        t.SetPixels32(new Color32[48 * 64]);
+        // Each frame is a complete drawing. Feet stay grounded; limbs join at elbows/knees.
+        Vector2 leftHip = new Vector2(18 + lean, 17 + bodyY);
+        Vector2 rightHip = new Vector2(31 + lean, 17 + bodyY);
+        Vector2 leftFoot = new Vector2(15 + stride * 3, 4 + Mathf.Max(0, stride) * 2);
+        Vector2 rightFoot = new Vector2(34 - stride * 3, 4 + Mathf.Max(0, -stride) * 2);
+        Limb(t, leftHip, Vector2.Lerp(leftHip, leftFoot, .5f) + Vector2.left * sit * 3, leftFoot, Ink, shoe, 5);
+        Limb(t, rightHip, Vector2.Lerp(rightHip, rightFoot, .5f) + Vector2.right * sit * 3, rightFoot, Ink, shoe, 5);
+        R(t, Mathf.RoundToInt(leftFoot.x) - 5, Mathf.RoundToInt(leftFoot.y) - 2, 10, 3, shoe);
+        R(t, Mathf.RoundToInt(rightFoot.x) - 5, Mathf.RoundToInt(rightFoot.y) - 2, 10, 3, shoe);
+        for (int y = 17; y < 35; y++)
+        for (int x = 9; x <= 40; x++)
+        {
+            Color32 pixel = reference[y * 48 + x];
+            if (pixel.a != 0) R(t, x + lean, y + bodyY, 1, 1, pixel);
+        }
+        Vector2 leftShoulder = new Vector2(12 + lean, 31 + bodyY);
+        Vector2 rightShoulder = new Vector2(36 + lean, 31 + bodyY);
+        DrawArm(t, leftShoulder, leftHand, coat);
+        DrawArm(t, rightShoulder, rightHand, coat);
+        for (int y = 35; y < 64; y++)
+        for (int x = 0; x < 48; x++)
+        {
+            Color32 pixel = reference[y * 48 + x];
+            if (pixel.a != 0) R(t, x + lean, y + headY, 1, 1, pixel);
+        }
+        if (direction == 0)
+        {
+            bool blink = time >= .72f && time <= .79f || pose == CasinoAnimationPose.Rest;
+            if (blink)
             {
-                R(t, 6, 35, 7, 12, Ink); R(t, 35, 35, 7, 12, Ink);
-                R(t, 7, 36, 5, 8, sleeve); R(t, 36, 36, 5, 8, sleeve);
-                R(t, 7, 43, 5, 4, Cream); R(t, 36, 43, 5, 4, Cream);
-                R(t, 5, 47 + Mathf.Max(0, reach / 2), 8, 10, Ink);
-                R(t, 6, 48 + Mathf.Max(0, reach / 2), 6, 8, Cream);
-                R(t, 35, 47 + Mathf.Max(0, reach / 2), 8, 10, Ink);
-                R(t, 36, 48 + Mathf.Max(0, reach / 2), 6, 8, Cream);
+                R(t, 14 + lean, 44 + headY, 4, 6, Cream);
+                R(t, 31 + lean, 44 + headY, 4, 6, Cream);
+                R(t, 14 + lean, 46 + headY, 4, 1, Ink);
+                R(t, 31 + lean, 46 + headY, 4, 1, Ink);
             }
-            else
-            {
-                R(t, 15, 28 + Mathf.Max(0, reach), 18, 12, Ink);
-                R(t, 17, 30 + Mathf.Max(0, reach), 6, 8, Cream);
-                R(t, 25, 30 + Mathf.Max(0, reach), 6, 8, Cream);
-            }
+            if (pose == CasinoAnimationPose.Celebrate && reach > .3f)
+            { E(t, 24 + lean, 39 + headY, 3, 2, Ink); R(t, 23 + lean, 38 + headY, 3, 1, new Color32(238, 136, 157, 255)); }
         }
-        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 1 && frame <= 3)
+
+        // Props follow the contact hand, not an unrelated floating transform.
+        Vector2 propHand = direction == 2 ? leftHand : rightHand;
+        int px = Mathf.RoundToInt(propHand.x);
+        int py = Mathf.RoundToInt(propHand.y);
+        if (pose == CasinoAnimationPose.Deal && time > .12f && time < .68f)
+            SmallCard(t, px - 3, py + 1, 1 - release);
+        if (pose == CasinoAnimationPose.Pay || pose == CasinoAnimationPose.Collect)
         {
-            int glance = frame - 2;
-            R(t, 15 + glance, 45, 2, 4, Ink);
-            R(t, 32 + glance, 45, 2, 4, Ink);
-            R(t, 21, 33 + frame, 6, 1, frame == 2 ? Gold : Cream);
+            float held = pose == CasinoAnimationPose.Pay ? 1 - release : reach;
+            if (held > .15f && time < .9f)
+            { E(t, px, py + 2, 4, 2, Ink); E(t, px, py + 3, 3, 1, Gold); }
         }
-        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 4 && frame <= 6)
-        { R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream); R(t, 14, 46, 4, 1, Ink); R(t, 31, 46, 4, 1, Ink); }
-        if (pose == CasinoAnimationPose.Idle && direction == 0 && frame >= 7)
+        if (pose == CasinoAnimationPose.Shuffle && reach > .1f)
         {
-            R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
-            int glance = frame < 9 ? -1 : 1;
-            R(t, 15 + glance, 45, 2, 4, Ink); R(t, 32 + glance, 45, 2, 4, Ink);
-            R(t, 30, 29, 10, 4, Cream);
+            SmallCard(t, Mathf.RoundToInt(leftHand.x) - 3, Mathf.RoundToInt(leftHand.y) + 1, 1);
+            SmallCard(t, Mathf.RoundToInt(rightHand.x) - 3, Mathf.RoundToInt(rightHand.y) + 2, 1);
+            if (time > .45f && time < .72f)
+                for (int i = 0; i < 3; i++)
+                    R(t, 21 + i * 2, 34 + bodyY + i, 7, 1, i % 2 == 0 ? Cream : Wood);
         }
-        if (pose == CasinoAnimationPose.Walk && direction != 1)
+        if (pose == CasinoAnimationPose.Examine)
         {
-            int swing = Stride[frame];
-            R(t, 6, 19 + swing, 6, 5, Cream); R(t, 39, 19 - swing, 6, 5, Cream);
+            SmallCard(t, Mathf.RoundToInt(leftHand.x) - 3, Mathf.RoundToInt(leftHand.y) + 1, 1);
+            SmallCard(t, Mathf.RoundToInt(rightHand.x) - 3, Mathf.RoundToInt(rightHand.y) + 1, 1);
         }
-        if (pose == CasinoAnimationPose.Examine && frame >= 4 && frame <= 8 && direction == 0)
+    }
+
+    private static float Ease(float time, float start, float end)
+    {
+        float t = Mathf.InverseLerp(start, end, time);
+        return t * t * (3 - 2 * t);
+    }
+
+    private static float Beat(float time, float start, float contact, float hold, float end) =>
+        Ease(time, start, contact) * (1 - Ease(time, hold, end));
+
+    private static void DrawArm(Texture2D t, Vector2 shoulder, Vector2 hand, Color32 sleeve)
+    {
+        Vector2 elbow = Vector2.Lerp(shoulder, hand, .55f) + Vector2.down * 2;
+        Limb(t, shoulder, elbow, hand, Ink, sleeve, 4);
+        E(t, Mathf.RoundToInt(hand.x), Mathf.RoundToInt(hand.y), 3, 3, Ink);
+        E(t, Mathf.RoundToInt(hand.x), Mathf.RoundToInt(hand.y) + 1, 2, 2, Cream);
+    }
+
+    private static void Limb(Texture2D t, Vector2 from, Vector2 joint, Vector2 to, Color32 outline, Color32 fill, int radius)
+    {
+        Stroke(t, from, joint, radius, outline);
+        Stroke(t, joint, to, radius, outline);
+        Stroke(t, from, joint, radius - 1, fill);
+        Stroke(t, joint, to, radius - 1, fill);
+    }
+
+    private static void Stroke(Texture2D t, Vector2 from, Vector2 to, int radius, Color32 color)
+    {
+        int steps = Mathf.CeilToInt(Vector2.Distance(from, to));
+        for (int i = 0; i <= steps; i++)
         {
-            R(t, 14, 44, 4, 6, Cream); R(t, 31, 44, 4, 6, Cream);
-            R(t, 15, 44, 2, 4, Ink); R(t, 32, 44, 2, 4, Ink);
+            Vector2 p = Vector2.Lerp(from, to, steps == 0 ? 0 : i / (float)steps);
+            E(t, Mathf.RoundToInt(p.x), Mathf.RoundToInt(p.y), radius, radius, color);
         }
-        if (action && direction == 2)
-        {
-            Color[] pixels = t.GetPixels();
-            for (int y = 17; y < 35; y++)
-            for (int x = 0; x < 48; x++) t.SetPixel(x, y, pixels[y * 48 + 47 - x]);
-        }
-        if (action || pose == CasinoAnimationPose.Celebrate || pose == CasinoAnimationPose.Disappointed)
-        {
-            int lean = CharacterLean[frame];
-            if (direction == 2 || pose == CasinoAnimationPose.Collect) lean = -lean;
-            int crouch = Crouch[frame];
-            Color[] upper = t.GetPixels();
-            R(t, 0, 13, 48, 51, new Color32(0, 0, 0, 0));
-            for (int y = 13; y < 64; y++)
-            for (int x = 0; x < 48; x++)
-                if (x + lean >= 0 && x + lean < 48 && y + crouch >= 13 && y + crouch < 64)
-                    t.SetPixel(x + lean, y + crouch, upper[y * 48 + x]);
-        }
-        if (pose == CasinoAnimationPose.Sit || pose == CasinoAnimationPose.Rest || pose == CasinoAnimationPose.Examine)
-        {
-            Color[] pixels = t.GetPixels();
-            int drop = pose == CasinoAnimationPose.Sit ? SitDrop[frame] : 9;
-            t.SetPixels(new Color[48 * 64]);
-            for (int y = drop; y < 64; y++)
-            for (int x = 0; x < 48; x++) t.SetPixel(x, y - drop, pixels[y * 48 + x]);
-            R(t, 10, 3, 29, 6, Ink);
-            if (pose == CasinoAnimationPose.Rest)
-            {
-                int blanketShimmer = frame / 2;
-                R(t, 12 + blanketShimmer, 4, 3, 1,
-                    blanketShimmer % 2 == 0 ? Gold : Cream);
-            }
-        }
+    }
+
+    private static void SmallCard(Texture2D t, int x, int y, float visibility)
+    {
+        int height = Mathf.Max(2, Mathf.RoundToInt(9 * visibility));
+        R(t, x, y, 7, height + 2, Ink);
+        R(t, x + 1, y + 1, 5, height, Cream);
+        if (height > 4) R(t, x + 3, y + 3, 2, 2, Wood);
     }
 
     private static void Character(Texture2D t, CasinoAnimalSpecies species, int dir, int step)
@@ -554,14 +584,6 @@ public static class PitPanicRichPixelArt
             for (int x = y % 30; x < 512; x += 48) R(t, x, y, 1, 15, new Color32(74, 43, 86, 255));
         }
         R(t, 0, 288, 512, 3, Gold); R(t, 0, 284, 512, 4, Wood);
-        foreach (Vector2Int center in new[] { new Vector2Int(157, 186), new Vector2Int(355, 186), new Vector2Int(256, 278) })
-        {
-            E(t, center.x, center.y, 58, 27, new Color32(141, 74, 101, 255));
-            E(t, center.x, center.y, 56, 25, new Color32(84, 39, 73, 255));
-            E(t, center.x, center.y, 51, 21, new Color32(119, 50, 87, 255));
-            for (int x = center.x - 38; x <= center.x + 38; x += 19)
-                R(t, x, center.y - 15, 3, 3, Gold);
-        }
         R(t, 226, 5, 60, 76, new Color32(119, 32, 75, 255));
         R(t, 230, 5, 2, 76, Gold); R(t, 280, 5, 2, 76, Gold);
         R(t, 4, 4, 504, 2, Gold); R(t, 4, 346, 504, 2, Gold);
@@ -573,13 +595,13 @@ public static class PitPanicRichPixelArt
     {
         if (kind == "Chair")
         {
-            R(t, 15, 10, 5, 34, Ink); R(t, 43, 10, 5, 34, Ink);
-            R(t, 16, 11, 2, 25, Gold); R(t, 44, 11, 2, 25, Gold);
-            R(t, 11, 30, 42, 16, Ink); R(t, 14, 33, 36, 11, new Color32(180, 59, 108, 255));
-            R(t, 15, 41, 34, 34, Ink); R(t, 18, 44, 28, 28, Gold);
-            R(t, 20, 46, 24, 24, new Color32(119, 32, 75, 255));
-            R(t, 22, 65, 20, 3, new Color32(204, 86, 132, 255));
-            R(t, 25, 55, 14, 2, new Color32(150, 51, 95, 255));
+            R(t, 5, 0, 6, 20, Ink); R(t, 53, 0, 6, 20, Ink);
+            R(t, 6, 1, 3, 17, Gold); R(t, 54, 1, 3, 17, Gold);
+            R(t, 10, 22, 44, 30, Ink); R(t, 13, 24, 38, 26, Gold);
+            R(t, 15, 26, 34, 22, new Color32(119, 32, 75, 255));
+            R(t, 17, 44, 30, 2, new Color32(204, 86, 132, 255));
+            R(t, 4, 15, 56, 9, Ink); R(t, 7, 17, 50, 5, new Color32(180, 59, 108, 255));
+            R(t, 3, 22, 8, 4, Gold); R(t, 53, 22, 8, 4, Gold);
             return;
         }
         if (kind == "Plant")
@@ -691,14 +713,18 @@ public static class PitPanicRichPixelArt
     }
     private static void R(Texture2D t, int x, int y, int w, int h, Color32 c)
     {
+        var pixels = t.GetRawTextureData<Color32>();
         for (int px = Mathf.Max(0, x); px < Mathf.Min(t.width, x + w); px++)
-            for (int py = Mathf.Max(0, y); py < Mathf.Min(t.height, y + h); py++) t.SetPixel(px, py, c);
+            for (int py = Mathf.Max(0, y); py < Mathf.Min(t.height, y + h); py++) pixels[py * t.width + px] = c;
     }
     private static void E(Texture2D t, int x, int y, int rx, int ry, Color32 c)
     {
+        var pixels = t.GetRawTextureData<Color32>();
         for (int px = -rx; px <= rx; px++)
             for (int py = -ry; py <= ry; py++)
-                if (px * px / (float)(rx * rx) + py * py / (float)(ry * ry) <= 1) R(t, x + px, y + py, 1, 1, c);
+                if (px * px / (float)(rx * rx) + py * py / (float)(ry * ry) <= 1 &&
+                    x + px >= 0 && x + px < t.width && y + py >= 0 && y + py < t.height)
+                    pixels[(y + py) * t.width + x + px] = c;
     }
     private static void Save(Texture2D t, string name, Vector2 pivot, int ppu)
     {

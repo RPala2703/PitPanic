@@ -97,9 +97,10 @@ public static class FirstShiftPlayModeValidation
                     "Tutorial popup still contains decorative arrows, duplicate instructions, or page navigation");
                 Button[] lessonButtons = lessonCard.GetComponentsInChildren<Button>(true);
                 Check(lessonButtons.Length == 2 &&
-                      lessonCard.Find("Practise").GetComponentInChildren<Text>().text == "LET ME TRY!" &&
+                      lessonCard.Find("Practise").GetComponentInChildren<Text>().text == "Okay" &&
                       lessonCard.Find("Skip training").GetComponentInChildren<Text>().text == "SKIP TRAINING",
-                    "Tutorial must keep only the LET ME TRY! and SKIP TRAINING controls");
+                    "Tutorial must keep only the Okay and SKIP TRAINING controls");
+                ValidatePopup(lessonCard);
                 string instruction = ((Text)Get(shift, "lessonText")).text;
                 int sentenceCount = 0;
                 foreach (char character in instruction)
@@ -199,6 +200,56 @@ public static class FirstShiftPlayModeValidation
             throw new Exception("No reachable interaction point near " + center.name);
         }
 
+        private static void ValidatePopup(Transform popup)
+        {
+            Canvas.ForceUpdateCanvases();
+            Button[] buttons = popup.GetComponentsInChildren<Button>();
+            foreach (Button button in buttons)
+            {
+                RectTransform parent = button.transform.parent as RectTransform;
+                RectTransform rect = (RectTransform)button.transform;
+                Vector3[] corners = new Vector3[4];
+                rect.GetWorldCorners(corners);
+                foreach (Vector3 corner in corners)
+                {
+                    Vector3 local = parent.InverseTransformPoint(corner);
+                    Check(local.x >= parent.rect.xMin + 8 && local.x <= parent.rect.xMax - 8 &&
+                          local.y >= parent.rect.yMin + 8 && local.y <= parent.rect.yMax - 8,
+                        $"{popup.name}/{button.name} touches or crosses its panel border");
+                }
+                foreach (Button other in buttons)
+                {
+                    if (other == button || other.transform.parent != parent) continue;
+                    RectTransform otherRect = (RectTransform)other.transform;
+                    Rect a = new Rect(rect.anchoredPosition - rect.sizeDelta * .5f, rect.sizeDelta);
+                    Rect b = new Rect(otherRect.anchoredPosition - otherRect.sizeDelta * .5f, otherRect.sizeDelta);
+                    Check(!a.Overlaps(b), $"{popup.name}: {button.name} overlaps {other.name}");
+                }
+            }
+        }
+
+        private static void ValidateCampaignSeating()
+        {
+            foreach (int level in new[] { 1, 2, 3, 1 })
+            {
+                CasinoCampaignPresentation.Apply(level);
+                foreach (CasinoSeat seat in FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None))
+                {
+                    Transform chair = seat.GetComponent<CasinoSeatVisual>().Chair;
+                    Check(Vector3.Distance(chair.position, seat.SittingPosition) < .02f,
+                        $"Level {level}: {seat.name} chair is not at its sitting anchor");
+                    Check(UnityEngine.AI.NavMesh.SamplePosition(seat.Position, out var hit, .25f,
+                        UnityEngine.AI.NavMesh.AllAreas) && Vector3.Distance(hit.position, seat.Position) < .25f,
+                        $"Level {level}: {seat.name} approach uses a stale table footprint");
+                    UnityEngine.AI.NavMeshPath path = new UnityEngine.AI.NavMeshPath();
+                    Check(UnityEngine.AI.NavMesh.CalculatePath(new Vector3(0, 0, -6), hit.position,
+                        UnityEngine.AI.NavMesh.AllAreas, path) &&
+                        path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete,
+                        $"Level {level}: {seat.name} cannot be reached");
+                }
+            }
+        }
+
         private IEnumerator Test()
         {
             Check(CasinoDemoProgression.Passed(1, 8, 4, 60) &&
@@ -225,6 +276,8 @@ public static class FirstShiftPlayModeValidation
             var desk = FindFirstObjectByType<CasinoCashDeskInteraction>();
             var manager = FindFirstObjectByType<DealerAssignmentManager>();
             Check(Time.timeScale == 0 && !spawner.AcceptingArrivals, "Menu failed to pause");
+            ValidateCampaignSeating();
+            ValidatePopup(((GameObject)Get(shift, "pausePanel")).transform.Find("Pause card"));
             Check(CasinoSoundscape.CurrentMusicTrack == CasinoMusicTrack.Title &&
                 ((AudioSource)typeof(CasinoSoundscape).GetField("music", BindingFlags.Instance | BindingFlags.NonPublic)
                     .GetValue(FindFirstObjectByType<CasinoSoundscape>())).loop &&
@@ -274,6 +327,7 @@ public static class FirstShiftPlayModeValidation
             levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
             GameObject intro = (GameObject)Get(shift, "intro");
             Check(intro.activeSelf && !shift.IsRunning, "Intro did not follow menu");
+            ValidatePopup(intro.transform);
             yield return null;
             Check(!((Text)Get(FindFirstObjectByType<PitDeskInteraction>(), "promptText")).gameObject.activeSelf,
                 "Pit Desk interaction prompt leaked behind onboarding");
@@ -360,11 +414,12 @@ public static class FirstShiftPlayModeValidation
             foreach (AIDealer dealer in manager.Dealers)
                 if (dealer.IsAtStation)
                     Check(Vector3.Distance(dealer.GetComponentInChildren<PixelCharacterVisual>().transform.localPosition,
-                        Vector3.forward * .65f) < .02f, "Working dealer visual did not approach table edge");
+                        Vector3.zero) < .02f, "Working dealer visual drifted away from its station");
 
             MoveNear(blackjack.transform, blackjack.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.Q);
             Check(blackjack.IsInspectionOpen, "Q failed to inspect BJ1");
+            ValidatePopup(((GameObject)Get(Get(blackjack, "tableView"), "board")).transform);
             yield return null;
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             float timeout = Time.realtimeSinceStartup + 60;
@@ -443,6 +498,7 @@ public static class FirstShiftPlayModeValidation
             MoveNear(inspection.transform, candidate => inspection.IsPlayerInRange(candidate) &&
                 Array.TrueForAll(blackjackTables, table => !table.IsPlayerInRange(candidate)));
             Check(inspection.TryOpenInspectionFromPlayerInput(), "Could not open Roulette inspection after SHUFFLE");
+            ValidatePopup(((GameObject)Get(inspection, "board")).transform);
             yield return null;
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(roulette.FloatDestination.TryAddChips(new[] { 100, 100, 100, 100 }),
@@ -512,9 +568,10 @@ public static class FirstShiftPlayModeValidation
                 CasinoCustomerAI customer = customerObject as CasinoCustomerAI;
                 if (customer == null) continue;
                 var agent = customer.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                string path = agent.enabled ? $"{agent.pathStatus}/{agent.remainingDistance:0.0}" : "seated";
                 customerSnapshot += $"{customer.name}:cashier={customer.IsVisitingCashier}," +
                     $"waiting={customer.IsWaitingAtCashDesk},seat={customer.Seat?.name ?? "none"}," +
-                    $"position={customer.transform.position},path={agent.pathStatus}/{agent.remainingDistance:0.0} ";
+                    $"position={customer.transform.position},path={path} ";
             }
             Check(desk.ActiveCustomer != null,
                 $"Guided cash-out customer did not reach the Cash Desk; stage={shift.TutorialStage}, " +
@@ -840,12 +897,13 @@ public static class FirstShiftPlayModeValidation
             Check(reviewPanel.activeSelf && Time.timeScale == 0 &&
                 ((Text)Get(pit, "footageStatus")).text.Contains("ACTUAL RESULT: 1"),
                 "CCTV review did not pause play and show the actual round result");
+            ValidatePopup(reviewPanel.transform);
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(!reviewPanel.activeSelf && pit.PendingSecurityCases == 1 && Time.timeScale > 0,
                 "Cancelling CCTV review lost the alert or failed to restore play");
             int tasksBeforeReview = (int)Get(shift, "completedTasks");
             ((Button)Get(pit, "reviewButton")).onClick.Invoke();
-            reviewPanel.transform.Find("Clear Customer").GetComponent<Button>().onClick.Invoke();
+            reviewPanel.transform.Find("CCTV Review Card/Clear Customer").GetComponent<Button>().onClick.Invoke();
             Check(!reviewPanel.activeSelf && pit.PendingSecurityCases == 0 &&
                 (int)Get(shift, "completedTasks") == tasksBeforeReview + 1,
                 "A correct CCTV decision did not resolve and count the security case");
@@ -886,6 +944,20 @@ public static class FirstShiftPlayModeValidation
             Check(servedCustomer != null, "Customer did not enter actual Blackjack service");
             Check(servedCustomer.GetComponentInChildren<PixelCharacterVisual>().UsesCustomerAnimation,
                 "Customer is using staff-uniform animation");
+            yield return new WaitForSeconds(.9f);
+            PixelCharacterVisual seatedVisual = servedCustomer.GetComponentInChildren<PixelCharacterVisual>();
+            Check(Vector3.Distance(seatedVisual.transform.position, servedCustomer.Seat.SittingPosition) < .03f &&
+                seatedVisual.transform.localScale == Vector3.one &&
+                seatedVisual.GetComponentInChildren<SpriteRenderer>().transform.localScale == Vector3.one &&
+                !servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
+                "Seated customer does not align with the chair or is being squashed instead of frame animated");
+            PixelCharacterVisual playerVisual = player.GetComponentInChildren<PixelCharacterVisual>();
+            playerVisual.PlayAction(CasinoAnimationPose.Deal, player.transform.position + Vector3.back, 1f);
+            yield return new WaitForSeconds(.3f);
+            int earlyFrame = playerVisual.CurrentFrame;
+            yield return new WaitForSeconds(.3f);
+            Check(playerVisual.CurrentPose == CasinoAnimationPose.Deal && playerVisual.CurrentFrame > earlyFrame,
+                "Action did not advance through its drawn frame sequence");
             AIDealer exhaustedDealer = exhaustedTable.AssignedDealer;
             float oldEnergy = exhaustedDealer.Energy;
             Set(exhaustedDealer, "energy", 0f);
@@ -904,6 +976,8 @@ public static class FirstShiftPlayModeValidation
             yield return new WaitForSecondsRealtime(1.2f);
             Check(CustomerSatisfaction.PenaltyCount > penalties && !servedCustomer.IsSeated,
                 "Neglected exhausted table did not lose its customer and satisfaction");
+            Check(servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
+                "Customer did not resume navigation after leaving their chair");
             Check(CasinoTaskFeedback.Message(exhaustedTable.GetComponent<CasinoTableAttention>()).Contains("TAKE OVER"),
                 "Exhausted station marker did not explain its actionable takeover");
             Set(exhaustedDealer, "energy", oldEnergy);

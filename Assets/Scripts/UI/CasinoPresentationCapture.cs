@@ -14,6 +14,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
     private bool watch;
     private bool demoCheck;
     private bool coverCheck;
+    private bool seatingCheck;
     private readonly Dictionary<string, int> savedProgress = new Dictionary<string, int>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -29,6 +30,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         capture.watch = Array.IndexOf(args, "--pit-watch") >= 0;
         capture.demoCheck = Array.IndexOf(args, "--pit-demo-check") >= 0;
         capture.coverCheck = Array.IndexOf(args, "--pit-cover-check") >= 0;
+        capture.seatingCheck = Array.IndexOf(args, "--pit-seating-check") >= 0;
         capture.oldTutorial = PlayerPrefs.GetInt("PitPanic.TutorialComplete", -1);
         foreach (string key in new[] { "PitPanic.TutorialComplete", "PitPanic.UnlockedShift",
             CasinoDemoProgression.CreditsKey, CasinoDemoProgression.UpgradeKeys[0],
@@ -56,10 +58,10 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         yield return new WaitForSecondsRealtime(1);
         GameObject introduction = (GameObject)typeof(CasinoShiftController)
             .GetField("intro", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(menuShift);
-        string introAction = watch || demoCheck || coverCheck ? "Skip" : "Begin";
+        string introAction = watch || demoCheck || coverCheck || seatingCheck ? "Skip" : "Begin";
         introduction.transform.Find(introAction).GetComponent<Button>().onClick.Invoke();
         yield return new WaitForSecondsRealtime(3);
-        if (!watch && !demoCheck && !coverCheck)
+        if (!watch && !demoCheck && !coverCheck && !seatingCheck)
         {
             CasinoShiftController guidedShift = FindFirstObjectByType<CasinoShiftController>();
             ScreenCapture.CaptureScreenshot(Path.Combine(directory, "tutorial.png"));
@@ -70,6 +72,11 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         }
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "casino.png"));
         yield return new WaitForSecondsRealtime(1);
+        if (seatingCheck)
+        {
+            yield return CaptureSeating();
+            yield break;
+        }
         if (coverCheck)
         {
             yield return CaptureCover();
@@ -174,6 +181,85 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             ScreenCapture.CaptureScreenshot(Path.Combine(directory, $"carrying-{facing[i]}.png"));
             yield return new WaitForSecondsRealtime(.5f);
         }
+        Application.Quit();
+    }
+
+    private IEnumerator CaptureSeating()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        for (int level = 1; level <= CasinoDemoProgression.LevelCount; level++)
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+            yield return null;
+            yield return null;
+            CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
+            typeof(CasinoShiftController).GetMethod("BeginShift", flags).Invoke(shift, new object[] { level, false });
+            if (shift.IsLessonOpen) shift.DismissLesson();
+            CasinoCustomerSpawner spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
+            spawner.SetAcceptingArrivals(false);
+            spawner.SetGuidedPractice(true);
+            typeof(CasinoCustomerSpawner).GetField("maximumCustomers", flags).SetValue(spawner, 10);
+            // Hold settlement, not navigation: all ten real customers must reach their chairs.
+            foreach (BlackjackTableInteraction table in FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
+                table.enabled = false;
+            FindFirstObjectByType<RouletteRoundController>().enabled = false;
+            CasinoSeat[] seats = FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None);
+            float deadline = Time.realtimeSinceStartup + 45;
+            while (Time.realtimeSinceStartup < deadline)
+            {
+                for (int count = 1; count <= 3; count++)
+                {
+                    spawner.TrySpawnGuidedCustomer(CasinoCustomerGame.Blackjack1, count);
+                    spawner.TrySpawnGuidedCustomer(CasinoCustomerGame.Blackjack2, count);
+                    spawner.TrySpawnGuidedCustomer(CasinoCustomerGame.Roulette, count);
+                }
+                spawner.TrySpawnGuidedCustomer(CasinoCustomerGame.Roulette, 4);
+                if (Array.TrueForAll(seats, seat => seat.Occupant != null && seat.Occupant.IsSeated)) break;
+                yield return null;
+            }
+            yield return new WaitForSeconds(1.5f);
+            foreach (CasinoSeat seat in seats)
+            {
+                PixelCharacterVisual visual = seat.Occupant != null
+                    ? seat.Occupant.GetComponentInChildren<PixelCharacterVisual>() : null;
+                if (visual == null || !seat.Occupant.IsSeated ||
+                    Vector3.Distance(visual.transform.position, seat.SittingPosition) > .04f ||
+                    seat.GameType == CasinoCustomerGame.Roulette && visual.CurrentPose != CasinoAnimationPose.SeatedIdle)
+                {
+                    foreach (CasinoSeat diagnostic in seats)
+                    {
+                        CasinoCustomerAI visitor = diagnostic.ReservedBy;
+                        UnityEngine.AI.NavMeshAgent agent = visitor != null
+                            ? visitor.GetComponent<UnityEngine.AI.NavMeshAgent>() : null;
+                        Debug.Log($"SEAT {diagnostic.name}: reserved={visitor?.name}, seated={diagnostic.Occupant?.IsSeated}, " +
+                            $"available={diagnostic.IsGameAvailable}, position={visitor?.transform.position}, " +
+                            $"moving={agent != null && agent.enabled}, active={spawner.ActiveCustomerCount}");
+                    }
+                    ScreenCapture.CaptureScreenshot(Path.Combine(directory, $"seating-failure-{level}.png"));
+                    yield return new WaitForSecondsRealtime(.5f);
+                    Debug.LogError($"Seating capture failed at level {level}/{seat.name}: visual={visual != null}, " +
+                        $"offset={(visual != null ? Vector3.Distance(visual.transform.position, seat.SittingPosition) : -1)}.");
+                    Application.Quit(1);
+                    yield break;
+                }
+            }
+            ScreenCapture.CaptureScreenshot(Path.Combine(directory, $"seating-level-{level}.png"));
+            yield return new WaitForSecondsRealtime(.5f);
+            Camera camera = Camera.main;
+            float size = camera.orthographicSize;
+            Vector3 position = camera.transform.position;
+            BlackjackTableInteraction first = Array.Find(
+                FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None),
+                table => table.TableDisplayName == "BLACKJACK 1");
+            camera.transform.position += first.transform.position + new Vector3(0, 0, -1.5f);
+            camera.orthographicSize = 4;
+            ScreenCapture.CaptureScreenshot(Path.Combine(directory, $"seating-detail-{level}.png"));
+            yield return new WaitForSecondsRealtime(.5f);
+            camera.transform.position = position;
+            camera.orthographicSize = size;
+            Debug.Log($"SEATING CHECK level {level}: all ten customers reached and aligned with their chairs.");
+        }
+        Debug.Log("STANDALONE SEATING CHECK PASSED");
         Application.Quit();
     }
 

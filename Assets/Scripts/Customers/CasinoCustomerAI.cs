@@ -152,6 +152,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
                 transform.rotation = reservedSeat.Facing;
                 state = CustomerState.Seated;
                 agent.isStopped = true;
+                agent.enabled = false;
                 patience.Begin(WaitingPatienceSeconds);
                 Seated?.Invoke(this);
             }
@@ -204,18 +205,10 @@ public sealed class CasinoCustomerAI : MonoBehaviour
 
         if (visual != null)
         {
-            float targetHeight = state == CustomerState.Seated ? 0.22f : 0f;
-            Vector3 position = visual.localPosition;
             Vector3 seatedOffset = state == CustomerState.Seated && reservedSeat != null
-                ? reservedSeat.SeatedVisualOffset
+                ? transform.InverseTransformPoint(reservedSeat.SittingPosition)
                 : Vector3.zero;
-            position.x = Mathf.MoveTowards(position.x, seatedOffset.x, Time.deltaTime * 2f);
-            position.y = Mathf.MoveTowards(position.y, targetHeight, Time.deltaTime * 1.2f);
-            position.z = Mathf.MoveTowards(position.z, seatedOffset.z, Time.deltaTime * 2f);
-            visual.localPosition = position;
-            Vector3 scale = visual.localScale;
-            scale.y = Mathf.MoveTowards(scale.y, state == CustomerState.Seated ? 0.82f : 1f, Time.deltaTime * 0.8f);
-            visual.localScale = scale;
+            visual.localPosition = Vector3.MoveTowards(visual.localPosition, seatedOffset, Time.deltaTime * 2f);
         }
     }
 
@@ -341,6 +334,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             return;
         }
 
+        ReleaseSeat();
         float activity = UnityEngine.Random.value;
         if (activity < spawner.LeaveAfterVisitChance)
         {
@@ -350,14 +344,12 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             activity < spawner.LeaveAfterVisitChance + spawner.CashierAfterVisitChance &&
             agent.SetDestination(cashierWaypoint.position))
         {
-            ReleaseSeat();
             state = CustomerState.VisitingCashier;
             cashierArrivalReported = false;
             agent.isStopped = false;
         }
         else
         {
-            ReleaseSeat();
             state = CustomerState.Wandering;
             agent.isStopped = false;
             SetNextDecisionTime();
@@ -545,12 +537,23 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
     }
 
-    private void ReleaseSeat()
+    private void ReleaseSeat(bool resumeNavigation = true)
     {
         if (reservedSeat != null)
         {
             reservedSeat.Release(this);
             reservedSeat = null;
+            if (resumeNavigation && !agent.enabled)
+            {
+                if (!NavMesh.SamplePosition(seatNavPosition, out NavMeshHit hit, 1.5f, NavMesh.AllAreas))
+                    throw new InvalidOperationException($"{name} cannot stand up: its seat approach is no longer walkable.");
+                Vector3 visualPosition = visual != null ? visual.position : transform.position;
+                transform.position = hit.position;
+                agent.enabled = true;
+                if (!agent.Warp(hit.position))
+                    throw new InvalidOperationException($"{name} could not resume navigation after standing up.");
+                if (visual != null) visual.position = visualPosition;
+            }
         }
     }
 
@@ -593,7 +596,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             patience.PatienceExpired -= OnPatienceExpired;
         }
 
-        ReleaseSeat();
+        ReleaseSeat(false);
         spawner?.NotifyDespawned(this);
     }
 }

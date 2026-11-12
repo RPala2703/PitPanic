@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using Unity.AI.Navigation;
+using UnityEngine.AI;
 
 public static class CasinoCampaignPresentation
 {
@@ -49,6 +51,17 @@ public static class CasinoCampaignPresentation
         first.transform.position = BlackjackPositions[level - 1, 0];
         second.transform.position = BlackjackPositions[level - 1, 1];
         roulette.transform.position = RoulettePositions[level - 1];
+        // The saved mesh belongs to Opening Night; moved table footprints need fresh paths.
+        NavMeshSurface navigation = UnityEngine.Object.FindFirstObjectByType<NavMeshSurface>();
+        if (navigation == null) throw new InvalidOperationException("Campaign layout requires a navigation surface.");
+        navigation.BuildNavMesh();
+        foreach (NavMeshAgent agent in UnityEngine.Object.FindObjectsByType<NavMeshAgent>(FindObjectsSortMode.None))
+        {
+            if (!agent.enabled || agent.isOnNavMesh) continue;
+            if (!NavMesh.SamplePosition(agent.transform.position, out NavMeshHit hit, 2f, NavMesh.AllAreas) ||
+                !agent.Warp(hit.position))
+                throw new InvalidOperationException($"Cannot place {agent.name} on the selected casino layout.");
+        }
         SpriteRenderer carpet = GameObject.Find("Pixel Carpet")?.GetComponent<SpriteRenderer>();
         if (carpet != null) carpet.color = CarpetTints[level - 1];
         RenderSettings.ambientSkyColor = SkyColors[level - 1];

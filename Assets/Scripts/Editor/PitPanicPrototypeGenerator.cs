@@ -228,7 +228,8 @@ public static class PitPanicPrototypeGenerator
         {
             GameObject chair = new GameObject("Pixel Chair");
             chair.transform.SetParent(seat.transform, false);
-            chair.transform.localScale = Vector3.one * .75f;
+            chair.transform.position = seat.SittingPosition;
+            chair.transform.localScale = Vector3.one * .85f;
             chair.AddComponent<SpriteRenderer>().sprite =
                 AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/Pixel/Structure_Chair.png");
             chair.GetComponent<SpriteRenderer>().sortingOrder = -5;
@@ -1430,13 +1431,17 @@ public static class PitPanicPrototypeGenerator
             }
 
             Vector3 approachToBet = seat.Position - seat.BettingPosition.position;
-            Vector3 seatedToBet = seat.Position + seat.SeatedVisualOffset - seat.BettingPosition.position;
+            Vector3 seatedToBet = seat.SittingPosition - seat.BettingPosition.position;
             approachToBet.y = 0f;
             seatedToBet.y = 0f;
             if (approachToBet.magnitude > 2.6f || seatedToBet.magnitude > 2f)
             {
                 throw new System.InvalidOperationException($"{seat.name} seated pose is not aligned with its matching betting spot.");
             }
+            CasinoSeatVisual seatVisual = seat.GetComponent<CasinoSeatVisual>();
+            if (seatVisual == null || seatVisual.Chair == null ||
+                Vector3.Distance(seatVisual.Chair.position, seat.SittingPosition) > .02f)
+                throw new System.InvalidOperationException($"{seat.name} chair must share its customer's sitting anchor.");
         }
 
         foreach (CasinoDealerStation station in stations)
@@ -1962,6 +1967,11 @@ public static class PitPanicPrototypeGenerator
             PixelCharacterVisual.FrameIndex(Vector3.right, false, 1f) != 6 ||
             PixelCharacterVisual.FrameIndex(Vector3.right, true, 0.2f) != 7)
             throw new System.InvalidOperationException("Pixel character facing or walk-frame selection is incorrect.");
+        if (PixelCharacterVisual.AnimationFramesPerDirection != 60 ||
+            PixelCharacterVisual.PlaybackFrame(.5f, 1, true) != 30 ||
+            PixelCharacterVisual.PlaybackFrame(1.5f, 1, true) != 30 ||
+            PixelCharacterVisual.PlaybackFrame(3, 1, false) != 59)
+            throw new System.InvalidOperationException("Frame animation must loop continuously and clamp only one-shot actions.");
 
         GameObject floor = GameObject.Find("Pixel Carpet");
         if (floor == null || floor.GetComponent<SpriteRenderer>()?.sprite == null)
@@ -1971,20 +1981,21 @@ public static class PitPanicPrototypeGenerator
         {
             Texture2D atlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_{species}.png");
             if (atlas == null || !atlas.isReadable ||
-                atlas.width != 48 * PixelCharacterVisual.AnimationFramesPerDirection || atlas.height != 3328 ||
+                atlas.width != 48 * PixelCharacterVisual.AnimationFramesPerDirection ||
+                atlas.height != 64 * 4 * PixelCharacterVisual.PoseCount ||
                 atlas.filterMode != FilterMode.Point)
                 throw new System.InvalidOperationException($"Missing or incorrectly imported action atlas for {species}.");
             Texture2D customerAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_Customer_{species}.png");
             if (customerAtlas == null ||
                 customerAtlas.width != 48 * PixelCharacterVisual.AnimationFramesPerDirection ||
-                customerAtlas.height != 3328 ||
+                customerAtlas.height != 64 * 4 * PixelCharacterVisual.PoseCount ||
                 customerAtlas.filterMode != FilterMode.Point ||
                 customerAtlas.GetPixel(16, 22) == atlas.GetPixel(16, 22))
                 throw new System.InvalidOperationException($"Customer {species} must have a distinct civilian outfit atlas.");
-            Color forwardCard = customerAtlas.GetPixel(6, ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 40);
+            Color forwardCard = customerAtlas.GetPixel(8, ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 42);
             if (forwardCard.r < .8f || forwardCard.g < .7f)
                 throw new System.InvalidOperationException($"Away-facing seated {species} must hold cards toward the table, not behind their back.");
-            for (int pose = 0; pose < 13; pose++)
+            for (int pose = 0; pose < PixelCharacterVisual.PoseCount; pose++)
             {
                 HashSet<int> frameHashes = new HashSet<int>();
                 for (int frame = 0; frame < PixelCharacterVisual.AnimationFramesPerDirection; frame++)
@@ -1997,13 +2008,40 @@ public static class PitPanicPrototypeGenerator
                     }
                     frameHashes.Add(hash);
                 }
-                int minimumUniqueFrames = pose == (int)CasinoAnimationPose.Walk ? 6 :
+                int minimumUniqueFrames = pose == (int)CasinoAnimationPose.Walk ? 12 :
                     pose == (int)CasinoAnimationPose.Deal || pose == (int)CasinoAnimationPose.Pay ||
                     pose == (int)CasinoAnimationPose.Collect || pose == (int)CasinoAnimationPose.Celebrate ||
-                    pose == (int)CasinoAnimationPose.Shuffle ? 9 : 5;
+                    pose == (int)CasinoAnimationPose.Shuffle ? 12 : 4;
                 if (frameHashes.Count < minimumUniqueFrames)
                     throw new System.InvalidOperationException(
                         $"{species} {((CasinoAnimationPose)pose)} needs at least {minimumUniqueFrames} individually drawn animation frames.");
+                for (int direction = 0; direction < 4; direction++)
+                {
+                    Color32[] previous = null;
+                    for (int frame = 0; frame < PixelCharacterVisual.AnimationFramesPerDirection; frame++)
+                    {
+                        Color[] pixels = atlas.GetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64);
+                        Color32[] current = System.Array.ConvertAll(pixels, color => (Color32)color);
+                        if (previous != null)
+                        {
+                            int changed = 0;
+                            for (int i = 0; i < current.Length; i++)
+                                if (!current[i].Equals(previous[i])) changed++;
+                            if (changed > current.Length * .32f)
+                                throw new System.InvalidOperationException(
+                                    $"{species}/{(CasinoAnimationPose)pose}/{direction}/{frame} jumps instead of in-betweening.");
+                        }
+                        previous = current;
+                    }
+                    if (PixelCharacterVisual.IsLooping((CasinoAnimationPose)pose))
+                    {
+                        Color[] start = atlas.GetPixels(0, (pose * 4 + direction) * 64, 48, 64);
+                        Color[] end = atlas.GetPixels(59 * 48, (pose * 4 + direction) * 64, 48, 64);
+                        for (int i = 0; i < start.Length; i++)
+                            if (start[i] != end[i])
+                                throw new System.InvalidOperationException($"{species}/{(CasinoAnimationPose)pose} has a discontinuous loop seam.");
+                    }
+                }
             }
             GameObject prefab = PitPanicArtPrefabLibrary.GetCharacterPrefab(species);
             PixelCharacterVisual pixel = prefab.GetComponent<PixelCharacterVisual>();
@@ -2407,7 +2445,7 @@ public static class PitPanicPrototypeGenerator
             seatObject.transform.localPosition = new Vector3(seatOffsets[i], 0f, -3f);
             GameObject customerPosition = new GameObject("Customer Sitting Position");
             customerPosition.transform.SetParent(seatObject.transform, false);
-            customerPosition.transform.localPosition = new Vector3(0f, 0f, 0.62f);
+            customerPosition.transform.localPosition = new Vector3(0f, 0f, 1f);
             customerPosition.transform.localRotation = Quaternion.identity;
             CasinoSeat seat = seatObject.AddComponent<CasinoSeat>();
             seat.Configure(customerPosition.transform, bettingPosition.transform, seatObject.transform);
@@ -2636,6 +2674,7 @@ public static class PitPanicPrototypeGenerator
             seatObject.transform.localPosition = offset;
             GameObject facing = new GameObject("Customer Facing Position");
             facing.transform.SetParent(seatObject.transform, false);
+            facing.transform.localPosition = new Vector3(-Mathf.Sign(offset.x) * .35f, 0f, -Mathf.Sign(offset.z) * .2f);
             facing.transform.localRotation = Quaternion.LookRotation(-new Vector3(offset.x, 0f, offset.z));
             CasinoSeat seat = seatObject.AddComponent<CasinoSeat>();
             seat.Configure(facing.transform, bettingPoint.transform, seatObject.transform);
@@ -3038,6 +3077,9 @@ public static class PitPanicPrototypeGenerator
             foreach (MeshRenderer renderer in instance.GetComponentsInChildren<MeshRenderer>(true))
                 renderer.enabled = false;
             CreatePixelSurface(visualRoot.transform, "Pixel " + pixelKind, PitPanicPixelArt.StationSprite(pixelKind), height);
+            if (pixelKind.StartsWith("Blackjack") || pixelKind == "Roulette")
+                CreatePixelSurface(visualRoot.transform, "Table Rug",
+                    AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/Pixel/TableRug.png"), .015f);
         }
         return visualRoot.transform;
     }
@@ -3050,7 +3092,8 @@ public static class PitPanicPrototypeGenerator
         surface.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         SpriteRenderer renderer = surface.AddComponent<SpriteRenderer>();
         renderer.sprite = sprite;
-        renderer.sortingOrder = name == "Pixel Carpet" ? -100 : name == "Pixel Roulette Wheel" ? -9 : -10;
+        renderer.sortingOrder = name == "Pixel Carpet" ? -100 : name == "Table Rug" ? -90 :
+            name == "Pixel Roulette Wheel" ? -9 : -10;
         surface.AddComponent<PixelSpriteTextureBinding>();
         if (name == "Pixel CashDesk" || name == "Pixel PitDesk" || name == "Pixel BreakRoom")
             surface.transform.localScale = new Vector3(0.75f, 0.6f, 1f);
