@@ -108,7 +108,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
         {
             takeoverButton.gameObject.SetActive(!roundController.IsDealerStaffed);
             takeoverButton.GetComponentInChildren<Text>().text = roundController.IsPlayerOperating
-                ? "SPACE  •  RUN SPIN / SWEEP / PAY" : "NO DEALER? TAKE OVER!";
+                ? "Spin" : "NO DEALER? TAKE OVER!";
             if (roundController.IsPlayerOperating && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
                 StartManualRound();
             assistanceButton.gameObject.SetActive(roundController.IsCoverReady);
@@ -208,6 +208,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
         scaler.matchWidthOrHeight = 0.5f;
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
         prompt = CreateObject("Roulette Inspection Prompt", canvas.transform);
         SetRect(prompt, new Vector2(0.5f, 0f), new Vector2(0f, 104f), new Vector2(480f, 48f));

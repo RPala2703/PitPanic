@@ -6,9 +6,9 @@ using System.Collections.Generic;
 [DisallowMultipleComponent]
 public sealed class PixelCharacterVisual : MonoBehaviour
 {
-    public const int AnimationFramesPerDirection = 12;
+    public const int AnimationFramesPerDirection = 60;
     public const int DirectionsPerPose = 4;
-    public const int PoseCount = 13;
+    public const int PoseCount = 14;
     [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private Sprite[] frames;
     [SerializeField] private Sprite[] expressions;
@@ -36,6 +36,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public CasinoAnimationPose CurrentPose => currentPose;
     public bool HasFrameAnimation => animationFrames != null &&
         animationFrames.Length == PoseCount * DirectionsPerPose * AnimationFramesPerDirection;
+    public int CurrentFrame { get; private set; }
     public bool IsVip => vip;
     public void ConfigureAnimation(Texture2D texture) => animationAtlas = texture;
     private float reactionRemaining;
@@ -53,8 +54,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public Sprite TitleFrame(float elapsed)
     {
         if (animationFrames != null)
-            return animationFrames[(int)CasinoAnimationPose.Idle * DirectionsPerPose * AnimationFramesPerDirection +
-                Mathf.FloorToInt(elapsed * 3) % AnimationFramesPerDirection];
+            return AnimationSprite(CasinoAnimationPose.Idle, 0,
+                PlaybackFrame(elapsed, 3.2f, true));
         if (expressions != null && expressions.Length == 4 && elapsed % 4 > 3) return expressions[0];
         return frames != null && frames.Length == 8 ? frames[Mathf.FloorToInt(elapsed * 6) % 2] : null;
     }
@@ -62,6 +63,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     {
         reaction = winning ? 0 : 1;
         reactionRemaining = 2f;
+        poseElapsed = 0;
         CasinoSoundscape.Play(winning ? CasinoSoundCue.Celebrate : CasinoSoundCue.Disappointed, transform.position);
     }
 
@@ -118,6 +120,30 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     private static int Direction(Vector3 heading) => Mathf.Abs(heading.x) > Mathf.Abs(heading.z)
         ? heading.x < 0 ? 2 : 3 : heading.z > 0 ? 1 : 0;
 
+    public static bool IsLooping(CasinoAnimationPose pose) =>
+        pose == CasinoAnimationPose.Idle || pose == CasinoAnimationPose.Walk ||
+        pose == CasinoAnimationPose.Tired || pose == CasinoAnimationPose.Rest ||
+        pose == CasinoAnimationPose.Carry || pose == CasinoAnimationPose.Examine ||
+        pose == CasinoAnimationPose.SeatedIdle;
+
+    public static int PlaybackFrame(float elapsed, float duration, bool loop)
+    {
+        float progress = Mathf.Max(0, elapsed) / Mathf.Max(.01f, duration);
+        if (loop) progress -= Mathf.Floor(progress);
+        return Mathf.Clamp(Mathf.FloorToInt(progress * AnimationFramesPerDirection), 0,
+            AnimationFramesPerDirection - 1);
+    }
+
+    private Sprite AnimationSprite(CasinoAnimationPose pose, int direction, int frame)
+    {
+        int index = ((int)pose * DirectionsPerPose + direction) * AnimationFramesPerDirection + frame;
+        if (animationFrames[index] == null)
+            animationFrames[index] = Sprite.Create(animationAtlas,
+                new Rect(frame * 48, ((int)pose * DirectionsPerPose + direction) * 64, 48, 64),
+                new Vector2(.5f, 0), 30, 0, SpriteMeshType.FullRect);
+        return animationFrames[index];
+    }
+
     private void Awake()
     {
         agent = GetComponentInParent<NavMeshAgent>();
@@ -133,10 +159,6 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             if (!AnimationCache.TryGetValue(animationAtlas, out animationFrames))
             {
                 animationFrames = new Sprite[PoseCount * DirectionsPerPose * AnimationFramesPerDirection];
-                for (int row = 0; row < PoseCount * DirectionsPerPose; row++)
-                for (int frame = 0; frame < AnimationFramesPerDirection; frame++)
-                    animationFrames[row * AnimationFramesPerDirection + frame] = Sprite.Create(animationAtlas,
-                        new Rect(frame * 48, row * 64, 48, 64), new Vector2(.5f, 0), 30);
                 AnimationCache.Add(animationAtlas, animationFrames);
             }
         }
@@ -223,20 +245,20 @@ public sealed class PixelCharacterVisual : MonoBehaviour
                 ? Vector3.Distance(actor.position, previousPosition) / Time.deltaTime : 0f;
         previousPosition = actor.position;
         hasPreviousPosition = true;
-        bool walking = speed > 0.12f;
-        if (dealer != null)
-            transform.localPosition = Vector3.MoveTowards(transform.localPosition,
-                dealer.IsAtStation ? Vector3.forward * .65f : Vector3.zero, Time.deltaTime * 3f);
-        walkTime = walking ? walkTime + Time.deltaTime : 0f;
         bool seated = customer != null && customer.IsSeated || dealer != null && dealer.IsResting;
+        bool walking = speed > 0.12f && !seated;
+        walkTime = walking ? walkTime + Time.deltaTime : 0f;
+        CasinoAnimationPose seatedPose = customer != null && customer.Seat != null &&
+            customer.Seat.GameType == CasinoCustomerGame.Roulette ? CasinoAnimationPose.SeatedIdle : CasinoAnimationPose.Examine;
+        CasinoAnimationPose gesturePose = gesture == CasinoGesture.Deal ? CasinoAnimationPose.Deal :
+            gesture == CasinoGesture.Pay ? CasinoAnimationPose.Pay : CasinoAnimationPose.Collect;
         CasinoAnimationPose pose = carrier != null && carrier.IsCarrying ? CasinoAnimationPose.Carry :
             walking ? CasinoAnimationPose.Walk :
             reactionRemaining > 0 ? reaction == 0 ? CasinoAnimationPose.Celebrate : CasinoAnimationPose.Disappointed :
-            gestureRemaining > 0 ? gesture == CasinoGesture.Deal ? CasinoAnimationPose.Deal :
-                gesture == CasinoGesture.Pay ? CasinoAnimationPose.Pay : CasinoAnimationPose.Collect :
+            gestureRemaining > 0 ? gesturePose :
             dealer != null && dealer.IsResting ? CasinoAnimationPose.Rest :
             dealer != null && dealer.NeedsBreak ? CasinoAnimationPose.Tired :
-            seated ? CasinoAnimationPose.Examine : CasinoAnimationPose.Idle;
+            seated ? seatedPose : CasinoAnimationPose.Idle;
         if (seated != wasSeated)
         {
             standing = !seated;
@@ -247,7 +269,6 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         if (currentPose == CasinoAnimationPose.Sit && poseElapsed < .8f && !walking) pose = CasinoAnimationPose.Sit;
         if (actionRemaining > 0 && !walking) pose = requestedPose;
         if (pose != currentPose) { currentPose = pose; poseElapsed = 0; }
-        poseElapsed += Time.deltaTime;
         if (walking && Time.time >= nextFootstep)
         {
             nextFootstep = Time.time + .36f;
@@ -265,18 +286,24 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         if (animationFrames != null)
         {
             int direction = (gestureRemaining > 0 || actionRemaining > 0) && !walking ? gestureDirection : Direction(actor.forward);
-            float duration = actionRemaining > 0 ? actionDuration : gestureRemaining > 0 ? gestureLength : currentPose == CasinoAnimationPose.Sit ? .8f :
-                walking ? .65f : currentPose == CasinoAnimationPose.Idle ? 3.2f : 1.2f;
-            int frame = Mathf.Min(AnimationFramesPerDirection - 1,
-                Mathf.FloorToInt(poseElapsed / duration * AnimationFramesPerDirection));
+            bool action = actionRemaining > 0 && !walking;
+            bool gesturing = !action && gestureRemaining > 0 && !walking && currentPose == gesturePose;
+            float duration = action ? actionDuration : gesturing ? gestureLength :
+                currentPose == CasinoAnimationPose.Sit ? .8f :
+                walking ? .8f : currentPose == CasinoAnimationPose.Idle ? 3.2f :
+                currentPose == CasinoAnimationPose.Rest ? 4f : 2f;
+            float elapsed = action ? actionDuration - actionRemaining :
+                gesturing ? gestureLength - gestureRemaining : poseElapsed;
+            int frame = PlaybackFrame(elapsed, duration, !action && !gesturing && IsLooping(currentPose));
             if (currentPose == CasinoAnimationPose.Carry && !walking) frame = 0;
             if (currentPose == CasinoAnimationPose.Sit && standing)
                 frame = AnimationFramesPerDirection - 1 - frame;
-            spriteRenderer.sprite = animationFrames[
-                ((int)currentPose * DirectionsPerPose + direction) * AnimationFramesPerDirection + frame];
+            CurrentFrame = frame;
+            spriteRenderer.sprite = AnimationSprite(currentPose, direction, frame);
         }
         spriteRenderer.transform.rotation = camera.transform.rotation;
-        spriteRenderer.transform.localScale = new Vector3(restScale.x, restScale.y * (seated ? .87f : 1), restScale.z);
+        spriteRenderer.transform.localScale = restScale;
+        poseElapsed += Time.deltaTime;
         gestureRemaining = Mathf.Max(0, gestureRemaining - Time.deltaTime);
         actionRemaining = Mathf.Max(0, actionRemaining - Time.deltaTime);
         spriteRenderer.transform.localPosition = new Vector3(0, .04f, 0);

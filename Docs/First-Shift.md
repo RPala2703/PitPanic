@@ -2,7 +2,7 @@
 
 Open `Assets/Scenes/PitPanicPrototype.unity` in Unity and press Play. Choose
 **New Game** for the introduction and Tiger's guided shift, or **Skip Training** on the introduction to start without
-the lessons. Tiger's large lesson cards pause the casino and audio. **LET ME TRY!**
+the lessons. Tiger's large lesson cards pause the casino and audio. **Okay**
 or Enter dismisses the explanation and resumes practice; Escape dismisses a lesson
 rather than opening another menu. **HELP** revisits all 13 explanations without
 changing progress. The lesson card uses a short prompt and points to the relevant station. Use WASD or the
@@ -75,7 +75,7 @@ hands. New Game and level replay do not remove the casino's existing upgrades
 or change settings.
 Training retains at least three minutes on the clock until lessons are complete,
 so a learner cannot time out before learning dealer management. Each lesson is
-one short prompt; casino practice resumes only after **LET ME TRY!**. Practice covers
+one short prompt; casino practice resumes only after **Okay**. Practice covers
 movement, table inspection, SHUFFLE!, staffed Roulette COVER!, SPIN!/SWEEP!/PAY!,
 customer cash-out, float
 packing/delivery, assignments/breaks, both manual table takeovers, returning
@@ -93,10 +93,10 @@ and staffing assignments have no invented expiry timer. Approach an ! for
 specific instructions, including where to get float and which key to use.
 
 At an exhausted or unstaffed table, **E → Take Over** enables pit-boss service.
-At Blackjack, **Space / Deal Card** advances the existing hand; customers choose
+At Blackjack, **Space / Deal** advances the existing hand; customers choose
 Hit/Stand using their existing AI. In settlement, Space pays the exact return,
 or use the chip/confirm buttons. At Roulette, Take Over first keeps the table
-available for customers; **Space** then starts its existing SPIN/SWEEP/PAY round.
+available for customers; **Spin** (or Space) then starts its existing SPIN/SWEEP/PAY round.
 Both use the current round and existing payout/deduplication paths, not new bets.
 Blackjack stops immediately if all customers bust; the dealer does not draw
 unnecessary cards. Stakes remain on the felt until settlement. Losing stakes
@@ -151,8 +151,20 @@ station, furniture and carpet PNGs while preserving existing texture GUIDs.
 animated lamps and a cashier into the generated floor. Sprites use point
 filtering without mipmaps or compression.
 
-Characters have directional walk cycles, service poses, happy/sad reactions
-and tired/resting expressions. Blackjack reuses its physical dealing/payout
+Every character action/direction has a baked 60-frame pixel-sprite sequence,
+including directional walk cycles, service poses, happy/sad reactions and
+tired/resting expressions. Drawn in-betweens use anticipation, contact and recovery
+beats; looping poses wrap instead of freezing on their last frame. Feet stay
+grounded, and sitting uses drawn bent legs rather than stretching the character.
+Roulette guests have a seated idle cycle, not Blackjack's card-examining pose.
+Customers and chairs share one world-space sitting anchor independently of the
+reachable NavMesh approach. Seated guests temporarily leave agent avoidance so
+their invisible approach agent cannot block the next chair; standing restores
+navigation. Selecting a campaign layout rebakes table footprints and moves its
+own rug with the table, so relocated furniture does not leave stale paths or
+floor decorations behind. Popup controls have inset
+footer rows; their canvases expand the reference area on narrower/wider screens
+instead of cropping it. Blackjack reuses its physical dealing/payout
 animation; roulette adds customer/dealer gestures and an orbiting ball.
 The cashier's chip movement follows actual customer/float service activity.
 The playable pit boss is a penguin. Staff use their animal names, and customers

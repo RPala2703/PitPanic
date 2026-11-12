@@ -45,7 +45,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         if (takeoverButton == null)
         {
             GameObject root = CasinoMinigamePresentation.CreateImage("Take over", board.transform,
-                new Vector2(0, -185), new Vector2(440, 44), CasinoHudStyle.Gold, true);
+                new Vector2(0, -238), new Vector2(440, 42), CasinoHudStyle.Gold, true);
             takeoverButton = root.AddComponent<Button>();
             takeoverButton.targetGraphic = root.GetComponent<Image>();
             CasinoHudStyle.Button(takeoverButton);
@@ -169,13 +169,7 @@ public sealed class BlackjackTableView : MonoBehaviour
                        state == BlackjackTableState.CustomerTurns ||
                        state == BlackjackTableState.DealerTurn;
         dealButton.gameObject.SetActive(canDeal && !dealerAutomated);
-        dealButton.GetComponentInChildren<Text>().text = dealerAutomated
-            ? "DEALER WORKING"
-            : state == BlackjackTableState.WaitingForCustomers
-                ? "START ROUND"
-                : state == BlackjackTableState.TakingBets
-                    ? "DEAL OPENING CARDS"
-                    : "SPACE  •  DEAL CARD";
+        dealButton.GetComponentInChildren<Text>().text = "Deal";
 
         bool isPayout = state == BlackjackTableState.Settlement && payoutIndex >= 0;
         foreach (Button denominationButton in denominationButtons) denominationButton.gameObject.SetActive(isPayout && !dealerAutomated);
@@ -198,6 +192,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
         scaler.matchWidthOrHeight = 0.5f;
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
         CreatePrompt();
         BuildTableBoard();
@@ -244,28 +239,28 @@ public sealed class BlackjackTableView : MonoBehaviour
         accuracyText = CreateText("Accuracy", felt.transform, "", new Vector2(0f, -207f), new Vector2(650f, 22f), 12, new Color(0.78f, 0.86f, 0.81f), TextAnchor.MiddleCenter);
 
         selectedChipRow = CreateRectObject("Payout Chips", felt.transform, new Vector2(330f, 155f), new Vector2(220f, 35f)).GetComponent<RectTransform>();
-        dealButton = CreateButton("Deal Button", felt.transform, "START ROUND  •  SPACE", new Vector2(367f, -238f), new Vector2(250f, 42f), new Color(0.78f, 0.55f, 0.16f), () => onDeal?.Invoke());
+        dealButton = CreateButton("Deal Button", felt.transform, "Deal", new Vector2(350f, -238f), new Vector2(230f, 42f), new Color(0.78f, 0.55f, 0.16f), () => onDeal?.Invoke());
         closeButton = CreateButton("Close Button", felt.transform, "ESC  •  CLOSE", new Vector2(-423f, 245f), new Vector2(130f, 36f), new Color(0.20f, 0.25f, 0.23f), () => onClose?.Invoke());
         denominationButtons = new Button[chipDenominations.Length];
-        float chipStartX = -((chipDenominations.Length + 1) * 45f);
+        float chipStartX = -400f;
         for (int i = 0; i < chipDenominations.Length; i++)
         {
             BlackjackChipDenomination chip = chipDenominations[i];
             int denominationValue = chip.ValuePence;
             string label = chip.Label;
-            float positionX = chipStartX + i * 90f;
+            float positionX = chipStartX + i * 100f;
             denominationButtons[i] = CreateButton(
                 $"Chip {label}",
                 felt.transform,
                 label,
                 new Vector2(positionX, -238f),
-                new Vector2(82f, 38f),
+                new Vector2(82f, 42f),
                 chip.Color,
                 () => onAddChip?.Invoke(denominationValue));
         }
 
-        removeChipButton = CreateButton("Remove Chip", felt.transform, "REMOVE", new Vector2(91f, -238f), new Vector2(82f, 38f), new Color(0.25f, 0.29f, 0.28f), () => onRemoveChip?.Invoke());
-        confirmPayoutButton = CreateButton("Confirm Payout", felt.transform, "CONFIRM PAYOUT", new Vector2(190f, -238f), new Vector2(106f, 38f), new Color(0.20f, 0.44f, 0.28f), () => onConfirmPayout?.Invoke());
+        removeChipButton = CreateButton("Remove Chip", felt.transform, "REMOVE", new Vector2(15f, -238f), new Vector2(96f, 42f), new Color(0.25f, 0.29f, 0.28f), () => onRemoveChip?.Invoke());
+        confirmPayoutButton = CreateButton("Confirm Payout", felt.transform, "CONFIRM PAYOUT", new Vector2(210f, -238f), new Vector2(230f, 42f), new Color(0.20f, 0.44f, 0.28f), () => onConfirmPayout?.Invoke());
 
         board.SetActive(false);
     }

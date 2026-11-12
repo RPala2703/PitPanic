@@ -40,7 +40,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         CanvasScaler scaler = root.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1600f, 900f);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
         scaler.matchWidthOrHeight = 0.5f;
 
         CasinoMinigamePresentation presentation = root.GetComponent<CasinoMinigamePresentation>();

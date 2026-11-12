@@ -12,5 +12,6 @@ public enum CasinoAnimationPose
     Carry,
     Sit,
     Examine,
-    Shuffle
+    Shuffle,
+    SeatedIdle
 }

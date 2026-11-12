@@ -211,8 +211,6 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
 
         if (existing >= desiredCount)
             return true;
-        if (activeCustomers.Count >= maximumCustomers)
-            return false;
         CasinoSeat target = null;
         foreach (CasinoSeat seat in seats)
         {
@@ -223,6 +221,11 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             }
         }
         if (target == null)
+            return false;
+        foreach (CasinoCustomerAI active in activeCustomers)
+            if (active != null && active.Seat == null && active.TryVisitSeat(target))
+                return true;
+        if (activeCustomers.Count >= maximumCustomers)
             return false;
         CasinoCustomerAI customer = SpawnCustomer(activeCustomers.Count * 2);
         if (customer == null)
