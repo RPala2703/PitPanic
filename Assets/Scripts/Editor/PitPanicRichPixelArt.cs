@@ -28,6 +28,7 @@ public static class PitPanicRichPixelArt
             Sprite[] expressions = new Sprite[4];
             Texture2D atlas = New(48 * AnimationFrames, 64 * 4 * PixelCharacterVisual.PoseCount);
             Texture2D customerAtlas = New(48 * AnimationFrames, 64 * 4 * PixelCharacterVisual.PoseCount);
+            Texture2D vipAtlas = New(48 * AnimationFrames, 64 * 4 * PixelCharacterVisual.PoseCount);
             for (int pose = 0; pose < PixelCharacterVisual.PoseCount; pose++)
             for (int direction = 0; direction < 4; direction++)
             for (int frame = 0; frame < AnimationFrames; frame++)
@@ -41,6 +42,11 @@ public static class PitPanicRichPixelArt
                 DressCustomer(drawing, species, direction);
                 AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame, true);
                 customerAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
+                drawing.SetPixels32(new Color32[48 * 64]);
+                Character(drawing, species, direction, 0);
+                DressVip(drawing, direction);
+                AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame, true, true);
+                vipAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
                 UnityEngine.Object.DestroyImmediate(drawing);
             }
             string atlasPath = $"Assets/Art/Pixel/Animation_{species}.png";
@@ -73,6 +79,21 @@ public static class PitPanicRichPixelArt
             customerImporter.maxTextureSize = 4096;
             customerImporter.SaveAndReimport();
             Texture2D customerAnimation = AssetDatabase.LoadAssetAtPath<Texture2D>(customerPath);
+            string vipPath = $"Assets/Art/Pixel/Animation_VIP_{species}.png";
+            vipAtlas.Apply();
+            File.WriteAllBytes(vipPath, vipAtlas.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(vipAtlas);
+            AssetDatabase.ImportAsset(vipPath);
+            TextureImporter vipImporter = (TextureImporter)AssetImporter.GetAtPath(vipPath);
+            vipImporter.textureType = TextureImporterType.Default;
+            vipImporter.npotScale = TextureImporterNPOTScale.None;
+            vipImporter.isReadable = true;
+            vipImporter.filterMode = FilterMode.Point;
+            vipImporter.mipmapEnabled = false;
+            vipImporter.textureCompression = TextureImporterCompression.Uncompressed;
+            vipImporter.maxTextureSize = 4096;
+            vipImporter.SaveAndReimport();
+            Texture2D vipAnimation = AssetDatabase.LoadAssetAtPath<Texture2D>(vipPath);
             for (int i = 0; i < expressions.Length; i++)
             {
                 Texture2D t = New(48, 64);
@@ -113,6 +134,7 @@ public static class PitPanicRichPixelArt
                         pixel.ConfigureExpressions(expressions);
                         pixel.ConfigureAnimation(animation);
                         pixel.ConfigureCustomerAnimation(customerAnimation);
+                        pixel.ConfigureVipAnimation(vipAnimation);
                         PrefabUtility.SaveAsPrefabAsset(root, path);
                     }
                 }
@@ -170,7 +192,31 @@ public static class PitPanicRichPixelArt
         if ((int)species % 2 == 0) R(t, 14, 26, 20, 2, Shade(shirt, .75f));
     }
 
-    private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false)
+    private static void DressVip(Texture2D t, int direction)
+    {
+        Color32 velvet = new Color32(47, 42, 69, 255);
+        R(t, 11, 19, 28, 16, velvet);
+        R(t, 12, 19, 2, 15, Gold); R(t, 36, 19, 2, 15, Gold);
+        R(t, 14, 19, 22, 2, Gold);
+        if (direction != 1)
+        {
+            R(t, 21, 21, 8, 14, Cream);
+            for (int i = 0; i < 7; i++)
+            {
+                R(t, 14 + i, 33 - i, 3, 2, Gold);
+                R(t, 32 - i, 33 - i, 3, 2, Gold);
+            }
+            R(t, 21, 30, 3, 3, Wood); R(t, 26, 30, 3, 3, Wood);
+            R(t, 31, 25, 4, 2, Cream);
+        }
+        R(t, 8, 54, 33, 3, Ink);
+        R(t, 14, 55, 22, 9, Ink);
+        R(t, 16, 57, 18, 7, velvet);
+        R(t, 15, 57, 20, 2, Gold);
+        R(t, 17, 60, 2, 4, Cream);
+    }
+
+    private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false, bool vip = false)
     {
         float time = frame / (float)(AnimationFrames - 1);
         float cycle = Mathf.Sin(time * Mathf.PI * 2);
@@ -253,20 +299,29 @@ public static class PitPanicRichPixelArt
         }
 
         Color32[] reference = t.GetPixels32();
-        Color32 coat = customer ? CustomerShirt(species) : reference[24 * 48 + 18];
+        Color32 coat = customer && !vip ? CustomerShirt(species) : reference[24 * 48 + 18];
         Color32 shoe = species == CasinoAnimalSpecies.Penguin ? Gold : new Color32(96, 82, 101, 255);
         t.SetPixels32(new Color32[48 * 64]);
         // Each frame is a complete drawing. Feet stay grounded; limbs join at elbows/knees.
-        Vector2 leftHip = new Vector2(18 + lean, 17 + bodyY);
-        Vector2 rightHip = new Vector2(31 + lean, 17 + bodyY);
-        Vector2 leftFoot = new Vector2(15 + stride * 3, 4 + Mathf.Max(0, stride) * 2);
-        Vector2 rightFoot = new Vector2(34 - stride * 3, 4 + Mathf.Max(0, -stride) * 2);
-        Limb(t, leftHip, Vector2.Lerp(leftHip, leftFoot, .5f) + Vector2.left * sit * 3, leftFoot, Ink, shoe, 5);
-        Limb(t, rightHip, Vector2.Lerp(rightHip, rightFoot, .5f) + Vector2.right * sit * 3, rightFoot, Ink, shoe, 5);
-        R(t, Mathf.RoundToInt(leftFoot.x) - 5, Mathf.RoundToInt(leftFoot.y) - 2, 10, 3, shoe);
-        R(t, Mathf.RoundToInt(rightFoot.x) - 5, Mathf.RoundToInt(rightFoot.y) - 2, 10, 3, shoe);
-        for (int y = 17; y < 35; y++)
-        for (int x = 9; x <= 40; x++)
+        bool side = direction >= 2 && locomotion;
+        Vector2 leftHip = new Vector2((side ? 22 : 18) + lean, 22 + bodyY);
+        Vector2 rightHip = new Vector2((side ? 27 : 31) + lean, 22 + bodyY);
+        float swingLeft = Mathf.Max(0, stride);
+        float swingRight = Mathf.Max(0, -stride);
+        Vector2 leftFoot = new Vector2(side ? 22 + stride * 6 : 18, 4 + swingLeft * 4);
+        Vector2 rightFoot = new Vector2(side ? 27 - stride * 6 : 31, 4 + swingRight * 4);
+        Color32 trousers = new Color32(67, 53, 81, 255);
+        Vector2 leftKnee = Vector2.Lerp(leftHip, leftFoot, .5f) + new Vector2(-sit * 2, swingLeft * 2);
+        Vector2 rightKnee = Vector2.Lerp(rightHip, rightFoot, .5f) + new Vector2(sit * 2, swingRight * 2);
+        Limb(t, leftHip, leftKnee, leftFoot, Ink, trousers, 4);
+        Limb(t, rightHip, rightKnee, rightFoot, Ink, trousers, 4);
+        R(t, Mathf.RoundToInt(leftFoot.x) - 4, Mathf.RoundToInt(leftFoot.y) - 2, 9, 4, Ink);
+        R(t, Mathf.RoundToInt(rightFoot.x) - 4, Mathf.RoundToInt(rightFoot.y) - 2, 9, 4, Ink);
+        R(t, Mathf.RoundToInt(leftFoot.x) - 3, Mathf.RoundToInt(leftFoot.y), 7, 2, shoe);
+        R(t, Mathf.RoundToInt(rightFoot.x) - 3, Mathf.RoundToInt(rightFoot.y), 7, 2, shoe);
+        R(t, 13 + lean, 18 + bodyY, 24, 5, trousers);
+        for (int y = 19; y < 35; y++)
+        for (int x = 11; x <= 38; x++)
         {
             Color32 pixel = reference[y * 48 + x];
             if (pixel.a != 0) R(t, x + lean, y + bodyY, 1, 1, pixel);

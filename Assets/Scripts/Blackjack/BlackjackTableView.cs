@@ -78,8 +78,7 @@ public sealed class BlackjackTableView : MonoBehaviour
     public void SetFloatInventory(CasinoFloatRefillDestination destination)
     {
         if (accuracyText == null || destination == null) return;
-        accuracyText.text += $"  •  FLOAT R{destination.GetChipCount(0)} B{destination.GetChipCount(1)} " +
-                             $"G{destination.GetChipCount(2)} K{destination.GetChipCount(3)}";
+        if (destination.NeedsRefill()) accuracyText.text = "CHIPS NEEDED!";
     }
 
     public void Configure(
@@ -160,7 +159,9 @@ public sealed class BlackjackTableView : MonoBehaviour
         }
 
         messageText.text = message;
-        accuracyText.text = $"SCORE  {accuracyScore}    MISCOUNTS  {penaltyCount}";
+        int selected = 0;
+        foreach (int chip in selectedPayoutChips) selected += chip;
+        accuracyText.text = payoutIndex >= 0 ? $"TRAY  £{selected / 100m:0.00}" : "";
 
         bool hasWaitingCustomer = seats != null && Array.Exists(seats, seat => seat != null && seat.Occupant != null);
         bool canDeal = state == BlackjackTableState.WaitingForCustomers && hasWaitingCustomer ||
@@ -236,7 +237,7 @@ public sealed class BlackjackTableView : MonoBehaviour
         }
 
         messageText = CreateText("Round Prompt", felt.transform, "", new Vector2(0f, -176f), new Vector2(840f, 34f), 20, new Color(1f, 0.86f, 0.47f), TextAnchor.MiddleCenter);
-        accuracyText = CreateText("Accuracy", felt.transform, "", new Vector2(0f, -207f), new Vector2(650f, 22f), 12, new Color(0.78f, 0.86f, 0.81f), TextAnchor.MiddleCenter);
+        accuracyText = CreateText("Accuracy", felt.transform, "", new Vector2(200f, -201f), new Vector2(350f, 22f), 15, new Color(0.78f, 0.86f, 0.81f), TextAnchor.MiddleCenter);
 
         selectedChipRow = CreateRectObject("Payout Chips", felt.transform, new Vector2(330f, 155f), new Vector2(220f, 35f)).GetComponent<RectTransform>();
         dealButton = CreateButton("Deal Button", felt.transform, "Deal", new Vector2(350f, -238f), new Vector2(230f, 42f), new Color(0.78f, 0.55f, 0.16f), () => onDeal?.Invoke());
@@ -252,11 +253,15 @@ public sealed class BlackjackTableView : MonoBehaviour
             denominationButtons[i] = CreateButton(
                 $"Chip {label}",
                 felt.transform,
-                label,
+                "",
                 new Vector2(positionX, -238f),
-                new Vector2(82f, 42f),
-                chip.Color,
+                new Vector2(64f, 64f),
+                Color.white,
                 () => onAddChip?.Invoke(denominationValue));
+            CasinoPixelArt.SetSprite(denominationButtons[i].GetComponent<Image>(),
+                CasinoPixelArt.ChipForValue(denominationValue), Color.white);
+            CreateText("Chip Value", denominationButtons[i].transform, label,
+                Vector2.zero, new Vector2(60, 30), 15, Color.white, TextAnchor.MiddleCenter);
         }
 
         removeChipButton = CreateButton("Remove Chip", felt.transform, "REMOVE", new Vector2(15f, -238f), new Vector2(96f, 42f), new Color(0.25f, 0.29f, 0.28f), () => onRemoveChip?.Invoke());

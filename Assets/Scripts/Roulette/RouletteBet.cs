@@ -126,17 +126,17 @@ public static class EuropeanRouletteRules
         }
     }
 
-    public static bool TryGetGrossReturnPence(RouletteBet bet, int winningNumber, out long grossReturnPence)
+    public static bool TryGetWinningsPence(RouletteBet bet, int winningNumber, out long winningsPence)
     {
         if (!IsValidBet(bet) || !IsValidNumber(winningNumber))
         {
-            grossReturnPence = 0;
+            winningsPence = 0;
             return false;
         }
 
         if (!Wins(bet, winningNumber))
         {
-            grossReturnPence = 0;
+            winningsPence = 0;
             return true;
         }
 
@@ -149,7 +149,7 @@ public static class EuropeanRouletteRules
             RouletteBetType.SixLine => 5,
             _ => 1
         };
-        grossReturnPence = bet.StakePence * (profitOdds + 1);
+        winningsPence = bet.StakePence * profitOdds;
         return true;
     }
 }

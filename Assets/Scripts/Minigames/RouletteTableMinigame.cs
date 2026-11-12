@@ -41,13 +41,13 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
     private readonly List<int[]> payoutActions = new List<int[]>();
     private readonly int[] selectedPayoutCounts = new int[4];
     private static readonly int[] PayoutDenominationsPence = { 500, 250, 2500, 10000 };
-    private static readonly string[] PayoutChipNames = { "RED", "BLUE", "GREEN", "BLACK" };
+    private static readonly string[] PayoutChipNames = { "RED", "BLUE", "BLACK", "PINK" };
     private static readonly Color[] PayoutChipColors =
     {
-        new Color(0.81f, 0.16f, 0.13f),
-        new Color(0.16f, 0.43f, 0.78f),
-        new Color(0.20f, 0.62f, 0.34f),
-        new Color(0.08f, 0.09f, 0.11f)
+        BlackjackChipView.GetChipColor(500),
+        BlackjackChipView.GetChipColor(250),
+        BlackjackChipView.GetChipColor(2500),
+        BlackjackChipView.GetChipColor(10000)
     };
     private Transform gameArea;
     private Transform spinStageRoot;
@@ -654,7 +654,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             $"{PayoutChipNames[denominationIndex]} Payout Chip",
             buttonObject.transform, new Vector2(0f, 12f), new Vector2(88f, 88f),
             PayoutChipColors[denominationIndex]);
-        CasinoPixelArt.SetSprite(chip.GetComponent<Image>(), CasinoPixelArt.Chip, PayoutChipColors[denominationIndex]);
+        CasinoPixelArt.SetSprite(chip.GetComponent<Image>(), CasinoPixelArt.ChipForValue(PayoutDenominationsPence[denominationIndex]), Color.white);
         chip.GetComponent<Image>().raycastTarget = false;
         chip.AddComponent<Outline>().effectColor = new Color(1f, 0.9f, 0.55f);
         CasinoMinigamePresentation.CreateText(chip.transform, "Payout Chip Value",
@@ -717,9 +717,9 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         RenderPayoutSelection();
         if (payoutFeedbackText != null)
         {
-            payoutFeedbackText.text = selectedPayoutPence > currentPayoutBet.GrossReturnPence
+            payoutFeedbackText.text = selectedPayoutPence > currentPayoutBet.WinningsPence
                 ? "TOO MUCH — UNDO A CHIP STACK"
-                : $"{RouletteRoundController.FormatPounds(currentPayoutBet.GrossReturnPence - selectedPayoutPence)} LEFT";
+                : $"{RouletteRoundController.FormatPounds(currentPayoutBet.WinningsPence - selectedPayoutPence)} LEFT";
         }
     }
 
@@ -766,7 +766,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             GameObject stack = CasinoMinigamePresentation.CreateImage(
                 $"{PayoutChipNames[i]} Payout Stack", payoutTray, new Vector2(x, 4f),
                 new Vector2(110f, 70f), PayoutChipColors[i]);
-            CasinoPixelArt.SetSprite(stack.GetComponent<Image>(), CasinoPixelArt.Chip, PayoutChipColors[i]);
+            CasinoPixelArt.SetSprite(stack.GetComponent<Image>(), CasinoPixelArt.ChipForValue(PayoutDenominationsPence[i]), Color.white);
             stack.GetComponent<Image>().raycastTarget = false;
             stack.AddComponent<Outline>().effectColor = new Color(1f, 0.89f, 0.48f);
             CasinoMinigamePresentation.CreateText(stack.transform, "Payout Stack Amount",
@@ -778,7 +778,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         if (selectedAmountText != null)
         {
             string required = currentPayoutBet != null
-                ? RouletteRoundController.FormatPounds(currentPayoutBet.GrossReturnPence)
+                ? RouletteRoundController.FormatPounds(currentPayoutBet.WinningsPence)
                 : RouletteRoundController.FormatPounds(0);
             selectedAmountText.text =
                 $"TRAY {RouletteRoundController.FormatPounds(selectedPayoutPence)} / {required}";
@@ -787,7 +787,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         if (payoutConfirmButton != null)
         {
             payoutConfirmButton.interactable = currentPayoutBet != null &&
-                CanConfirmPayout((int)currentPayoutBet.GrossReturnPence, selectedPayoutPence);
+                CanConfirmPayout((int)currentPayoutBet.WinningsPence, selectedPayoutPence);
         }
     }
 
@@ -798,11 +798,11 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             return;
         }
 
-        if (!CanConfirmPayout((int)currentPayoutBet.GrossReturnPence, selectedPayoutPence))
+        if (!CanConfirmPayout((int)currentPayoutBet.WinningsPence, selectedPayoutPence))
         {
             if (payoutFeedbackText != null)
             {
-                payoutFeedbackText.text = "PAYOUT MUST MATCH THE EXACT GROSS RETURN";
+                payoutFeedbackText.text = "MATCH THE WINNINGS — NO STAKE TO ADD!";
             }
 
             return;
@@ -848,6 +848,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
                 start + new Vector2((i - 1.5f) * 30f, 0f), new Vector2(56f, 40f),
                 PayoutChipColors[i]);
             chip.GetComponent<Image>().raycastTarget = false;
+            CasinoPixelArt.SetSprite(chip.GetComponent<Image>(), CasinoPixelArt.ChipForValue(PayoutDenominationsPence[i]), Color.white);
             chip.AddComponent<Outline>().effectColor = new Color(1f, 0.91f, 0.53f);
             CasinoMinigamePresentation.CreateText(chip.transform, "Paid Chip Count",
                 $"×{selectedPayoutCounts[i]}", Vector2.zero, new Vector2(52f, 34f), 12, Color.white);
@@ -919,7 +920,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         selectedPayoutPence = 0;
         payoutCustomerText.text = $"WINNER  •  {currentPayoutBet.Customer.name}  •  {RouletteRoundController.GetBetLabel(currentPayoutBet.Bet)}";
         payoutAmountText.text =
-            $"TARGET  {RouletteRoundController.FormatPounds(currentPayoutBet.GrossReturnPence)}";
+            $"TARGET  {RouletteRoundController.FormatPounds(currentPayoutBet.WinningsPence)}";
         payoutFeedbackText.text = "Build the exact total. Chip-stack buttons add up to ten chips.";
         if (payoutQuantityText != null)
         {
@@ -1192,17 +1193,11 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
                 continue;
             }
 
-            Color chipColor = protectedChip
-                ? new Color(0.73f, 0.57f, 0.19f)
-                : customerBet.Bet.Type == RouletteBetType.Red
-                    ? new Color(0.81f, 0.16f, 0.13f)
-                    : customerBet.Bet.Type == RouletteBetType.Black
-                        ? new Color(0.10f, 0.11f, 0.13f)
-                        : new Color(0.16f, 0.43f, 0.78f);
+            Color chipColor = Color.white;
             GameObject chipObject = CasinoMinigamePresentation.CreateImage(
                 $"{(protectedChip ? "Winning" : "Losing")} Roulette Bet {customerBet.BetId}",
                 sweepStageRoot, home, new Vector2(40f, 38f), chipColor);
-            CasinoPixelArt.SetSprite(chipObject.GetComponent<Image>(), CasinoPixelArt.Chip, chipColor);
+            CasinoPixelArt.SetSprite(chipObject.GetComponent<Image>(), CasinoPixelArt.ChipForAmount(customerBet.Bet.StakePence), chipColor);
             Outline chipOutline = chipObject.AddComponent<Outline>();
             chipOutline.effectColor = protectedChip
                 ? new Color(1f, 0.88f, 0.22f)

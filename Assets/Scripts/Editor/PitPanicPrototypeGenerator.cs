@@ -57,7 +57,8 @@ public static class PitPanicPrototypeGenerator
         try { accounting.RecordRoulette(bet); }
         catch (System.ArgumentException) { rejected = true; }
         typeof(RouletteCustomerBet).GetProperty(nameof(RouletteCustomerBet.IsSettled)).SetValue(bet, true);
-        typeof(RouletteCustomerBet).GetProperty(nameof(RouletteCustomerBet.GrossReturnPence)).SetValue(bet, 1000L);
+        typeof(RouletteCustomerBet).GetProperty(nameof(RouletteCustomerBet.WinningsPence)).SetValue(bet, 500L);
+        typeof(RouletteCustomerBet).GetProperty(nameof(RouletteCustomerBet.IsWinning)).SetValue(bet, true);
         if (!rejected || !accounting.RecordRoulette(bet) || accounting.RecordRoulette(bet) ||
             accounting.StakesPence != 1500 || accounting.ReturnsPence != 3000 ||
             accounting.ProfitPence != -1500 || accounting.SettledHands != 2)
@@ -356,7 +357,7 @@ public static class PitPanicPrototypeGenerator
             if (chipDenominations[i].ValuePence != expectedDenominationValues[i] ||
                 chipDenominations[i].Label != expectedDenominationLabels[i])
             {
-                throw new System.InvalidOperationException("Casino chip denominations must be red £5, blue £2.50, green £25, and black £100.");
+                throw new System.InvalidOperationException("Casino chip denominations must be red £5, blue £2.50, black £25, and pink £100.");
             }
         }
 
@@ -525,15 +526,15 @@ public static class PitPanicPrototypeGenerator
             EuropeanRouletteRules.Wins(oddBet, 0) ||
             EuropeanRouletteRules.Wins(evenBet, 0) ||
             EuropeanRouletteRules.Wins(straightBet, 16) ||
-            !EuropeanRouletteRules.TryGetGrossReturnPence(straightBet, 17, out long straightReturn) ||
-            straightReturn != 18000 ||
-            !EuropeanRouletteRules.TryGetGrossReturnPence(redBet, 1, out long redReturn) ||
-            redReturn != 1000 ||
-            !EuropeanRouletteRules.TryGetGrossReturnPence(redBet, 0, out long redLoss) ||
+            !EuropeanRouletteRules.TryGetWinningsPence(straightBet, 17, out long straightReturn) ||
+            straightReturn != 17500 ||
+            !EuropeanRouletteRules.TryGetWinningsPence(redBet, 1, out long redReturn) ||
+            redReturn != 500 ||
+            !EuropeanRouletteRules.TryGetWinningsPence(redBet, 0, out long redLoss) ||
             redLoss != 0 ||
-            EuropeanRouletteRules.TryGetGrossReturnPence(
+            EuropeanRouletteRules.TryGetWinningsPence(
                 new RouletteBet(RouletteBetType.StraightUp, 37, 500), 0, out _) ||
-            EuropeanRouletteRules.TryGetGrossReturnPence(redBet, 37, out _) ||
+            EuropeanRouletteRules.TryGetWinningsPence(redBet, 37, out _) ||
             RouletteRoundController.CanSettleRound(true, 1, 17) ||
             RouletteRoundController.CanSettleRound(false, 0, 17) ||
             !RouletteRoundController.CanSettleRound(false, 1, 17))
@@ -576,7 +577,7 @@ public static class PitPanicPrototypeGenerator
 
         int[] denominationDisplaySequence = { 1, 0, 2, 1, 0 };
         string sequenceDisplay = CashDeskPackMinigame.BuildPackingSequenceDisplay(denominationDisplaySequence, 3);
-        if (sequenceDisplay != "BLUE £2.50 • RED £5.00 • GREEN £25.00\nBLUE £2.50 • RED £5.00")
+        if (sequenceDisplay != "BLUE £2.50 • RED £5.00 • BLACK £25.00\nBLUE £2.50 • RED £5.00")
         {
             throw new System.InvalidOperationException("Cash desk sequence labels must show chip names, exact pence values, and fit deterministic rows.");
         }
@@ -645,7 +646,7 @@ public static class PitPanicPrototypeGenerator
         CasinoTableAttention floatAttention = floatDestinationObject.AddComponent<CasinoTableAttention>();
         CasinoFloatRefillDestination floatDestination = floatDestinationObject.AddComponent<CasinoFloatRefillDestination>();
         floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, new int[4]);
-        CasinoFloatRefillOrder floatOrder = CasinoFloatRefillOrder.CreateStandard("float-test", "TEST", floatDestination);
+        CasinoFloatRefillOrder floatOrder = CasinoFloatRefillOrder.CreateRequired("float-test", "TEST", floatDestination);
         int[] correctFloatCounts = { 10, 20, 4, 0 };
         int[] incorrectFloatCounts = { 10, 20, 3, 0 };
         floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, HealthyFloatStartingChipCounts);
@@ -1107,7 +1108,7 @@ public static class PitPanicPrototypeGenerator
         {
             if (!destination.IsConfigured || destination.Attention == null ||
                 destination.InteractionZone == null || !destination.InteractionZone.IsConfigured ||
-                destination.RefillOrderCounts.Length != 4)
+                destination.GetRequiredRefillCounts().Length != 4)
             {
                 throw new System.InvalidOperationException($"{destination.name} has incomplete float inventory or delivery wiring.");
             }
@@ -1115,8 +1116,8 @@ public static class PitPanicPrototypeGenerator
 
         cashDesk.RefreshFloatRequests();
         IReadOnlyList<CasinoFloatRefillOrder> requestedFloats = cashDesk.GetRequestedOrders();
-        if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence != 20000 ||
-            !requestedFloats[0].HasExactContents(new[] { 10, 20, 4, 0 }))
+        if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence <= 0 ||
+            !requestedFloats[0].HasExactContents(requestedFloats[0].Destination.GetRequiredRefillCounts()))
         {
             throw new System.InvalidOperationException("Low table floats did not create distinct, exact-value delivery requests.");
         }
@@ -1125,7 +1126,7 @@ public static class PitPanicPrototypeGenerator
         int redRegisterStock = cashDesk.GetRegisterStock(0);
         if (!cashDesk.TryBeginPacking(testOrderId) ||
             cashDesk.GetOrderStatus(testOrderId) != CasinoFloatRefillStatus.Packing ||
-            cashDesk.GetRegisterStock(0) != redRegisterStock - 10 ||
+            cashDesk.GetRegisterStock(0) != redRegisterStock - requestedFloats[0].CountFor(0) ||
             !cashDesk.CancelPacking(testOrderId) ||
             cashDesk.GetOrderStatus(testOrderId) != CasinoFloatRefillStatus.Requested ||
             cashDesk.GetRegisterStock(0) != redRegisterStock)
@@ -1771,15 +1772,15 @@ public static class PitPanicPrototypeGenerator
         RouletteBet redWin = new RouletteBet(RouletteBetType.Red, -1, 500);
         RouletteBet blackWin = new RouletteBet(RouletteBetType.Black, -1, 2500);
         RouletteBet oddWin = new RouletteBet(RouletteBetType.Odd, -1, 1000);
-        AssertRouletteGrossReturn(straightWin, 7, 18000);
-        AssertRouletteGrossReturn(redWin, 7, 1000);
-        AssertRouletteGrossReturn(blackWin, 2, 5000);
-        AssertRouletteGrossReturn(oddWin, 7, 2000);
-        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.Split, new[] { 1, 2 }, 500), 2, 9000);
-        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.Street, new[] { 1, 2, 3 }, 500), 3, 6000);
-        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.Corner, new[] { 1, 2, 4, 5 }, 500), 5, 4500);
-        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.SixLine,
-            new[] { 1, 2, 3, 4, 5, 6 }, 500), 6, 3000);
+        AssertRouletteWinnings(straightWin, 7, 17500);
+        AssertRouletteWinnings(redWin, 7, 500);
+        AssertRouletteWinnings(blackWin, 2, 2500);
+        AssertRouletteWinnings(oddWin, 7, 1000);
+        AssertRouletteWinnings(new RouletteBet(RouletteBetType.Split, new[] { 1, 2 }, 500), 2, 8500);
+        AssertRouletteWinnings(new RouletteBet(RouletteBetType.Street, new[] { 1, 2, 3 }, 500), 3, 5500);
+        AssertRouletteWinnings(new RouletteBet(RouletteBetType.Corner, new[] { 1, 2, 4, 5 }, 500), 5, 4000);
+        AssertRouletteWinnings(new RouletteBet(RouletteBetType.SixLine,
+            new[] { 1, 2, 3, 4, 5, 6 }, 500), 6, 2500);
         if (!EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 2, 3 }, 500)) ||
             !EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 0, 3 }, 500)) ||
             EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 3, 4 }, 500)) ||
@@ -1810,9 +1811,9 @@ public static class PitPanicPrototypeGenerator
         }
     }
 
-    private static void AssertRouletteGrossReturn(RouletteBet bet, int winningNumber, long expectedPence)
+    private static void AssertRouletteWinnings(RouletteBet bet, int winningNumber, long expectedPence)
     {
-        if (!EuropeanRouletteRules.TryGetGrossReturnPence(bet, winningNumber, out long actual) ||
+        if (!EuropeanRouletteRules.TryGetWinningsPence(bet, winningNumber, out long actual) ||
             actual != expectedPence)
         {
             throw new System.InvalidOperationException(
@@ -1992,6 +1993,11 @@ public static class PitPanicPrototypeGenerator
                 customerAtlas.filterMode != FilterMode.Point ||
                 customerAtlas.GetPixel(16, 22) == atlas.GetPixel(16, 22))
                 throw new System.InvalidOperationException($"Customer {species} must have a distinct civilian outfit atlas.");
+            Texture2D vipAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_VIP_{species}.png");
+            if (vipAtlas == null || vipAtlas.width != atlas.width || vipAtlas.height != atlas.height ||
+                vipAtlas.GetPixel(16, 22) == customerAtlas.GetPixel(16, 22) ||
+                vipAtlas.GetPixel(24, 61).a < .9f)
+                throw new System.InvalidOperationException($"VIP {species} must have a formal outfit and top hat in its animation frames.");
             Color forwardCard = customerAtlas.GetPixel(8, ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 42);
             if (forwardCard.r < .8f || forwardCard.g < .7f)
                 throw new System.InvalidOperationException($"Away-facing seated {species} must hold cards toward the table, not behind their back.");
@@ -2474,8 +2480,8 @@ public static class PitPanicPrototypeGenerator
             {
                 GetOrCreateMaterial("TableChipRed", new Color(0.78f, 0.10f, 0.12f)),
                 GetOrCreateMaterial("TableChipBlue", new Color(0.12f, 0.30f, 0.75f)),
-                GetOrCreateMaterial("TableChipGreen", new Color(0.08f, 0.55f, 0.28f)),
-                GetOrCreateMaterial("TableChipGold", new Color(0.95f, 0.72f, 0.22f))
+                GetOrCreateMaterial("TableChipBlack", BlackjackChipView.GetChipColor(2500)),
+                GetOrCreateMaterial("TableChipPink", BlackjackChipView.GetChipColor(10000))
             });
         CasinoMinigameStation shuffleStation = table.AddComponent<CasinoMinigameStation>();
         BlackjackShuffleMinigame shuffleMinigame = table.AddComponent<BlackjackShuffleMinigame>();
@@ -2490,7 +2496,7 @@ public static class PitPanicPrototypeGenerator
             TableAttentionReason.ShuffleAssistanceRequired);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
-        dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.35f);
+        dealerPosition.transform.localPosition = new Vector3(0f, 0f, 1.85f);
         dealerPosition.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
         dealerStation = table.AddComponent<CasinoDealerStation>();
         dealerStation.Configure(tableName, dealerPosition.transform, attention, interaction);
@@ -2648,7 +2654,7 @@ public static class PitPanicPrototypeGenerator
             allowTaskRequestWhenIdle: false);
         GameObject dealerPosition = new GameObject("Dealer Station Position");
         dealerPosition.transform.SetParent(table.transform, false);
-        dealerPosition.transform.localPosition = new Vector3(0f, 0f, 2.25f);
+        dealerPosition.transform.localPosition = new Vector3(0f, 0f, 1.85f);
         dealerPosition.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
         CasinoDealerStation station = table.AddComponent<CasinoDealerStation>();
         station.Configure("Roulette Table", dealerPosition.transform, attention, null);

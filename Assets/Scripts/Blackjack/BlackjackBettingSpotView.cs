@@ -17,13 +17,15 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
     private RectTransform betStack;
     private Font font;
     private string seatLabel;
+    private Image customerPortrait;
 
     public void Configure(int seatNumber, Font runtimeFont, Canvas canvas, RectTransform shoe, IReadOnlyList<BlackjackChipDenomination> chipDenominations)
     {
         font = runtimeFont;
         denominations = chipDenominations;
         background = gameObject.AddComponent<Image>();
-        CasinoHudStyle.Panel(background, new Color(0.035f, 0.24f, 0.17f, 0.84f));
+        background.sprite = CasinoPixelArt.Chip;
+        background.color = new Color(.06f, .4f, .29f, .5f);
         background.raycastTarget = false;
         emptyCard = CreateRectObject("Empty Seat Card", transform, Vector2.zero, new Vector2(55f, 76f));
         Image emptyImage = emptyCard.AddComponent<Image>();
@@ -31,7 +33,11 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
         emptyImage.preserveAspect = false;
         emptyImage.raycastTarget = false;
 
-        nameText = CreateText("Seat Name", transform, font, new Vector2(0f, 87f), new Vector2(270f, 28f), 16, TextAnchor.MiddleCenter);
+        GameObject portrait = CreateRectObject("Guest Portrait", transform, new Vector2(-110, 75), new Vector2(48, 64));
+        customerPortrait = portrait.AddComponent<Image>();
+        customerPortrait.preserveAspect = true;
+        customerPortrait.raycastTarget = false;
+        nameText = CreateText("Seat Name", transform, font, new Vector2(20f, 87f), new Vector2(210f, 28f), 16, TextAnchor.MiddleCenter);
         statusText = CreateText("Hand Status", transform, font, new Vector2(0f, -78f), new Vector2(270f, 26f), 15, TextAnchor.MiddleCenter);
         betText = CreateText("Stake", transform, font, new Vector2(-70f, -99f), new Vector2(108f, 22f), 13, TextAnchor.MiddleCenter);
 
@@ -48,12 +54,15 @@ public sealed class BlackjackBettingSpotView : MonoBehaviour
     public void Render(CasinoSeat seat, BlackjackHand hand, bool active, bool awaitingCard, bool queuedForNextRound, int hiddenCardIndex, bool revealAll)
     {
         background.color = active
-            ? new Color(0.45f, 0.32f, 0.08f, 0.98f)
-            : new Color(0.035f, 0.24f, 0.17f, 0.84f);
+            ? new Color(.67f, .49f, .12f, .65f)
+            : new Color(.06f, .4f, .29f, .5f);
 
         CasinoCustomerAI customer = hand != null ? hand.Customer : seat != null ? seat.Occupant : null;
         emptyCard.SetActive(customer == null);
         nameText.text = customer != null ? customer.name.ToUpperInvariant() : seatLabel;
+        customerPortrait.enabled = customer != null;
+        if (customer != null)
+            customerPortrait.sprite = customer.GetComponentInChildren<PixelCharacterVisual>()?.TitleFrame(Time.time);
 
         if (hand != null)
         {

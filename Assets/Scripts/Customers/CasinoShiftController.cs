@@ -276,7 +276,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 spawner.SetAcceptingArrivals(false);
             }
             if (!tutorial && !ending)
-                objectiveText.text = $"HANDS {accounting.SettledHands}/{CasinoDemoProgression.ServiceGoal(shift)}  •  HELP {completedTasks}/4  •  KEEP 60% HAPPY";
+                objectiveText.text = $"HELP {completedTasks}/4  •  KEEP 60% HAPPY  •  MISSES {failedAttempts}/5";
         }
         int seconds = Mathf.CeilToInt(remaining);
         timerText.text = $"SHIFT {shift}  •  {seconds / 60:00}:{seconds % 60:00}";
@@ -615,7 +615,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             : 100;
         int performanceStars = satisfaction >= 85 && failedAttempts + pending <= 2 ? 3 :
             satisfaction >= 60 && failedAttempts + pending <= 5 ? 2 : 1;
-        passed = CasinoDemoProgression.Passed(shift, accounting.SettledHands, completedTasks, satisfaction);
+        passed = CasinoDemoProgression.Passed(completedTasks, satisfaction, failedAttempts + pending);
         int rating = passed ? performanceStars : 0;
         if (passed) CasinoDemoProgression.AwardShift(shift, rating);
         nextButton.gameObject.SetActive(passed);
@@ -626,24 +626,15 @@ public sealed class CasinoShiftController : MonoBehaviour
         string progressionMessage = passed
             ? shift == CasinoDemoProgression.LastShift ? "CAMPAIGN COMPLETE! REPLAY ANY LEVEL." :
                 $"LEVEL {shift + 1} UNLOCKED!"
-            : "GOAL: 4 HELPS, HANDS TARGET, 60% HAPPY.";
+            : "GOAL: 4 HELPS, 60% HAPPY, AT MOST 5 MISSES.";
         resultText.text = $"{CasinoCampaignPresentation.LevelName(shift)}  {(passed ? "CLEARED!" : "TRY AGAIN!")}  " +
             $"{(passed ? new string('★', rating) : "NO STARS")}\nBEST  {new string('★', CasinoDemoProgression.BestStars(shift))}\n\n" +
-            $"TABLE PROFIT  {FormatMoney(accounting.ProfitPence)}\n" +
             $"SATISFACTION  {(customers > 0 ? satisfaction + "%" : "NO CUSTOMERS")}\n" +
             $"TASKS COMPLETED  {completedTasks}\n" +
             $"TASKS MISSED  {pending}  •  FAILED ATTEMPTS  {failedAttempts}\n" +
-            $"HANDS SERVED  {accounting.SettledHands}/{CasinoDemoProgression.ServiceGoal(shift)}\n\n" +
-            progressionMessage +
-            "\nFLOAT TRANSFERS ARE NOT INCOME.";
+            "\n" + progressionMessage;
         hud.SetActive(false);
         results.SetActive(true);
-    }
-
-    private static string FormatMoney(long amount)
-    {
-        decimal pounds = amount / 100m;
-        return pounds.ToString("£0.00;−£0.00;£0.00");
     }
 
     private void OnBlackjackSettled(BlackjackTableRound round)
@@ -970,7 +961,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         introTitle.text = CasinoCampaignPresentation.LevelName(level);
         introText.text = level switch
         {
-            1 => "Opening night is yours. Serve 8 hands, help your crew and keep at least 60% of guests happy. Tiger will show you the ropes.",
+            1 => "Opening night is yours! Help your crew and keep guests happy until closing time. Tiger will show you the ropes.",
             2 => "The VIP room is open. Gold-clad high rollers bring larger bets and shorter patience. Keep their tables stocked and the service moving.",
             _ => "The late shift brings suspicious activity. Watch the Pit Desk for CCTV alerts and review the real table footage."
         };

@@ -234,13 +234,6 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
             PixelWorldProps.FloatTray, new Vector2(.94f, .30f));
         traySurface.color = Color.white;
 
-        Color[] colors =
-        {
-            new Color(0.81f, 0.16f, 0.13f),
-            new Color(0.16f, 0.43f, 0.78f),
-            new Color(0.20f, 0.62f, 0.34f),
-            new Color(0.08f, 0.09f, 0.11f)
-        };
         for (int denomination = 0; denomination < 4; denomination++)
         {
             for (int i = 0; i < refillOrder.CountFor(denomination); i++)
@@ -251,8 +244,8 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
                     -.32f + denomination * .21f,
                     .06f + i * .012f, -.01f);
                 SpriteRenderer sprite = CreateHeldSprite(chip.transform, $"Float Chip {denomination}",
-                    PixelWorldProps.Chip, new Vector2(.16f, .065f));
-                sprite.color = colors[denomination];
+                    CasinoPixelArt.ChipForValue(refillOrder.GetDenominationPence(denomination)), new Vector2(.16f, .065f));
+                sprite.color = Color.white;
             }
         }
 

@@ -19,7 +19,7 @@ public sealed class RouletteCustomerBet
     public int BetId { get; }
     public CasinoCustomerAI Customer { get; }
     public RouletteBet Bet { get; }
-    public long GrossReturnPence { get; internal set; }
+    public long WinningsPence { get; internal set; }
     public bool IsSettled { get; internal set; }
     public bool IsWinning { get; internal set; }
     public bool IsPaid { get; internal set; }
@@ -262,13 +262,13 @@ public sealed class RouletteRoundController : MonoBehaviour
         foreach (RouletteCustomerBet customerBet in assistanceBets)
         {
             customerBet.IsWinning = EuropeanRouletteRules.Wins(customerBet.Bet, assistanceWinningNumber);
-            if (!EuropeanRouletteRules.TryGetGrossReturnPence(
-                    customerBet.Bet, assistanceWinningNumber, out long grossReturn))
+            if (!EuropeanRouletteRules.TryGetWinningsPence(
+                    customerBet.Bet, assistanceWinningNumber, out long winnings))
             {
                 throw new InvalidOperationException("A valid roulette assistance bet could not be evaluated.");
             }
 
-            customerBet.GrossReturnPence = grossReturn;
+            customerBet.WinningsPence = winnings;
         }
 
         return true;
@@ -307,7 +307,7 @@ public sealed class RouletteRoundController : MonoBehaviour
         if (customerBet == null || !CanRecordAssistancePayout(
                 customerBet.IsWinning,
                 customerBet.IsPaid,
-                customerBet.GrossReturnPence,
+                customerBet.WinningsPence,
                 amountPence) ||
             chipCounts == null || chipCounts.Length != 4 ||
             !PayoutChipsMatchAmount(chipCounts, amountPence) ||
@@ -351,10 +351,10 @@ public sealed class RouletteRoundController : MonoBehaviour
     public static bool CanRecordAssistancePayout(
         bool isWinningBet,
         bool alreadyPaid,
-        long grossReturnPence,
+        long winningsPence,
         int amountPence) =>
-        isWinningBet && !alreadyPaid && grossReturnPence > 0 &&
-        grossReturnPence == amountPence;
+        isWinningBet && !alreadyPaid && winningsPence > 0 &&
+        winningsPence == amountPence;
 
     private RouletteCustomerBet FindAssistanceBet(long roundId, int betId)
     {
@@ -518,8 +518,6 @@ public sealed class RouletteRoundController : MonoBehaviour
                 ? new RouletteBet(i % 2 == 0 ? RouletteBetType.Red : RouletteBetType.Black, -1, 500)
                 : CreateCustomerBet(customer.IsVip);
             RouletteCustomerBet customerBet = new RouletteCustomerBet(activeRoundId, i, customer, bet);
-            if (!TryAddWagerToFloat(bet.StakePence))
-                throw new InvalidOperationException($"Could not record {FormatPounds(bet.StakePence)} in the roulette table float.");
             currentBets.Add(customerBet);
             customer.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(CasinoGesture.Pay, transform.position);
             CreateVisibleBetChips(customerBet);
@@ -602,16 +600,9 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         Vector3 localPosition = transform.InverseTransformPoint(seat.BettingPosition.position);
-        Color color = customerBet.Bet.Type switch
-        {
-            RouletteBetType.Red => new Color(0.84f, 0.13f, 0.10f),
-            RouletteBetType.Black => new Color(0.10f, 0.11f, 0.13f),
-            RouletteBetType.Odd => new Color(0.12f, 0.44f, 0.85f),
-            RouletteBetType.Even => new Color(0.14f, 0.61f, 0.32f),
-            _ => new Color(0.87f, 0.70f, 0.20f)
-        };
-
-        int chipCount = Mathf.Clamp(customerBet.Bet.StakePence / 500, 1, 5);
+        List<BlackjackChipDenomination> composition = BlackjackChipDenomination.GetExactComposition(
+            customerBet.Bet.StakePence, BlackjackChipDenomination.CreateDefaults());
+        int chipCount = composition.Count;
         List<GameObject> visuals = new List<GameObject>();
         betChipVisuals[customerBet] = visuals;
         for (int i = 0; i < chipCount; i++)
@@ -620,8 +611,8 @@ public sealed class RouletteRoundController : MonoBehaviour
             chip.transform.SetParent(chipContainer, false);
             chip.transform.localPosition = localPosition + new Vector3((i % 3 - 1) * 0.12f, 0.055f + (i / 3) * 0.05f, (i / 3) * 0.1f);
             SpriteRenderer renderer = PixelWorldProps.CreateSurface(chip.transform, "Pixel Roulette Chip",
-                PixelWorldProps.Chip, new Vector2(0.18f, 0.18f), -7);
-            renderer.color = color;
+                CasinoPixelArt.ChipForValue(composition[i].ValuePence), new Vector2(0.18f, 0.18f), -7);
+            renderer.color = Color.white;
             chip.AddComponent<CasinoPropFlight>().Configure(
                 transform.InverseTransformPoint(customerBet.Customer.transform.position) + Vector3.up,
                 chip.transform.localPosition, .5f + i * .06f, CasinoSoundCue.Chip);
@@ -671,12 +662,12 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
         if (bet.Customer == null) return;
         Vector3 target = transform.InverseTransformPoint(bet.Customer.transform.position) + Vector3.up;
-        int count = Mathf.Clamp((int)(bet.GrossReturnPence / 500), 1, 6);
+        int count = Mathf.Clamp((int)(bet.WinningsPence / 500), 1, 6);
         for (int i = 0; i < count; i++)
         {
             GameObject chip = new GameObject("Roulette Winner Chip");
             chip.transform.SetParent(chipContainer, false);
-            PixelWorldProps.CreateSurface(chip.transform, "Payout", PixelWorldProps.Chip, new Vector2(.22f, .22f), -5).color = CasinoHudStyle.Gold;
+            PixelWorldProps.CreateSurface(chip.transform, "Payout", CasinoPixelArt.ChipForAmount((int)bet.WinningsPence), new Vector2(.22f, .22f), -5);
             chip.AddComponent<CasinoPropFlight>().Configure(new Vector3(-1.5f, 1.3f, .7f),
                 target + Vector3.up * i * .03f, .65f + i * .06f, CasinoSoundCue.Chip);
             tableChips.Add(chip);
@@ -741,14 +732,17 @@ public sealed class RouletteRoundController : MonoBehaviour
 
         foreach (RouletteCustomerBet customerBet in currentBets)
         {
-            if (!EuropeanRouletteRules.TryGetGrossReturnPence(customerBet.Bet, winningNumber, out long grossReturn))
+            if (!EuropeanRouletteRules.TryGetWinningsPence(customerBet.Bet, winningNumber, out long winnings))
             {
                 throw new InvalidOperationException("A valid roulette bet could not be settled.");
             }
 
-            customerBet.GrossReturnPence = grossReturn;
+            customerBet.WinningsPence = winnings;
             customerBet.IsWinning = EuropeanRouletteRules.Wins(customerBet.Bet, winningNumber);
             customerBet.IsSettled = true;
+            // Winning stakes stay with their owners; only losing wagers enter the float.
+            if (!customerBet.IsWinning && !TryAddWagerToFloat(customerBet.Bet.StakePence))
+                throw new InvalidOperationException("Could not collect a losing Roulette wager.");
             if (customerBet.Customer != null)
                 customerBet.Customer.GetComponentInChildren<PixelCharacterVisual>()?.React(customerBet.IsWinning);
             OperatorVisual?.PlayGesture(
@@ -806,14 +800,14 @@ public sealed class RouletteRoundController : MonoBehaviour
         foreach (RouletteCustomerBet bet in currentBets)
         {
             if (!bet.IsWinning || bet.IsPaid) continue;
-            if (!floatDestination.TryGetAvailableComposition((int)bet.GrossReturnPence, out int[] counts) ||
+            if (!floatDestination.TryGetAvailableComposition((int)bet.WinningsPence, out int[] counts) ||
                 !floatDestination.TryConsumeChips(counts))
             {
-                floatDestination.RequestAttention();
+                floatDestination.RequestAttention((int)bet.WinningsPence);
                 return false;
             }
 
-            bet.PaidOutPence = bet.GrossReturnPence;
+            bet.PaidOutPence = bet.WinningsPence;
             bet.IsPaid = true;
             AnimateSettlement(bet, true);
         }

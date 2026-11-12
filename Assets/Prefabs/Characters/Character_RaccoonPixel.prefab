@@ -1598,7 +1598,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1075c49bc7944aa080263e5d259b315, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PixelCharacterVisual
   spriteRenderer: {fileID: 7805803007263589864}
   frames:
@@ -1617,6 +1617,7 @@ MonoBehaviour:
   - {fileID: 21300000, guid: ac28d8a40ab184f3683e5a3d5b27669f, type: 3}
   animationAtlas: {fileID: 2800000, guid: e8dcdf143bdf3419eb79cafdd5a9b4b5, type: 3}
   customerAnimationAtlas: {fileID: 2800000, guid: b6b87a08878914df18562b0ae0fdfa9b, type: 3}
+  vipAnimationAtlas: {fileID: 2800000, guid: 37532aa21dacc4f18a9048f12d91c4a9, type: 3}
 --- !u!114 &4429270032834549984
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1627,7 +1628,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2d5a321bc2fb4ff4a9ef50a43a0b6701, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::CasinoCharacterVisual
   species: 8
   animatedBody: {fileID: 2239867407232398672}
@@ -3075,7 +3076,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 22e9ad97fbd6e496b8762c585ecf9584, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PixelSpriteTextureBinding
 --- !u!1 &9043865005159455488
 GameObject:

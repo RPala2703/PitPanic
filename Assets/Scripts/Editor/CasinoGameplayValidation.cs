@@ -22,7 +22,41 @@ public static class CasinoGameplayValidation
         CheckFiniteSettlement();
         CheckAllBust();
         CheckBlackjackWinnings();
+        CheckChipPaletteAndRefills();
         Debug.Log("Casino gameplay validation passed: COVER rules, zero, duplicates, finite payout recovery and Blackjack all-bust.");
+    }
+
+    private static void CheckChipPaletteAndRefills()
+    {
+        Color black = BlackjackChipView.GetChipColor(2500);
+        Color pink = BlackjackChipView.GetChipColor(10000);
+        Check(black.r < .15f && black.g < .15f && black.b < .15f &&
+            pink.r > .8f && pink.b > .5f && pink.g < .5f, "£25 must be black and £100 must be pink.");
+        foreach (int value in new[] { 250, 500, 2500, 10000 })
+            Check(CasinoPixelArt.ChipForValue(value).texture.filterMode == FilterMode.Point,
+                "Denomination chip artwork is not point-filtered.");
+        GameObject root = new GameObject("Demand-based float test");
+        try
+        {
+            CasinoFloatRefillDestination stock = root.AddComponent<CasinoFloatRefillDestination>();
+            CasinoTableAttention attention = root.AddComponent<CasinoTableAttention>();
+            stock.Configure("TEST", "TEST", null, attention, new[] { 15, 20, 4, 2 });
+            Check(stock.TryConsumeChips(new[] { 15, 0, 0, 0 }), "Could not deplete red stock.");
+            int[] redOnly = stock.GetRequiredRefillCounts();
+            Check(redOnly[0] == 15 && redOnly[1] == 0 && redOnly[2] == 0 && redOnly[3] == 0,
+                "Red-only shortage should request only fifteen £5 chips.");
+            stock.TryAddChips(redOnly);
+            stock.TryConsumeChips(new[] { 0, 18, 0, 0 });
+            int[] blueOnly = stock.GetRequiredRefillCounts();
+            Check(blueOnly[0] == 0 && blueOnly[1] == 18 && blueOnly[2] == 0 && blueOnly[3] == 0,
+                "Refill quantities should change with the actual shortage.");
+            stock.RequestAttention(175000);
+            int[] largeRefill = stock.GetRequiredRefillCounts();
+            stock.TryAddChips(largeRefill);
+            Check(stock.TryGetAvailableComposition(175000, out _),
+                "Refill request did not cover a blocked high-roller payout.");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
     }
 
     private static void CheckCoverRules()
@@ -51,7 +85,7 @@ public static class CasinoGameplayValidation
             new[] { 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36 },
             new[] { 0, 2 }
         };
-        int[] grossMultipliers = { 36, 36, 18, 12, 9, 6, 2, 2, 2, 2, 18 };
+        int[] grossMultipliers = { 35, 35, 17, 11, 8, 5, 1, 1, 1, 1, 17 };
         for (int result = 0; result <= 36; result++)
         {
             List<RouletteCustomerBet> actualBets = new List<RouletteCustomerBet>();
@@ -65,7 +99,7 @@ public static class CasinoGameplayValidation
             {
                 int index = i == bets.Length ? 0 : i;
                 bool expected = Array.IndexOf(coverage[index], result) >= 0;
-                Check(EuropeanRouletteRules.TryGetGrossReturnPence(bets[index], result, out long gross) &&
+                Check(EuropeanRouletteRules.TryGetWinningsPence(bets[index], result, out long gross) &&
                     gross == (expected ? 500L * grossMultipliers[index] : 0), "Incorrect Roulette odds or zero coverage.");
                 Check(selection.TryMark(i) == expected, "COVER accepted a loser or rejected a winner.");
                 Check(!selection.TryMark(i), "COVER accepted a repeated or losing selection.");
@@ -105,11 +139,11 @@ public static class CasinoGameplayValidation
             Check(!(bool)Call(rounds, "TrySettleAutomaticPayouts") &&
                 attention.GetPendingCount(TableAttentionReason.FloatRefillRequired) == 1 &&
                 !bets[0].IsPaid, "Unfunded COVER payout did not create a real refill request.");
-            stock.TryAddChips(new[] { 2, 0, 0, 0 });
+            stock.TryAddChips(new[] { 1, 0, 0, 0 });
             Check(!(bool)Call(rounds, "TrySettleAutomaticPayouts") && bets[0].IsPaid && !bets[1].IsPaid &&
                 stock.InventoryValuePence == 0, "Partial COVER settlement lost its paid-bet guard.");
-            var order = new CasinoFloatRefillOrder("cover-refill", "TEST", stock, new[] { 2, 0, 0, 0 });
-            Check(stock.Receive(order, new[] { 2, 0, 0, 0 }) && !stock.Receive(order, new[] { 2, 0, 0, 0 }),
+            var order = new CasinoFloatRefillOrder("cover-refill", "TEST", stock, new[] { 1, 0, 0, 0 });
+            Check(stock.Receive(order, new[] { 1, 0, 0, 0 }) && !stock.Receive(order, new[] { 1, 0, 0, 0 }),
                 "Real refill delivery failed or duplicated.");
             Check((bool)Call(rounds, "TrySettleAutomaticPayouts") && bets[1].IsPaid &&
                 stock.InventoryValuePence == 0, "COVER did not resume the unpaid payout after refill.");

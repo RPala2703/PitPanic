@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 public static class CasinoPixelArt
 {
@@ -16,6 +17,33 @@ public static class CasinoPixelArt
     private static Sprite sparkle;
     private static Sprite attention;
     private static Sprite burst;
+    private static readonly Dictionary<int, Sprite> denominationChips = new Dictionary<int, Sprite>();
+    public static Sprite ChipForAmount(int amountPence) => ChipForValue(
+        amountPence >= 10000 ? 10000 : amountPence >= 2500 ? 2500 : amountPence >= 500 ? 500 : 250);
+
+    public static Sprite ChipForValue(int valuePence)
+    {
+        if (denominationChips.TryGetValue(valuePence, out Sprite sprite)) return sprite;
+        Color face = BlackjackChipView.GetChipColor(valuePence);
+        Color32[] pixels = new Color32[32 * 32];
+        for (int y = 0; y < 32; y++)
+        for (int x = 0; x < 32; x++)
+        {
+            float dx = x - 15.5f, dy = y - 15.5f;
+            float radius = Mathf.Sqrt(dx * dx + dy * dy);
+            if (radius > 15) continue;
+            float angle = Mathf.Atan2(dy, dx);
+            bool stripe = Mathf.Cos(angle * 8) > .35f;
+            Color color = radius > 14 ? CasinoHudStyle.Ink :
+                radius > 10 && stripe ? new Color(1f, .94f, .8f) :
+                radius > 8 && radius < 10 ? Color.Lerp(face, Color.white, .4f) :
+                Color.Lerp(face, dy > 0 ? Color.white : Color.black, .12f);
+            pixels[y * 32 + x] = color;
+        }
+        sprite = MakeSprite($"Chip {valuePence}p", 32, pixels);
+        denominationChips.Add(valuePence, sprite);
+        return sprite;
+    }
 
     public static Sprite Wheel => wheel != null ? wheel : wheel = MakeWheel();
     public static Sprite Chip => chip != null ? chip : chip = MakeDisc(false);

@@ -38,17 +38,18 @@ public sealed class CasinoShiftAccounting
         if (rouletteBets.Contains(bet))
             return false;
 
-        RecordAmounts(bet.Bet.StakePence, bet.GrossReturnPence, 1);
+        long returnedStake = bet.IsWinning ? bet.Bet.StakePence : 0;
+        RecordAmounts(bet.Bet.StakePence, returnedStake + bet.WinningsPence, 1);
         rouletteBets.Add(bet);
         return true;
     }
 
-    private void RecordAmounts(long stake, long grossReturn, int hands)
+    private void RecordAmounts(long stake, long winnings, int hands)
     {
         checked
         {
             long nextStakes = StakesPence + stake;
-            long nextReturns = ReturnsPence + grossReturn;
+            long nextReturns = ReturnsPence + winnings;
             int nextHands = SettledHands + hands;
             StakesPence = nextStakes;
             ReturnsPence = nextReturns;

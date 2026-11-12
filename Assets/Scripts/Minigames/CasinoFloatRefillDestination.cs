@@ -16,6 +16,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
     private readonly int[] chipCounts = new int[4];
     private readonly HashSet<string> receivedOrderIds = new HashSet<string>();
     private bool refillRequested;
+    private int unpaidPayoutPence;
 
     public string DestinationId => destinationId;
     public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName;
@@ -49,7 +50,23 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
                                 startingChipCounts.Length == 4 && refillThresholdCounts != null &&
                                 refillThresholdCounts.Length == 4 && refillOrderCounts != null &&
                                 refillOrderCounts.Length == 4;
-    public int[] RefillOrderCounts => (int[])refillOrderCounts.Clone();
+    public int[] GetRequiredRefillCounts()
+    {
+        int[] needed = new int[4];
+        for (int i = 0; i < needed.Length; i++)
+            if (refillOrderCounts[i] > 0 && chipCounts[i] <= refillThresholdCounts[i])
+                needed[i] = Mathf.Max(startingChipCounts[i], refillOrderCounts[i]) - chipCounts[i];
+        if (unpaidPayoutPence > 0 && !TryGetAvailableComposition(unpaidPayoutPence, out _))
+        {
+            int[] payout = RouletteTableMinigame.GetPayoutComposition(unpaidPayoutPence);
+            for (int i = 0; i < needed.Length; i++)
+                needed[i] = Mathf.Max(needed[i], payout[i] - chipCounts[i]);
+        }
+        bool any = Array.Exists(needed, count => count > 0);
+        // Explicit practice/crew requests can top up a healthy float, too.
+        if (!any) needed[0] = 5 * UnityEngine.Random.Range(1, 4);
+        return needed;
+    }
     public long InventoryValuePence =>
         (long)chipCounts[0] * 500 + (long)chipCounts[1] * 250 +
         (long)chipCounts[2] * 2500 + (long)chipCounts[3] * 10000;
@@ -70,7 +87,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
         {
             if (initialCounts.Length != 4)
             {
-                throw new ArgumentException("Float inventory requires counts for red, blue, green and black chips.", nameof(initialCounts));
+                throw new ArgumentException("Float inventory requires counts for red, blue, black and pink chips.", nameof(initialCounts));
             }
 
             startingChipCounts = (int[])initialCounts.Clone();
@@ -80,7 +97,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
         {
             if (orderCounts.Length != 4)
             {
-                throw new ArgumentException("Float orders require counts for red, blue, green and black chips.", nameof(orderCounts));
+                throw new ArgumentException("Float orders require counts for red, blue, black and pink chips.", nameof(orderCounts));
             }
 
             refillOrderCounts = (int[])orderCounts.Clone();
@@ -204,6 +221,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
 
         receivedOrderIds.Add(order.Id);
         refillRequested = false;
+        unpaidPayoutPence = 0;
         attention.ResolveAttention(TableAttentionReason.FloatRefillRequired);
         return true;
     }
@@ -224,12 +242,14 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
 
         receivedOrderIds.Add(order.Id);
         refillRequested = false;
+        unpaidPayoutPence = 0;
         attention.ResolveAttention(TableAttentionReason.FloatRefillRequired);
         return true;
     }
 
-    public void RequestAttention()
+    public void RequestAttention(int payoutPence = 0)
     {
+        unpaidPayoutPence = Mathf.Max(unpaidPayoutPence, payoutPence);
         refillRequested = true;
         if (attention != null)
         {

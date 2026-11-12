@@ -5,12 +5,8 @@ public sealed class CasinoFloatRefillOrder : IReadOnlyIntList
 {
     public const int RedChipPence = 500;
     public const int BlueChipPence = 250;
-    public const int GreenChipPence = 2500;
-    public const int BlackChipPence = 10000;
-    public const int RedChipCount = 10;
-    public const int BlueChipCount = 20;
-    public const int GreenChipCount = 4;
-    public const int BlackChipCount = 0;
+    public const int BlackChipPence = 2500;
+    public const int PinkChipPence = 10000;
 
     private readonly int[] counts;
 
@@ -20,8 +16,8 @@ public sealed class CasinoFloatRefillOrder : IReadOnlyIntList
     public int[] Counts => (int[])counts.Clone();
     public int TotalPence => counts[0] * RedChipPence +
                              counts[1] * BlueChipPence +
-                             counts[2] * GreenChipPence +
-                             counts[3] * BlackChipPence;
+                             counts[2] * BlackChipPence +
+                             counts[3] * PinkChipPence;
     public int TotalChips => counts[0] + counts[1] + counts[2] + counts[3];
     int IReadOnlyIntList.Count => counts.Length;
     int IReadOnlyIntList.this[int index] => counts[index];
@@ -48,7 +44,7 @@ public sealed class CasinoFloatRefillOrder : IReadOnlyIntList
         this.counts = (int[])counts.Clone();
     }
 
-    public static CasinoFloatRefillOrder CreateStandard(
+    public static CasinoFloatRefillOrder CreateRequired(
         string id,
         string destinationId,
         CasinoFloatRefillDestination destination)
@@ -57,7 +53,7 @@ public sealed class CasinoFloatRefillOrder : IReadOnlyIntList
             id,
             destinationId,
             destination,
-            new[] { RedChipCount, BlueChipCount, GreenChipCount, BlackChipCount });
+            destination.GetRequiredRefillCounts());
     }
 
     public int CountFor(int denominationIndex)
@@ -112,8 +108,8 @@ public sealed class CasinoFloatRefillOrder : IReadOnlyIntList
         {
             case 0: return RedChipPence;
             case 1: return BlueChipPence;
-            case 2: return GreenChipPence;
-            case 3: return BlackChipPence;
+            case 2: return BlackChipPence;
+            case 3: return PinkChipPence;
             default: throw new ArgumentOutOfRangeException(nameof(index));
         }
     }
