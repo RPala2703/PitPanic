@@ -855,6 +855,7 @@ public static class PitPanicPrototypeGenerator
 
         AssertThrows("settling a round twice", sharedRound.Settle);
         CasinoGameplayValidation.Run();
+        CasinoCampaignValidation.Run();
 
         Debug.Log("Blackjack rule checks passed.");
     }
@@ -1969,11 +1970,14 @@ public static class PitPanicPrototypeGenerator
         foreach (CasinoAnimalSpecies species in System.Enum.GetValues(typeof(CasinoAnimalSpecies)))
         {
             Texture2D atlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_{species}.png");
-            if (atlas == null || !atlas.isReadable || atlas.width != 384 || atlas.height != 3328 ||
+            if (atlas == null || !atlas.isReadable ||
+                atlas.width != 48 * PixelCharacterVisual.AnimationFramesPerDirection || atlas.height != 3328 ||
                 atlas.filterMode != FilterMode.Point)
                 throw new System.InvalidOperationException($"Missing or incorrectly imported action atlas for {species}.");
             Texture2D customerAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/Pixel/Animation_Customer_{species}.png");
-            if (customerAtlas == null || customerAtlas.width != 384 || customerAtlas.height != 3328 ||
+            if (customerAtlas == null ||
+                customerAtlas.width != 48 * PixelCharacterVisual.AnimationFramesPerDirection ||
+                customerAtlas.height != 3328 ||
                 customerAtlas.filterMode != FilterMode.Point ||
                 customerAtlas.GetPixel(16, 22) == atlas.GetPixel(16, 22))
                 throw new System.InvalidOperationException($"Customer {species} must have a distinct civilian outfit atlas.");
@@ -1983,7 +1987,7 @@ public static class PitPanicPrototypeGenerator
             for (int pose = 0; pose < 13; pose++)
             {
                 HashSet<int> frameHashes = new HashSet<int>();
-                for (int frame = 0; frame < 8; frame++)
+                for (int frame = 0; frame < PixelCharacterVisual.AnimationFramesPerDirection; frame++)
                 {
                     int hash = 17;
                     foreach (Color pixelColor in atlas.GetPixels(frame * 48, pose * 4 * 64, 48, 64))
@@ -1993,8 +1997,13 @@ public static class PitPanicPrototypeGenerator
                     }
                     frameHashes.Add(hash);
                 }
-                if (frameHashes.Count < 4)
-                    throw new System.InvalidOperationException($"{species} {((CasinoAnimationPose)pose)} needs at least four distinct drawn poses.");
+                int minimumUniqueFrames = pose == (int)CasinoAnimationPose.Walk ? 6 :
+                    pose == (int)CasinoAnimationPose.Deal || pose == (int)CasinoAnimationPose.Pay ||
+                    pose == (int)CasinoAnimationPose.Collect || pose == (int)CasinoAnimationPose.Celebrate ||
+                    pose == (int)CasinoAnimationPose.Shuffle ? 9 : 5;
+                if (frameHashes.Count < minimumUniqueFrames)
+                    throw new System.InvalidOperationException(
+                        $"{species} {((CasinoAnimationPose)pose)} needs at least {minimumUniqueFrames} individually drawn animation frames.");
             }
             GameObject prefab = PitPanicArtPrefabLibrary.GetCharacterPrefab(species);
             PixelCharacterVisual pixel = prefab.GetComponent<PixelCharacterVisual>();

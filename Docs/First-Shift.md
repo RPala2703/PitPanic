@@ -49,7 +49,7 @@ the results appear after the current interaction closes. Table profit is settled
 stakes minus gross returns; float deliveries are transfers, not income.
 Clear Shift 1 by serving **8 settled hands/bets**, completing **4 assistance,
 delivery or staff actions**, and keeping **at least 60% satisfaction**. Goals are
-shown on the existing objective HUD. Later demo shifts require 12 and 16 hands.
+shown on the existing objective HUD. Later campaign levels require 10 and 12 hands.
 Profit is reported but is not a pass condition: a lucky roulette result should
 not randomly fail an otherwise well-managed shift.
 Satisfaction reflects the share of spawned customers who did not leave because
@@ -57,20 +57,22 @@ their patience expired. Missed tasks include pending minigames, unfinished
 float deliveries and tables awaiting dealer cover; a float's packing prompt is
 not counted a second time. Failed or abandoned attempts are listed separately.
 
-Tutorial completion and the highest unlocked shift are stored locally in
-Unity PlayerPrefs. **Continue** resumes at the highest unlocked shift; **Next
-Shift** opens **Pit Perks** before loading the next shift. A cleared shift awards
-1–3 stamps based on its rating; each permanent perk costs 3 stamps. Perks add
-5 seconds of customer patience, improve rest recovery by 20%, or add 5 seconds
-to PACK! orders. They apply on the next shift and survive Continue/relaunch.
-Failed shifts award nothing and do not unlock the next shift. Both results and
-pause provide retry/restart; upgrades can be skipped without purchasing.
+Tutorial completion, the highest unlocked level, and each level's best star
+rating are stored locally in Unity PlayerPrefs. **Continue** opens the level
+select at the highest unlocked level. Clear a level to unlock the next one;
+replay any unlocked level to improve its 1–3 star rating. A failed level grants
+no stars and does not unlock the next level. **New Game** resets campaign stars,
+unlocks, and tutorial completion when a level is selected, while leaving sound
+settings and legacy save data intact.
 
-The demo has three shifts using the same floor rather than bespoke content.
-Arrivals increase by about 12% per shift and fatigue drain by 6%; patience starts
-at 55 seconds and drops by 5 seconds per shift before perks. Completing Shift 3
-shows a demo-complete message and allows replay. New Game resets progression
-and perks, as stated in the introduction, but leaves sound/settings unchanged.
+The three campaign levels have distinct floor layouts and lighting. **Opening
+Night** introduces the casino. **High Rollers** brings VIP guests who wear gold,
+place larger bets, and have less patience. **Shady Business** adds scheduled
+security alerts drawn from actual Roulette bets and results; review the animated
+Pit Desk footage before accusing or clearing a customer. A false accusation
+affects customer satisfaction. Service goals rise from 8 to 10 to 12 settled
+hands. New Game and level replay do not remove the casino's existing upgrades
+or change settings.
 Training retains at least three minutes on the clock until lessons are complete,
 so a learner cannot time out before learning dealer management. Each lesson is
 one short prompt; casino practice resumes only after **LET ME TRY!**. Practice covers
@@ -201,14 +203,14 @@ The screenshots are rendered frames, not evidence of human playtesting.
 
 ## Living casino animation and audio
 
-The existing `PixelCharacterVisual` selects the shared eight-frame action atlas,
+The existing `PixelCharacterVisual` selects the shared twelve-frame action atlas,
 not a second Animator. Each of the ten species has four directions for idle,
 walking, dealing, collecting, paying, celebration, disappointment, tiredness,
 rest, carrying, sitting, examining cards and shuffling. Sitting is played in
 reverse when standing. Service reaches include anticipation and follow-through;
 navigation and accounting remain authoritative. The generator checks exact
-atlas dimensions, point filtering and at least four distinct drawn poses in
-each eight-frame front-facing action (held poses are intentional).
+atlas dimensions, point filtering and distinct drawn poses across twelve-frame
+actions (held poses are intentional).
 
 Blackjack card/chip arrival cues come from its physical mover, with a short
 anticipation delay before launch. Roulette bets and winnings travel on the

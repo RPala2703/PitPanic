@@ -20,8 +20,11 @@ do next. Record where they hesitate, not just whether they eventually succeed.
 | Staff/break room | Assign cover, send the relieved dealer to rest, then reassign. At zero energy service stops, customers lose patience and warnings clear after cover/rest. |
 | Pause/restart | P freezes audio, timers, movement and tasks, including a minigame. Resume preserves it; Restart starts fresh; Main Menu preserves unlocks/perks. |
 | Shift results | Finish a natural shift. Hands/tasks/satisfaction explain pass or failure; profit excludes float transfers. Failure allows Retry without rewards/unlocks. |
-| Upgrades/save | Clear a shift, buy one perk or skip, then start the next. Relaunch and Continue: perk/stamps persist. A perk cannot be purchased twice. New Game resets progress only after starting. |
-| Demo ending | Third shift is harder but achievable; clearing it shows demo complete and allows replay. No invisible fourth-shift requirement. |
+| Campaign progression | Clear Level 1 to unlock High Rollers, then Level 2 to unlock Shady Business. Best stars persist per level; replay is available only for unlocked levels. New Game resets campaign stars/unlocks when a level is selected, while legacy saves and settings remain intact. |
+| High Rollers | Confirm VIP guests wear the gold crown/lapel, make larger bets, and have shorter patience. Verify a VIP is introduced during the level and the table remains serviceable. |
+| Shady Business CCTV | Resolve scheduled alerts at the Pit Desk. Pause/replay the evidence, verify its displayed original bet and winning number match the real Roulette round, and confirm the chip movement does not change the wager or payout. Test both a correct decision and a false accusation. |
+| Level layouts | Start each unlocked level and verify the Blackjack tables, Roulette table, seats, dealers, interaction zones and customer routes remain accessible in the themed layout. |
+| Demo ending | Third level is harder but achievable; clearing it shows demo complete and allows replay. No invisible fourth-level requirement. |
 | Performance/readability | Try 1280×720, 1600×900 and 1920×1080, windowed/fullscreen. No clipped controls, blocking labels, stationary agents or sustained stutter at the customer cap. Record average/minimum FPS and hardware. |
 
 For each bug record build/commit, shift, tutorial stage, exact inputs, expected
@@ -36,7 +39,7 @@ The generator validates compilation, rules/payout cases, duplicate accounting,
 float reservations, task eligibility, sprite imports, references and NavMesh paths.
 The Play Mode driver exercises guided training, actual task completion/cancellation,
 pause/audio isolation, exhaustion, results, perk purchase/application, Continue,
-failure/retry/restart and cashier expiry/capacity cleanup. It uses synthetic input,
+failure/retry/restart, campaign unlock/star persistence, and cashier expiry/capacity cleanup. It uses synthetic input,
 some direct UI calls and controlled fixtures; it is not a human usability test.
 The expanded driver acknowledges paused lessons, clicks both chip racks, undoes
 selections, checks real deadlines, completes both manual table types, sends
