@@ -26,7 +26,7 @@ pulsing warm badge calls attention to pending work; green
 means the floor is clear. Task names and station labels stay short and actionable.
 
 Minigames use dark plum framing, stepped pixel corners and a large coloured title
-badge. Teal identifies FLICK!, gold roulette service and mint PACK!. Gameplay
+badge. Teal identifies SHUFFLE!, gold roulette service and mint PACK!. Gameplay
 areas remain visually distinct from the frame, with bright, high-contrast
 instructions, large chip targets and tactile hover/press states. The shared
 reference canvas is 1600 x 900; use approximately 30–34 units for titles,

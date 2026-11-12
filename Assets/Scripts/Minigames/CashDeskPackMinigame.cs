@@ -6,8 +6,8 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 {
-    private static readonly int[] FloatDenominationsPence = { 500, 1000, 2500, 10000 };
-    private static readonly int[] CustomerDenominationsPence = { 2500, 1000, 500 };
+    private static readonly int[] FloatDenominationsPence = { 500, 250, 2500, 10000 };
+    private static readonly int[] CustomerDenominationsPence = { 10000, 2500, 500, 250 };
     private static readonly string[] ChipNames = { "RED", "BLUE", "GREEN", "BLACK" };
     private static readonly int[] SourceDisplayOrder = { 1, 0, 2, 3 };
     private static readonly Color[] FloatChipColors =
@@ -46,10 +46,12 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     private Text nextChipText;
     private RectTransform floatTrayRect;
     private int cashOutAmountPence = 4000;
+    private int[] cashOutChipCounts;
     private int totalRequired;
     private int packedCount;
     private int sequenceIndex;
     private int[] packingSequence = System.Array.Empty<int>();
+    private readonly List<int> selectionHistory = new List<int>();
     private float timeRemaining;
     public float PackingBonusSeconds { get; set; }
     private bool cashOutMode;
@@ -66,6 +68,12 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     public bool CanDragRackChip => IsRunning && !cashOutMode && !cashOutReady;
     public CasinoFloatRefillOrder PackedOrder => selectedOrder;
     public IReadOnlyIntList PackedCounts => this;
+    public override bool TryGetDeadline(out float remaining, out float duration)
+    {
+        remaining = timeRemaining;
+        duration = GetSequenceTimeLimit(totalRequired) + PackingBonusSeconds;
+        return IsRunning && totalRequired > 0 && !cashOutReady && remaining > 0;
+    }
     public int Count => packedCounts.Length;
     public int this[int index] => index >= 0 && index < packedCounts.Length ? packedCounts[index] : 0;
 
@@ -204,14 +212,24 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     public void SetCashOutAmount(int amountPence)
     {
+        SetCashOutAmount(amountPence, null);
+    }
+
+    public void SetCashOutAmount(int amountPence, int[] chipCounts)
+    {
         if (amountPence <= 0)
         {
             throw new System.ArgumentOutOfRangeException(nameof(amountPence));
         }
+        if (chipCounts != null &&
+            (chipCounts.Length != FloatDenominationsPence.Length ||
+             !CountsMatchAmount(chipCounts, amountPence)))
+            throw new System.ArgumentException("Cash-out chips must exactly match the requested amount.", nameof(chipCounts));
 
         availableOrders.Clear();
         selectedOrder = null;
         cashOutAmountPence = amountPence;
+        cashOutChipCounts = chipCounts != null ? (int[])chipCounts.Clone() : null;
         cashOutMode = true;
     }
 
@@ -353,17 +371,34 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     private void BeginCashOutPacking()
     {
-        int[] composition = GetExactChipComposition(cashOutAmountPence, CustomerDenominationsPence);
-        for (int i = 0; i < composition.Length; i++)
+        if (cashOutChipCounts != null)
         {
-            requiredCounts[GetFloatDenominationIndex(composition[i])]++;
+            System.Array.Copy(cashOutChipCounts, requiredCounts, requiredCounts.Length);
+        }
+        else
+        {
+            int[] composition = GetExactChipComposition(cashOutAmountPence, CustomerDenominationsPence);
+            for (int i = 0; i < composition.Length; i++)
+                requiredCounts[GetFloatDenominationIndex(composition[i])]++;
         }
 
         cashOutMode = true;
         selectedOrder = null;
         BuildPackingLayout();
         SetStatus($"CUSTOMER CASH-OUT  •  {FormatPounds(cashOutAmountPence)}");
-        SetInstruction("Tap the next chip! Wrong chips cost time.");
+        SetInstruction("Click the NEXT CHIP shown. UNDO removes the last chip. FINISH (E) pays the exact total.");
+    }
+
+    private static bool CountsMatchAmount(int[] counts, int amountPence)
+    {
+        int[] values = { 500, 250, 2500, 10000 };
+        long total = 0;
+        for (int i = 0; i < counts.Length; i++)
+        {
+            if (counts[i] < 0) return false;
+            total += (long)counts[i] * values[i];
+        }
+        return total == amountPence;
     }
 
     private void StartPacking(int[] counts)
@@ -378,14 +413,15 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         cashOutMode = false;
         BuildPackingLayout();
         SetStatus($"PACK FOR {GetShortDestinationLabel(selectedOrder)}  •  {FormatPounds(selectedOrder.TotalPence)}");
-        SetInstruction("Drag chips into the tray. Tap a packed chip to undo.");
+        SetInstruction("Click chips to match every count. UNDO removes the last chip. Carry the full tray to the named table.");
     }
 
     private void BuildPackingLayout()
     {
+        selectionHistory.Clear();
         ClearDynamicLayout();
         CreatePanel("Register Chip Choices", new Vector2(-515f, -5f), new Vector2(500f, 560f));
-        CreateText("Rack Label", cashOutMode ? "TAP THE NEXT CHIP!" : "DRAG CHIPS TO PACK!",
+        CreateText("Rack Label", cashOutMode ? "CLICK THE NEXT CHIP!" : "CLICK CHIPS TO PACK!",
             new Vector2(-515f, 235f), new Vector2(460f, 38f), 21, new Color(1f, 0.83f, 0.44f));
         float[] chipX = { -625f, -405f, -625f, -405f };
         float[] chipY = { 95f, 95f, -120f, -120f };
@@ -404,7 +440,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         outline.effectColor = new Color(0.47f, 1f, 0.6f, 0.95f);
         outline.effectDistance = new Vector2(4f, -4f);
         trayImage.raycastTarget = false;
-        CreateText("Tray Label", cashOutMode ? "CUSTOMER TRAY" : "DROP CHIPS HERE!",
+        CreateText("Tray Label", cashOutMode ? "CUSTOMER TRAY" : "CLICKED CHIPS APPEAR HERE!",
             new Vector2(260f, 225f), new Vector2(880f, 38f), 20, new Color(0.63f, 1f, 0.7f));
         sequenceText = CreateText("Packing Sequence", "", new Vector2(260f, 160f), new Vector2(890f, 94f), 18, Color.white);
         sequenceText.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -436,6 +472,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         UpdateSequenceDisplay();
         RenderTrayStacks();
         UpdatePackProgress();
+        CreateButton("Undo last chip", "UNDO LAST CHIP",
+            new Vector2(-515, -320), new Vector2(300, 48), UndoLastChip);
         if (cashOutMode)
         {
             CreateButton("Finish Cash Out", "FINISH!  •  E",
@@ -456,8 +494,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         Button button = rect.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
         CasinoHudStyle.Button(button);
-        CasinoChipDragHandle dragHandle = rect.gameObject.AddComponent<CasinoChipDragHandle>();
-        dragHandle.Configure(this, hud.transform as RectTransform, denominationIndex, position);
+        button.onClick.AddListener(() => SelectRackChip(denominationIndex));
         sourceChipImages[denominationIndex] = image;
 
         GameObject chipObject = new GameObject(
@@ -494,6 +531,10 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         amount.rectTransform.offsetMax = new Vector2(-3f, -3f);
         CreateText($"{ChipNames[denominationIndex]} Chip Name", ChipNames[denominationIndex],
             new Vector2(position.x, position.y - 68f), new Vector2(150f, 28f), 16, Color.white);
+        CreateText($"{ChipNames[denominationIndex]} Register Stock",
+            $"IN REGISTER: {refillManager?.GetRegisterStock(denominationIndex) ?? 0}",
+            new Vector2(position.x, position.y - 88f), new Vector2(158f, 24f), 11,
+            new Color(0.75f, 0.9f, 0.82f));
         return button;
     }
 
@@ -518,6 +559,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         }
 
         packedCounts[denominationIndex]++;
+        selectionHistory.Add(denominationIndex);
         CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position, transform);
         packedCount++;
         sequenceIndex = nextIndex;
@@ -530,6 +572,37 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         {
             OnPackingComplete();
         }
+    }
+
+    public void SelectRackChip(int denominationIndex)
+    {
+        if (!IsRunning || Time.timeScale == 0 || denominationIndex < 0 || denominationIndex >= requiredCounts.Length) return;
+        if (cashOutMode) { SelectCashOutChip(denominationIndex); return; }
+        if (packedCounts[denominationIndex] >= requiredCounts[denominationIndex])
+        {
+            CasinoSoundscape.Play(CasinoSoundCue.Mistake, transform.position, transform);
+            timeRemaining = Mathf.Max(0, timeRemaining - .5f);
+            SetInstruction("That chip is complete. Click a denomination still needed.");
+            return;
+        }
+        AddPackedChip(denominationIndex);
+    }
+
+    public void UndoLastChip()
+    {
+        if (!IsRunning || Time.timeScale == 0 || selectionHistory.Count == 0) return;
+        int index = selectionHistory[selectionHistory.Count - 1];
+        selectionHistory.RemoveAt(selectionHistory.Count - 1);
+        packedCounts[index]--;
+        packedCount--;
+        sequenceIndex--;
+        cashOutReady = false;
+        SetStatus($"UNDO  •  {FormatPounds(FloatDenominationsPence[index])} REMOVED");
+        SetInstruction("Click the next required chip when ready.");
+        RenderTrayStacks();
+        UpdateSequenceDisplay();
+        UpdatePackProgress();
+        CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position, transform);
     }
 
     public void SetChipDragFeedback(int denominationIndex, bool isDragging)
@@ -583,10 +656,11 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         }
 
         packedCounts[denominationIndex]--;
+        selectionHistory.Remove(denominationIndex);
         packedCount--;
         sequenceIndex = packedCount;
         SetStatus($"REMOVED  •  {ChipNames[denominationIndex]}");
-        SetInstruction("Drag the correct denomination into the tray when ready.");
+        SetInstruction("Click the correct denomination when ready.");
         RenderTrayStacks();
         UpdateSequenceDisplay();
         UpdatePackProgress();
@@ -594,6 +668,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     private void AddPackedChip(int denominationIndex)
     {
+        selectionHistory.Add(denominationIndex);
         packedCounts[denominationIndex]++;
         packedCount++;
         sequenceIndex = packedCount;

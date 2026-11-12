@@ -39,6 +39,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private int roundsSinceFlick;
     private AIDealer assignedDealer;
     [SerializeField] private CasinoMinigameStation flickStation;
+    [SerializeField] private CasinoFloatRefillDestination floatDestination;
     [SerializeField] private string tableIdentifier;
     private float nextDealerActionTime;
     private string message = "Waiting for customers.";
@@ -48,6 +49,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         interactionZone != null &&
         interactionZone.IsConfigured &&
         attention != null &&
+        (floatDestination != null || GetComponent<CasinoFloatRefillDestination>() != null) &&
         seats != null &&
         seats.Length == 3;
 
@@ -77,6 +79,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
     }
     public bool IsDealerStaffed => assignedDealer != null && assignedDealer.CanServe;
+    public bool IsPlayerOperating { get; private set; }
+    public bool IsServiceAvailable => IsDealerStaffed || IsPlayerOperating;
     public bool IsActivelyServing => waitingSet.Count > 0 ||
                                      state != BlackjackTableState.WaitingForCustomers &&
                                      state != BlackjackTableState.ClearingTable;
@@ -127,6 +131,13 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         tableView = GetComponent<BlackjackTableView>();
+        if (floatDestination == null) floatDestination = GetComponent<CasinoFloatRefillDestination>();
+        if (floatDestination == null)
+        {
+            Debug.LogError($"{nameof(BlackjackTableInteraction)} on {name} has no table chip inventory.", this);
+            enabled = false;
+            return;
+        }
         if (tableView == null)
         {
             tableView = gameObject.AddComponent<BlackjackTableView>();
@@ -138,7 +149,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             return;
         }
 
-        tableView.Configure(PerformDealerAction, ClosePanel, AddPayoutChip, RemovePayoutChip, ConfirmPayout, chipDenominations, TableDisplayName);
+        tableView.Configure(ManualDealStep, ClosePanel, AddPayoutChip, RemovePayoutChip, ConfirmPayout, chipDenominations, TableDisplayName);
         RefreshView();
     }
 
@@ -163,6 +174,14 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private void Update()
     {
         if (Time.timeScale == 0) return;
+        if (IsPlayerOperating && IsDealerStaffed)
+        {
+            IsPlayerOperating = false;
+            message = "Your dealer is back! Normal service has resumed.";
+            RefreshView();
+        }
+        if (IsFlickReady && !ArrayHasSeatedCustomer() && !flickStation.IsMinigameRunning)
+            AbortFlickAssistance();
         UpdateRoundProgress();
         UpdateAutomatedDealer();
 
@@ -195,7 +214,10 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         if (panelOpen)
         {
+            tableView.SetTakeover(!IsDealerStaffed, IsPlayerOperating, BeginPlayerTakeover);
             tableView.SetAssistance(IsFlickReady, StartAssistance);
+            if (IsPlayerOperating && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
+                ManualDealStep();
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
             {
                 ClosePanel();
@@ -213,7 +235,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         tableView.SetPromptVisible(
             inRange && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen() && !CasinoMinigamePresentation.IsOpen &&
                 playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying != true,
-            $"E  •  {TableDisplayName}{(flickReady ? "  •  FLICK! READY" : "")}");
+            $"E  •  {TableDisplayName}{(flickReady ? "  •  SHUFFLE! READY" : "")}");
         tableView.SetAssistance(IsFlickReady, StartAssistance);
     }
 
@@ -261,6 +283,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void ClosePanel()
     {
+        IsPlayerOperating = false;
         CasinoSoundscape.ReleaseFocus(transform);
         panelOpen = false;
         if (tableView != null)
@@ -310,11 +333,64 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
     }
 
+    private bool ArrayHasSeatedCustomer() => seats != null &&
+        System.Array.Exists(seats, seat => seat != null && seat.Occupant != null);
+
+    public bool BeginPlayerTakeover()
+    {
+        if (!panelOpen || IsDealerStaffed || Time.timeScale == 0 ||
+            playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying == true) return false;
+        IsPlayerOperating = true;
+        if (IsFlickReady)
+        {
+            flickStation.ResolveTaskAfterFatalFailure();
+            flickDealerPaused = false;
+            flickBoundaryReady = false;
+        }
+        message = "YOU'RE DEALING! SPACE or DEAL CARD advances the hand. Pay the exact chips shown; ESC leaves.";
+        playerController.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(CasinoAnimationPose.Deal, transform.position, .8f);
+        RefreshView();
+        return true;
+    }
+
+    public void ManualDealStep()
+    {
+        if (!IsPlayerOperating || !panelOpen || Time.timeScale == 0 || Time.time < nextDealerActionTime) return;
+        nextDealerActionTime = Time.time + .3f;
+        if (state == BlackjackTableState.Settlement)
+        {
+            if (payoutHandIndex >= 0)
+            {
+                selectedPayoutChips.Clear();
+                if (TryGetAvailablePayout(round.CustomerHands[payoutHandIndex].PayoutPence, out int[] counts))
+                {
+                    int[] values = { 500, 250, 2500, 10000 };
+                    for (int i = 0; i < counts.Length; i++)
+                        for (int chip = 0; chip < counts[i]; chip++)
+                            selectedPayoutChips.Add(values[i]);
+                    ConfirmPayout();
+                }
+                else
+                {
+                    floatDestination?.RequestAttention();
+                    message = "The table float is short. Deliver a refill to finish this payout.";
+                    RefreshView();
+                }
+            }
+        }
+        else if (state != BlackjackTableState.ClearingTable)
+            PerformDealerAction();
+        playerController.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+            state == BlackjackTableState.Settlement ? CasinoAnimationPose.Pay : CasinoAnimationPose.Deal, transform.position, .5f);
+        CasinoSoundscape.Play(CasinoSoundCue.Card, transform.position, transform);
+    }
+
     private void BeginRound()
     {
-        AssignedDealer?.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+        (IsPlayerOperating ? playerController.GetComponentInChildren<PixelCharacterVisual>() :
+            AssignedDealer?.GetComponentInChildren<PixelCharacterVisual>())?.PlayAction(
             CasinoAnimationPose.Shuffle, transform.position, .9f);
-        if (!IsDealerStaffed)
+        if (!IsServiceAvailable)
         {
             return;
         }
@@ -369,6 +445,15 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         {
             CasinoCustomerAI customer = participants[i];
             int betPence = participantBetsPence[i];
+            List<BlackjackChipDenomination> wager = BlackjackChipDenomination.GetExactComposition(betPence, chipDenominations);
+            int[] wagerCounts = new int[4];
+            foreach (BlackjackChipDenomination chip in wager)
+            {
+                int index = chip.ValuePence switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+                if (index >= 0) wagerCounts[index]++;
+            }
+            if (floatDestination != null && !floatDestination.TryAddChips(wagerCounts))
+                Debug.LogError($"Could not record the wager from {GetCustomerName(customer)} at {TableDisplayName}.", this);
             round.AddCustomer(customer, customer.Seat, betPence);
             bets.Add($"{GetCustomerName(customer)} {FormatPounds(betPence)}");
         }
@@ -381,7 +466,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         awaitingDealerCard = false;
         state = BlackjackTableState.TakingBets;
         roundsSinceFlick++;
-        flickAssistanceForRound = flickStation != null &&
+        flickAssistanceForRound = !IsPlayerOperating && flickStation != null &&
                                   (flickStation.IsTaskPending || forceFlickNextRound ||
                                    Time.time >= nextFlickTaskTime && !CasinoMinigamePresentation.IsOpen &&
                                    (roundsSinceFlick >= 4 || Random.value < flickAssistanceChance));
@@ -526,7 +611,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void UpdateRoundProgress()
     {
-        if (!IsDealerStaffed)
+        if (!IsServiceAvailable)
         {
             return;
         }
@@ -694,7 +779,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         state = BlackjackTableState.Settlement;
         round.Settle();
         foreach (BlackjackHand hand in round.CustomerHands)
-            hand.Customer?.GetComponentInChildren<PixelCharacterVisual>()?.React(hand.PayoutPence >= hand.BetPence);
+            if (hand.Customer != null)
+                hand.Customer.GetComponentInChildren<PixelCharacterVisual>()?.React(hand.PayoutPence >= hand.BetPence);
         RoundSettled?.Invoke(round);
         payoutHandIndex = -1;
         selectedPayoutChips.Clear();
@@ -737,6 +823,13 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         int selected = GetSelectedPayoutTotal();
         int required = round.CustomerHands[payoutHandIndex].PayoutPence;
+        if (!HasChipAvailable(denomination))
+        {
+            floatDestination?.RequestAttention();
+            message = $"{FormatPounds(denomination)} chips are out of stock. Request or deliver a table float.";
+            RefreshView();
+            return;
+        }
         if (selected + denomination > required)
         {
             message = "That chip exceeds the remaining payout. Remove a chip or choose a smaller value.";
@@ -781,8 +874,18 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             return;
         }
 
+        int[] payoutCounts = GetSelectedPayoutCounts();
+        if (floatDestination == null || !floatDestination.TryConsumeChips(payoutCounts))
+        {
+            floatDestination?.RequestAttention();
+            message = "The table float cannot cover these chips. Refill the table before paying.";
+            RefreshView();
+            return;
+        }
+
         if (!round.TryMarkPayoutPaid(hand))
         {
+            floatDestination.TryAddChips(payoutCounts);
             Debug.LogError("Blackjack payout was already completed or is not payable.", this);
             return;
         }
@@ -791,7 +894,34 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         attention.ResolveAttention(TableAttentionReason.PayoutRequired);
         selectedPayoutChips.Clear();
         message = $"Correct payout to {GetCustomerName(hand)}.";
+        if (floatDestination != null && floatDestination.NeedsRefill())
+            floatDestination.RequestAttention();
         SelectNextPayout();
+    }
+
+    private bool HasChipAvailable(int denominationPence)
+    {
+        int index = denominationPence switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+        return index >= 0 && floatDestination != null && floatDestination.GetChipCount(index) > 0;
+    }
+
+    private int[] GetSelectedPayoutCounts()
+    {
+        int[] counts = new int[4];
+        foreach (int denomination in selectedPayoutChips)
+        {
+            int index = denomination switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+            if (index >= 0) counts[index]++;
+        }
+        return counts;
+    }
+
+    private bool TryGetAvailablePayout(int amountPence, out int[] counts)
+    {
+        if (floatDestination != null)
+            return floatDestination.TryGetAvailableComposition(amountPence, out counts);
+        counts = null;
+        return false;
     }
 
     private void BeginClearingTable()
@@ -857,8 +987,10 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             accuracyScore,
             payoutPenaltyCount,
             awaitingCustomerCard,
-            IsDealerStaffed,
+            !IsPlayerOperating,
             message);
+        tableView.SetFloatInventory(floatDestination);
+        tableView.SetTakeover(!IsDealerStaffed, IsPlayerOperating, BeginPlayerTakeover);
     }
 
     public void SetAssignedDealer(AIDealer dealer)
@@ -886,7 +1018,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     private void UpdateAutomatedDealer()
     {
-        if (!IsDealerStaffed || flickDealerPaused || Time.time < nextDealerActionTime)
+        if (!IsDealerStaffed || IsPlayerOperating || flickDealerPaused || Time.time < nextDealerActionTime)
         {
             return;
         }
@@ -914,7 +1046,18 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             {
                 if (!hand.PayoutPaid && hand.PayoutPence > 0)
                 {
-                    round.TryMarkPayoutPaid(hand);
+                    if (floatDestination == null ||
+                        !TryGetAvailablePayout(hand.PayoutPence, out int[] counts) ||
+                        !floatDestination.TryConsumeChips(counts))
+                    {
+                        floatDestination?.RequestAttention();
+                        message = "Table float is short; deliver a refill to complete the automatic payout.";
+                        RefreshView();
+                        return;
+                    }
+
+                    bool paid = round.TryMarkPayoutPaid(hand);
+                    if (!paid) floatDestination.TryAddChips(counts);
                 }
             }
 
@@ -957,7 +1100,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
         else
         {
-            Debug.Log($"{name}: FLICK! testing task queued for the next safe blackjack-deal boundary.", this);
+            Debug.Log($"{name}: SHUFFLE! testing task queued for the next safe blackjack-deal boundary.", this);
         }
     }
 
@@ -998,7 +1141,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
     public bool TryBeginFlickAssistance()
     {
-        return IsFlickReady && IsDealerStaffed && state == BlackjackTableState.InitialDeal;
+        return IsFlickReady && IsServiceAvailable && state == BlackjackTableState.InitialDeal;
     }
 
     public bool TryPrepareFlickAssistance()
@@ -1054,8 +1197,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                                  round != null && state == BlackjackTableState.InitialDeal;
             flickDealerPaused = flickBoundaryReady;
             message = flickBoundaryReady
-                ? "FLICK! is paused and ready to retry."
-                : "FLICK! was cancelled; the dealer will continue.";
+                ? "SHUFFLE! is paused and ready to retry."
+                : "SHUFFLE! was cancelled; the dealer will continue.";
             RefreshView();
             return;
         }
@@ -1076,7 +1219,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     {
         if (IsFlickReady)
         {
-            message = "FLICK! was not completed. Press E to try again.";
+            message = "SHUFFLE! was not completed. Press E to try again.";
             RefreshView();
         }
     }
@@ -1099,7 +1242,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         flickDealerPaused = true;
         nextFlickTaskTime = Time.time + 60f;
         roundsSinceFlick = 0;
-        message = "The dealer needs a hand. Flick the next cards to the highlighted targets!";
+        message = "The dealer needs a hand. Click the card shoe to send each card to the highlighted hand!";
         RefreshView();
         return true;
     }

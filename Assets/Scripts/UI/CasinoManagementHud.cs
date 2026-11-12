@@ -13,6 +13,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
         TableAttentionReason.TableUnstaffed,
         TableAttentionReason.PitBossApproval,
         TableAttentionReason.FlickAssistanceRequired,
+        TableAttentionReason.RouletteCoverRequired,
         TableAttentionReason.RouletteSpinRequired,
         TableAttentionReason.RouletteSweepRequired,
         TableAttentionReason.PayoutRequired,
@@ -189,6 +190,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
         int totalTaskCount = 0;
         int firstTaskCount = 0;
         int displayedTaskCount = 0;
+        Color firstColor = CasinoHudStyle.Gold;
         foreach (TableAttentionReason reason in DisplayPriority)
         {
             if (attentionSources == null)
@@ -208,10 +210,15 @@ public sealed class CasinoManagementHud : MonoBehaviour
                 totalTaskCount += count;
                 if (activeTaskLines.Count < 2)
                 {
-                    activeTaskLines.Add($"{GetTaskLabel(reason)}: {GetStationLabel(attention.name)}" +
+                    bool timed = CasinoTaskFeedback.TryGetDeadline(attention, reason, out float remaining, out float duration);
+                    string timer = timed ? $" {Mathf.CeilToInt(remaining)}s" : "";
+                    activeTaskLines.Add($"{GetTaskLabel(reason)}: {GetStationLabel(attention.name)}{timer}" +
                                         (count > 1 ? $"  ×{count}" : string.Empty));
                     if (activeTaskLines.Count == 1)
+                    {
                         firstTaskCount = count;
+                        firstColor = timed ? CasinoTaskFeedback.UrgencyColor(remaining / duration) : CasinoHudStyle.Gold;
+                    }
                     displayedTaskCount += count;
                 }
             }
@@ -241,7 +248,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
             }
 
             additionalTaskText.text = lines.Length > 0 ? lines.ToString() : "NO OTHER TASKS";
-            taskText.color = new Color(1f, 0.82f, 0.58f);
+            taskText.color = firstColor;
         }
 
         UpdateDealerSummary();
@@ -331,7 +338,8 @@ public sealed class CasinoManagementHud : MonoBehaviour
             case TableAttentionReason.DealerBreakRequired: return "BREAK NEEDED";
             case TableAttentionReason.TableUnstaffed: return "TABLE UNSTAFFED";
             case TableAttentionReason.PitBossApproval: return "APPROVAL NEEDED";
-            case TableAttentionReason.FlickAssistanceRequired: return "FLICK!";
+            case TableAttentionReason.FlickAssistanceRequired: return "SHUFFLE!";
+            case TableAttentionReason.RouletteCoverRequired: return "COVER!";
             case TableAttentionReason.RouletteSpinRequired: return "SPIN!";
             case TableAttentionReason.RouletteSweepRequired: return "SWEEP!";
             case TableAttentionReason.PayoutRequired: return "PAY!";

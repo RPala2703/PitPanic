@@ -9,9 +9,9 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
     [SerializeField] private string displayName;
     [SerializeField] private TableInteractionZone interactionZone;
     [SerializeField] private CasinoTableAttention attention;
-    [SerializeField, Min(0)] private int[] startingChipCounts = { 12, 8, 4, 2 };
-    [SerializeField, Min(0)] private int[] refillThresholdCounts = { 3, 2, 1, 0 };
-    [SerializeField, Min(0)] private int[] refillOrderCounts = { 10, 5, 4, 0 };
+    [SerializeField, Min(0)] private int[] startingChipCounts = { 12, 32, 4, 2 };
+    [SerializeField, Min(0)] private int[] refillThresholdCounts = { 3, 8, 1, 0 };
+    [SerializeField, Min(0)] private int[] refillOrderCounts = { 10, 20, 4, 0 };
 
     private readonly int[] chipCounts = new int[4];
     private readonly HashSet<string> receivedOrderIds = new HashSet<string>();
@@ -50,6 +50,9 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
                                 refillThresholdCounts.Length == 4 && refillOrderCounts != null &&
                                 refillOrderCounts.Length == 4;
     public int[] RefillOrderCounts => (int[])refillOrderCounts.Clone();
+    public long InventoryValuePence =>
+        (long)chipCounts[0] * 500 + (long)chipCounts[1] * 250 +
+        (long)chipCounts[2] * 2500 + (long)chipCounts[3] * 10000;
 
     public void Configure(
         string id,
@@ -116,7 +119,55 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
             chipCounts[i] -= requestedCounts[i];
         }
 
+        if (NeedsRefill()) RequestAttention();
         return true;
+    }
+
+    public bool TryAddChips(int[] addedCounts)
+    {
+        if (addedCounts == null || addedCounts.Length != chipCounts.Length)
+            return false;
+        for (int i = 0; i < chipCounts.Length; i++)
+            if (addedCounts[i] < 0 || (long)chipCounts[i] + addedCounts[i] > int.MaxValue)
+                return false;
+        for (int i = 0; i < chipCounts.Length; i++)
+            chipCounts[i] += addedCounts[i];
+        return true;
+    }
+
+    public bool TryGetAvailableComposition(int amountPence, out int[] composition)
+    {
+        composition = new int[chipCounts.Length];
+        if (amountPence <= 0 || amountPence % 250 != 0 ||
+            amountPence / 250 > InventoryValuePence / 250)
+            return false;
+
+        int target = amountPence / 250;
+        int[] values = { 2, 1, 10, 40 };
+        var failedStates = new HashSet<long>();
+        return FindComposition(0, target, values, composition, failedStates);
+    }
+
+    private bool FindComposition(int denomination, int remaining, int[] values,
+        int[] composition, HashSet<long> failedStates)
+    {
+        if (denomination == values.Length) return remaining == 0;
+        long state = ((long)denomination << 32) | (uint)remaining;
+        if (failedStates.Contains(state)) return false;
+
+        int value = values[denomination];
+        int maxCount = Mathf.Min(chipCounts[denomination], remaining / value);
+        for (int count = maxCount; count >= 0; count--)
+        {
+            composition[denomination] = count;
+            if (FindComposition(denomination + 1, remaining - count * value,
+                    values, composition, failedStates))
+                return true;
+        }
+
+        composition[denomination] = 0;
+        failedStates.Add(state);
+        return false;
     }
 
     public bool NeedsRefill()

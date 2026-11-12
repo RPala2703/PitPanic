@@ -199,10 +199,12 @@ public static class PitPanicRichPixelArt
         }
         if (pose == CasinoAnimationPose.Carry)
         {
-            R(t, 8, 21, 33, 8, Ink); R(t, 10, 23, 29, 5, Gold);
-            R(t, 12, 24, 25, 3, Felt);
-            for (int x = 15; x < 37; x += 7) { R(t, x, 26, 4, 4, Wood); R(t, x, 29, 4, 1, Cream); }
-            R(t, 7, 23, 6, 4, Cream); R(t, 37, 23, 6, 4, Cream);
+            R(t, 5, 19, 6, 17, new Color32(0, 0, 0, 0));
+            R(t, 39, 19, 7, 17, new Color32(0, 0, 0, 0));
+            int handY = direction == 1 ? 39 : 23;
+            int effort = new[] { 0, 0, 1, 1, 0, 0, -1, -1 }[frame];
+            if (direction != 3) { R(t, 7, handY + effort, 8, 6, sleeve); R(t, 8, handY + effort + 2, 6, 4, Cream); }
+            if (direction != 2) { R(t, 34, handY + effort, 9, 6, sleeve); R(t, 36, handY + effort + 2, 6, 4, Cream); }
         }
         if (pose == CasinoAnimationPose.Celebrate)
         {

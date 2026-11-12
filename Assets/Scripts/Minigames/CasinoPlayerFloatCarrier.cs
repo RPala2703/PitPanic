@@ -53,8 +53,7 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
 
         order = refillOrder;
         tray.transform.SetParent(transform, false);
-        tray.transform.localPosition = new Vector3(0f, 1.5f, 0.28f);
-        tray.transform.localRotation = Quaternion.Euler(12f, 0f, 0f);
+        tray.transform.localPosition = Vector3.zero;
         CreatePrompt();
         return true;
     }
@@ -145,7 +144,6 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
             Cursor.lockState = savedCursorLock;
             Cursor.visible = savedCursorVisible;
         }
-
         if (tray != null)
         {
             Destroy(tray);
@@ -159,6 +157,31 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         if (notificationCanvas != null)
         {
             Destroy(notificationCanvas.gameObject);
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (!IsCarrying || Time.timeScale == 0) return;
+        Camera camera = Camera.main;
+        PixelCharacterVisual visual = GetComponentInChildren<PixelCharacterVisual>();
+        if (camera == null || visual == null) return;
+        SpriteRenderer actorSprite = visual.GetComponentInChildren<SpriteRenderer>();
+        if (actorSprite == null) return;
+        Vector3 forward = transform.forward;
+        bool side = Mathf.Abs(forward.x) > Mathf.Abs(forward.z);
+        bool away = !side && forward.z > 0;
+        float x = side ? Mathf.Sign(forward.x) * .58f : 0;
+        float height = away ? 1.31f : .82f;
+        if (tray.transform.parent != actorSprite.transform) tray.transform.SetParent(actorSprite.transform, false);
+        tray.transform.localPosition = new Vector3(x, height, away ? .06f : -.06f);
+        tray.transform.localRotation = Quaternion.identity;
+        tray.transform.localScale = Vector3.one;
+        foreach (SpriteRenderer sprite in tray.GetComponentsInChildren<SpriteRenderer>())
+        {
+            sprite.sortingLayerID = actorSprite.sortingLayerID;
+            sprite.sortingOrder = actorSprite.sortingOrder + (away ? -2 : 2) +
+                (sprite.gameObject.name.StartsWith("Float Chip") ? 1 : 0);
         }
     }
 
@@ -203,8 +226,12 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
         trayRoot.name = "Carried Casino Float Tray";
         foreach (MeshRenderer renderer in trayRoot.GetComponentsInChildren<MeshRenderer>())
             renderer.enabled = false;
-        SpriteRenderer traySurface = PixelWorldProps.CreateSurface(trayRoot.transform, "Pixel Float Tray",
-            PixelWorldProps.FloatTray, new Vector2(1.45f, 1.1f), 1);
+        foreach (Collider collider in trayRoot.GetComponentsInChildren<Collider>())
+            collider.enabled = false;
+        foreach (SpriteRenderer renderer in trayRoot.GetComponentsInChildren<SpriteRenderer>())
+            renderer.enabled = false;
+        SpriteRenderer traySurface = CreateHeldSprite(trayRoot.transform, "Pixel Float Tray",
+            PixelWorldProps.FloatTray, new Vector2(.94f, .30f));
         traySurface.color = Color.white;
 
         Color[] colors =
@@ -221,16 +248,25 @@ public sealed class CasinoPlayerFloatCarrier : MonoBehaviour
                 GameObject chip = new GameObject($"Float Chip {refillOrder.GetDenominationPence(denomination)}p");
                 chip.transform.SetParent(trayRoot.transform, false);
                 chip.transform.localPosition = new Vector3(
-                    -0.46f + (i % 4) * 0.3f,
-                    0.075f + (i / 4) * 0.074f + denomination * 0.004f,
-                    -0.61f + (i / 4) * 0.3f);
-                SpriteRenderer sprite = PixelWorldProps.CreateSurface(chip.transform, "Pixel Float Chip",
-                    PixelWorldProps.Chip, new Vector2(0.22f, 0.22f), 2);
+                    -.32f + denomination * .21f,
+                    .06f + i * .012f, -.01f);
+                SpriteRenderer sprite = CreateHeldSprite(chip.transform, $"Float Chip {denomination}",
+                    PixelWorldProps.Chip, new Vector2(.16f, .065f));
                 sprite.color = colors[denomination];
             }
         }
 
         return trayRoot;
+    }
+
+    private static SpriteRenderer CreateHeldSprite(Transform parent, string label, Sprite art, Vector2 size)
+    {
+        GameObject root = new GameObject(label, typeof(SpriteRenderer));
+        root.transform.SetParent(parent, false);
+        SpriteRenderer renderer = root.GetComponent<SpriteRenderer>();
+        renderer.sprite = art;
+        root.transform.localScale = new Vector3(size.x / art.bounds.size.x, size.y / art.bounds.size.y, 1);
+        return renderer;
     }
 
     private static string GetShortDestinationLabel(CasinoFloatRefillOrder refillOrder)

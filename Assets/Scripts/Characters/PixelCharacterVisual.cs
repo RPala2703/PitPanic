@@ -141,7 +141,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
                 dealer.IsAtStation ? Vector3.forward * .65f : Vector3.zero, Time.deltaTime * 3f);
         walkTime = walking ? walkTime + Time.deltaTime : 0f;
         bool seated = customer != null && customer.IsSeated || dealer != null && dealer.IsResting;
-        CasinoAnimationPose pose = walking ? carrier != null && carrier.IsCarrying ? CasinoAnimationPose.Carry : CasinoAnimationPose.Walk :
+        CasinoAnimationPose pose = carrier != null && carrier.IsCarrying ? CasinoAnimationPose.Carry :
+            walking ? CasinoAnimationPose.Walk :
             reactionRemaining > 0 ? reaction == 0 ? CasinoAnimationPose.Celebrate : CasinoAnimationPose.Disappointed :
             gestureRemaining > 0 ? gesture == CasinoGesture.Deal ? CasinoAnimationPose.Deal :
                 gesture == CasinoGesture.Pay ? CasinoAnimationPose.Pay : CasinoAnimationPose.Collect :
@@ -179,6 +180,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             float duration = actionRemaining > 0 ? actionDuration : gestureRemaining > 0 ? gestureLength : currentPose == CasinoAnimationPose.Sit ? .8f :
                 walking ? .65f : currentPose == CasinoAnimationPose.Idle ? 3.2f : 1.2f;
             int frame = Mathf.FloorToInt(poseElapsed / duration * 8) % 8;
+            if (currentPose == CasinoAnimationPose.Carry && !walking) frame = 0;
             if (currentPose == CasinoAnimationPose.Sit) frame = Mathf.Min(7, Mathf.FloorToInt(poseElapsed / duration * 8));
             if (currentPose == CasinoAnimationPose.Sit && standing) frame = 7 - frame;
             spriteRenderer.sprite = animationFrames[((int)currentPose * 4 + direction) * 8 + frame];

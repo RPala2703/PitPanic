@@ -58,12 +58,38 @@ public static class FirstShiftPlayModeValidation
         private Mouse mouse;
         private CasinoPlayerController player;
         private CasinoShiftController shift;
+        private float lessonObservedAt = -1;
+        private float lessonShiftTime;
+        private Exception lessonFailure;
         private static object Get(object o, string name) => o.GetType().GetField(name, Flags).GetValue(o);
         private static object Call(object o, string name, params object[] args) =>
             o.GetType().GetMethod(name, Flags).Invoke(o, args);
         private static void Set(object o, string name, object value) => o.GetType().GetField(name, Flags).SetValue(o, value);
         private static void Check(bool value, string reason) { if (!value) throw new Exception(reason); }
-        private void Start() { DontDestroyOnLoad(gameObject); StartCoroutine(RunTest()); }
+        private void Start()
+        {
+            DontDestroyOnLoad(gameObject);
+            Application.logMessageReceived += OnLog;
+            StartCoroutine(RunTest());
+        }
+        private void OnLog(string message, string stack, LogType type)
+        {
+            if (type == LogType.Error || type == LogType.Exception)
+                lessonFailure = new Exception("Unity Console error during validation: " + message + "\n" + stack);
+        }
+        private void Update()
+        {
+            if (shift == null || !shift.IsLessonOpen) { lessonObservedAt = -1; return; }
+            try
+            {
+                Check(Time.timeScale == 0 && AudioListener.pause && !CasinoMinigamePresentation.IsOpen,
+                    "Tutorial explanation did not pause or overlapped a minigame");
+                if (lessonObservedAt < 0) { lessonObservedAt = Time.realtimeSinceStartup; lessonShiftTime = shift.RemainingSeconds; }
+                Check(shift.RemainingSeconds == lessonShiftTime, "Tutorial explanation advanced the shift timer");
+                if (Time.realtimeSinceStartup - lessonObservedAt > .12f) shift.DismissLesson();
+            }
+            catch (Exception e) { lessonFailure = e; }
+        }
 
         private IEnumerator RunTest()
         {
@@ -75,6 +101,7 @@ public static class FirstShiftPlayModeValidation
                 try
                 {
                     Check(Time.realtimeSinceStartup < deadline, "Shift test timed out.");
+                    if (lessonFailure != null) throw lessonFailure;
                     next = test.MoveNext();
                 }
                 catch (Exception e)
@@ -113,10 +140,19 @@ public static class FirstShiftPlayModeValidation
 
         private IEnumerator Press(Key key)
         {
+            while (shift != null && shift.IsLessonOpen) yield return null;
+            yield return null;
             InputSystem.QueueStateEvent(keyboard, new KeyboardState(key));
             yield return null;
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
+        }
+
+        private static void ClickRack(CashDeskPackMinigame game, int denomination)
+        {
+            string[] names = { "RED", "BLUE", "GREEN", "BLACK" };
+            Canvas canvas = (Canvas)Get(game, "hud");
+            canvas.transform.Find($"Register {names[denomination]} Chip Choice").GetComponent<Button>().onClick.Invoke();
         }
 
         private void MoveNear(Transform center, Func<Transform, bool> inRange)
@@ -247,6 +283,14 @@ public static class FirstShiftPlayModeValidation
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
             Check((bool)Get(shift, "moved"), "W movement did not advance tutorial");
+            Vector3 arrowStart = player.transform.position;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(UnityEngine.InputSystem.Key.UpArrow));
+            yield return new WaitForSecondsRealtime(0.25f);
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return null;
+            Check(player.transform.position.z > arrowStart.z + 0.1f &&
+                  Mathf.Abs(player.transform.position.x - arrowStart.x) < 0.1f,
+                "Arrow-key movement did not follow the screen-aligned axes");
             foreach (AIDealer dealer in manager.Dealers)
                 if (dealer.IsAtStation)
                     Check(Vector3.Distance(dealer.GetComponentInChildren<PixelCharacterVisual>().transform.localPosition,
@@ -259,13 +303,13 @@ public static class FirstShiftPlayModeValidation
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             float timeout = Time.realtimeSinceStartup + 60;
             while (!blackjack.IsFlickReady && Time.realtimeSinceStartup < timeout) yield return null;
-            Check(blackjack.IsFlickReady, "FLICK did not become ready");
+            Check(blackjack.IsFlickReady, "DEAL did not become ready");
             yield return Press(UnityEngine.InputSystem.Key.E);
             Check(blackjack.IsInspectionOpen, "E did not open unified BJ1 interface");
             Check(!blackjack.GetComponent<CasinoMinigameStation>().TryBegin(), "Minigame overlapped table inspection");
             Check(!inspection.TryOpenInspectionFromPlayerInput(), "Roulette overlapped Blackjack inspection");
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
-            Check(flick.IsRunning, "E failed to start FLICK");
+            Check(flick.IsRunning, "E failed to start DEAL");
             Check(CasinoSoundscape.Focus == flick.transform && !CasinoSoundscape.AllowsEffect(null) &&
                 CasinoSoundscape.AllowsEffect(flick.transform) && !CasinoSoundscape.AllowsEffect(rgame.transform),
                 "Minigame audio did not isolate the active task");
@@ -284,42 +328,36 @@ public static class FirstShiftPlayModeValidation
             Check(!AudioListener.pause && Time.timeScale > 0 && flick.IsRunning,
                 "Resume did not restore the existing minigame");
             yield return Press(UnityEngine.InputSystem.Key.Escape);
-            Check(!flick.IsRunning && blackjack.IsFlickReady, "FLICK cancellation failed");
+            Check(!flick.IsRunning && blackjack.IsFlickReady, "DEAL cancellation failed");
             Check(CasinoSoundscape.Focus == null && CasinoSoundscape.AllowsEffect(null),
                 "Closing minigame did not restore casino audio");
             yield return Press(UnityEngine.InputSystem.Key.E);
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
-            Check(flick.IsRunning, "FLICK retry failed");
+            Check(flick.IsRunning, "DEAL retry failed");
             Set(flick, "timeRemaining", 0f);
             yield return null;
-            Check(!flick.IsRunning && blackjack.IsFlickReady, "Failed FLICK did not allow retry");
+            Check(!flick.IsRunning && blackjack.IsFlickReady, "Failed DEAL did not allow retry");
             yield return Press(UnityEngine.InputSystem.Key.E);
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
-            Check(flick.IsRunning, "FLICK retry after failure failed");
+            Check(flick.IsRunning, "DEAL retry after failure failed");
             while (flick.IsRunning)
             {
-                int targetId = blackjack.GetNextFlickTarget();
-                var targets = (IList)Get(flick, "handTargets");
-                RectTransform target = null;
-                foreach (object t in targets)
-                    if ((int)t.GetType().GetField("Id").GetValue(t) == targetId)
-                        target = (RectTransform)t.GetType().GetField("Rect").GetValue(t);
-                Check(target != null, "FLICK target missing");
                 var shoe = (RectTransform)Get(flick, "shoeRect");
                 Vector2 start = RectTransformUtility.WorldToScreenPoint(null, shoe.position);
-                Vector2 end = RectTransformUtility.WorldToScreenPoint(null, target.position);
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = start, buttons = 1 });
                 yield return null;
-                InputSystem.QueueStateEvent(mouse, new MouseState { position = end, buttons = 0 });
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = start, buttons = 0 });
                 yield return null;
                 yield return new WaitForSeconds(0.35f);
             }
-            Check((bool)Get(shift, "flickDone"), "FLICK did not advance tutorial");
+            Check((bool)Get(shift, "flickDone"), "DEAL did not advance tutorial");
             MoveNear(inspection.transform, inspection.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.Q);
             Check(inspection.IsOpen, "Q failed to inspect roulette");
             yield return null;
             yield return Press(UnityEngine.InputSystem.Key.Escape);
+            Check(roulette.FloatDestination.TryAddChips(new[] { 100, 100, 100, 100 }),
+                "Could not provision synthetic roulette payout inventory");
             timeout = Time.realtimeSinceStartup + 75;
             while (!roulette.HasPendingAssistance && Time.realtimeSinceStartup < timeout) yield return null;
             Check(roulette.HasPendingAssistance, "Roulette task did not become ready");
@@ -339,7 +377,7 @@ public static class FirstShiftPlayModeValidation
             IList chips = (IList)Get(rgame, "sweepChips");
             var tray = (RectTransform)Get(rgame, "trayHitArea");
             Vector2 trayPoint = RectTransformUtility.WorldToScreenPoint(null, tray.position);
-            foreach (object chip in chips)
+            foreach (object chip in new ArrayList(chips))
             {
                 Type type = chip.GetType();
                 if ((bool)type.GetField("Protected").GetValue(chip)) continue;
@@ -358,10 +396,44 @@ public static class FirstShiftPlayModeValidation
                 yield return new WaitForSecondsRealtime(0.7f);
             }
             Check((bool)Get(shift, "rouletteDone"), "Roulette did not advance tutorial");
+            timeout = Time.realtimeSinceStartup + 40;
+            while (desk.ActiveCustomer == null && Time.realtimeSinceStartup < timeout) yield return null;
+            string customerSnapshot = "";
+            foreach (object customerObject in (IEnumerable)Get(spawner, "activeCustomers"))
+            {
+                CasinoCustomerAI customer = customerObject as CasinoCustomerAI;
+                if (customer == null) continue;
+                var agent = customer.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                customerSnapshot += $"{customer.name}:cashier={customer.IsVisitingCashier}," +
+                    $"waiting={customer.IsWaitingAtCashDesk},seat={customer.Seat?.name ?? "none"}," +
+                    $"position={customer.transform.position},path={agent.pathStatus}/{agent.remainingDistance:0.0} ";
+            }
+            Check(desk.ActiveCustomer != null,
+                $"Guided cash-out customer did not reach the Cash Desk; stage={shift.TutorialStage}, " +
+                $"active={spawner.ActiveCustomerCount}, requestedOrders={desk.GetRequestedOrders().Count}, " +
+                $"packTaskPending={desk.GetComponent<CasinoMinigameStation>().IsTaskPending}, customers={customerSnapshot}");
+            var station = desk.GetComponent<CasinoMinigameStation>();
+            MoveNear(desk.transform, station.IsPlayerInRange);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            Check(pack.IsRunning && pack.IsCashOutMode, "Guided cash-out did not open");
+            Check(FindObjectsByType<CasinoChipDragHandle>(FindObjectsSortMode.None).Length == 0,
+                "Cash Desk rack still has drag handlers");
+            int[] guidedSequence = (int[])Get(pack, "packingSequence");
+            ClickRack(pack, guidedSequence[0]);
+            Check(pack.PackedChipCount == 1, "Cash-out rack click did not add a chip");
+            pack.UndoLastChip();
+            Check(pack.PackedChipCount == 0, "Cash-out Undo did not remove the last chip");
+            foreach (int denomination in guidedSequence) ClickRack(pack, denomination);
+            Check(pack.IsReadyToDeliver, "Cash-out clicks did not complete exact contents");
+            pack.UndoLastChip();
+            Check(!pack.IsReadyToDeliver && pack.PackedChipCount == guidedSequence.Length - 1,
+                "Cash-out Undo failed after the tray became ready");
+            ClickRack(pack, guidedSequence[guidedSequence.Length - 1]);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            Check(!pack.IsRunning && (bool)Get(shift, "cashOutDone"), "Cash-out success did not advance training");
             timeout = Time.realtimeSinceStartup + 10;
             while (desk.GetRequestedOrders().Count == 0 && Time.realtimeSinceStartup < timeout) yield return null;
             Check(desk.GetRequestedOrders().Count > 0, "Float order was not requested");
-            var station = desk.GetComponent<CasinoMinigameStation>();
             MoveNear(desk.transform, station.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.E);
             Check(pack.IsRunning, "PACK did not open");
@@ -395,15 +467,27 @@ public static class FirstShiftPlayModeValidation
             Check(pack.IsRunning, "PACK retry after timeout failed");
             Call(pack, "SelectFloatOrder", 0);
             order = pack.PackedOrder;
+            Check(order.TotalPence == 20000 && order.GetDenominationPence(1) == 250 && order.TotalChips == 34,
+                "Requested chip values did not preserve the £200 float");
+            Check(pack.TryGetDeadline(out float packTime, out _) &&
+                CasinoTaskFeedback.TryGetDeadline(desk.GetComponent<CasinoTableAttention>(), out float stationTime, out _) &&
+                stationTime <= packTime, "Cash Desk urgency did not use a real deadline");
+            ClickRack(pack, 0);
+            pack.UndoLastChip();
+            Check(pack.PackedChipCount == 0, "Float Undo failed");
             var trayRect = (RectTransform)Get(pack, "floatTrayRect");
             Vector2 point = RectTransformUtility.WorldToScreenPoint(null, trayRect.position);
             for (int i = 0; i < 4; i++)
-                for (int n = 0; n < order.Counts[i]; n++) pack.TryDropRackChip(i, point);
+                for (int n = 0; n < order.Counts[i]; n++) ClickRack(pack, i);
             var carrier = player.GetComponent<CasinoPlayerFloatCarrier>();
             Check(carrier.IsCarrying, "PACK did not produce carried float");
+            yield return null;
+            Check(player.GetComponentInChildren<PixelCharacterVisual>().CurrentPose == CasinoAnimationPose.Carry,
+                "Idle carrying did not hold the tray");
             MoveNear(order.Destination.transform, order.Destination.InteractionZone.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.E);
             Check(!carrier.IsCarrying && (bool)Get(shift, "delivered"), "Float delivery failed");
+            while (shift.IsLessonOpen) yield return null;
             yield return null;
             Check(blackjack.AssignedDealer != null && blackjack.AssignedDealer.NeedsBreak,
                 "Guided fatigue event did not request cover");
@@ -431,7 +515,126 @@ public static class FirstShiftPlayModeValidation
             Check(readyIndex >= 0, "No dealer returned to desk");
             Call(pit, "SendDealerOnBreak", readyIndex);
             yield return null;
-            Check(PlayerPrefs.GetInt("PitPanic.TutorialComplete", 0) == 1, "Tutorial did not complete");
+            yield return Press(UnityEngine.InputSystem.Key.Escape);
+            while (shift.IsLessonOpen) yield return null;
+            yield return null;
+            Set(blackjack.AssignedDealer, "energy", 100f);
+            yield return null;
+            Check(!blackjack.IsDealerStaffed, "Early cover made protected manual Blackjack practice impossible");
+            MoveNear(blackjack.transform, blackjack.IsPlayerInRange);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            Check(blackjack.BeginPlayerTakeover() && blackjack.IsPlayerOperating && !blackjack.IsDealerStaffed,
+                "Exhausted Blackjack could not be operated by the pit boss");
+            timeout = Time.realtimeSinceStartup + 50;
+            while (!(bool)Get(shift, "manualBlackjackDone") && Time.realtimeSinceStartup < timeout)
+            {
+                blackjack.ManualDealStep();
+                yield return new WaitForSeconds(.31f);
+            }
+            Check((bool)Get(shift, "manualBlackjackDone"), "Pit boss did not resolve a real Blackjack hand");
+            BlackjackTableRound manualRound = blackjack.ActiveRound;
+            timeout = Time.realtimeSinceStartup + 20;
+            while (blackjack.State == BlackjackTableState.Settlement && Time.realtimeSinceStartup < timeout)
+            {
+                blackjack.ManualDealStep();
+                yield return new WaitForSeconds(.31f);
+            }
+            foreach (BlackjackHand hand in manualRound.CustomerHands)
+                Check(hand.PayoutPence == 0 || hand.PayoutPaid, "Manual Blackjack left an unpaid winner");
+            yield return Press(UnityEngine.InputSystem.Key.Escape);
+            Check(!blackjack.IsPlayerOperating, "ESC retained manual Blackjack ownership");
+            while (shift.IsLessonOpen) yield return null;
+            Set(roulette.AssignedDealer, "energy", 100f);
+            yield return null;
+            Check(!roulette.IsDealerStaffed, "Early cover made protected manual Roulette practice impossible");
+            MoveNear(inspection.transform, inspection.IsPlayerInRange);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            Call(inspection, "StartManualRound");
+            Check(roulette.IsPlayerOperating && !roulette.IsDealerStaffed, "Pit boss could not take over Roulette");
+            timeout = Time.realtimeSinceStartup + 50;
+            while (roulette.Phase != RouletteRoundPhase.AcceptingBets &&
+                roulette.Phase != RouletteRoundPhase.AwaitingAssistance && Time.realtimeSinceStartup < timeout) yield return null;
+            Call(inspection, "StartManualRound");
+            Check(rgame.IsRunning, $"Manual Roulette did not use the existing round minigame: phase={roulette.Phase}, " +
+                $"owner={roulette.IsPlayerOperating}, open={inspection.IsOpen}, pending={roulette.HasPendingAssistance}, " +
+                $"canBegin={rgame.CanBegin}, bets={roulette.AssistanceBets.Count}, other={CasinoPlayerInteractionRouter.IsAnyInspectionOpen()}, " +
+                $"range={roulette.GetComponent<CasinoMinigameStation>().IsPlayerInRange(player.transform)}");
+            Call(rgame, "BeginSpin");
+            yield return new WaitForSeconds(3);
+            chips = (IList)Get(rgame, "sweepChips");
+            tray = (RectTransform)Get(rgame, "trayHitArea");
+            trayPoint = RectTransformUtility.WorldToScreenPoint(null, tray.position);
+            foreach (object chip in new ArrayList(chips))
+            {
+                Type type = chip.GetType();
+                if ((bool)type.GetField("Protected").GetValue(chip)) continue;
+                var rect = (RectTransform)type.GetField("Rect").GetValue(chip);
+                Call(rgame, "BeginPointerAction", RectTransformUtility.WorldToScreenPoint(null, rect.position));
+                Call(rgame, "EndPointerAction", trayPoint);
+            }
+            while (rgame.IsRunning)
+            {
+                var bet = (RouletteCustomerBet)Get(rgame, "currentPayoutBet");
+                Check(bet != null, "Manual Roulette PAY stage did not open");
+                int[] counts = RouletteTableMinigame.GetPayoutComposition((int)bet.GrossReturnPence);
+                for (int i = 0; i < counts.Length; i++)
+                    for (int n = 0; n < counts[i]; n++) Call(rgame, "AddPayoutChips", i);
+                Call(rgame, "ConfirmPayout");
+                yield return new WaitForSecondsRealtime(.7f);
+            }
+            Check((bool)Get(shift, "manualRouletteDone"), "Manual Roulette did not settle actual bets");
+            MoveNear(pit.transform, pit.IsPlayerInRange);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            foreach (CasinoDealerStation targetStation in manager.Stations)
+            {
+                if (targetStation.BlackjackTable != blackjack && targetStation.GetComponent<RouletteRoundController>() != roulette) continue;
+                timeout = Time.realtimeSinceStartup + manager.FullRestThreshold / 1.5f + 40;
+                readyIndex = -1;
+                while (readyIndex < 0 && Time.realtimeSinceStartup < timeout)
+                {
+                    for (int i = 0; i < manager.Dealers.Count; i++)
+                        if (manager.Dealers[i].IsReadyAtPitDesk)
+                        {
+                            if (manager.Dealers[i].Energy > 0 &&
+                                manager.CanAssignDealer(manager.Dealers[i], targetStation, out _))
+                            {
+                                readyIndex = i;
+                                break;
+                            }
+
+                            if (manager.Dealers[i].Energy <= 0)
+                            {
+                                Check(!manager.CanAssignDealer(manager.Dealers[i], targetStation, out string exhaustedReason) &&
+                                    exhaustedReason.Contains("break"), "Exhausted off-duty staff could be assigned back to a table");
+                                Call(pit, "SendDealerOnBreak", i);
+                            }
+                        }
+                    if (readyIndex < 0) yield return null;
+                }
+                string staffSnapshot = "";
+                foreach (AIDealer dealer in manager.Dealers)
+                    staffSnapshot += $"{dealer.DealerId}:{dealer.State}:{dealer.Energy:0.0} ";
+                Check(readyIndex >= 0, $"No rested dealer available for manual handoff (scale {Time.timeScale}, {staffSnapshot})");
+                Call(pit, "SelectDealer", readyIndex);
+                Call(pit, "AssignSelectedDealer", Array.IndexOf(new System.Collections.Generic.List<CasinoDealerStation>(manager.Stations).ToArray(), targetStation));
+                timeout = Time.realtimeSinceStartup + 60;
+                AIDealer assignedCover = manager.Dealers[readyIndex];
+                while (targetStation.AssignedDealer == null || !targetStation.AssignedDealer.CanServe)
+                {
+                    Check(Time.realtimeSinceStartup < timeout,
+                        $"Rested cover did not resume {targetStation.StationName}; " +
+                        $"assigned={targetStation.AssignedDealer?.DealerId ?? "none"}, " +
+                        $"pending={targetStation.PendingReplacement?.DealerId ?? "none"}, " +
+                        $"cover={assignedCover.DealerId}:{assignedCover.State}, " +
+                        $"pathFailed={assignedCover.HasReportedPathFailure}, " +
+                        $"destination={assignedCover.Destination?.name ?? "none"}");
+                    yield return null;
+                }
+            }
+            yield return Press(UnityEngine.InputSystem.Key.Escape);
+            timeout = Time.realtimeSinceStartup + 10;
+            while (PlayerPrefs.GetInt("PitPanic.TutorialComplete", 0) != 1 && Time.realtimeSinceStartup < timeout) yield return null;
+            Check(PlayerPrefs.GetInt("PitPanic.TutorialComplete", 0) == 1, "Expanded tutorial did not complete");
             Check(shift.RemainingSeconds >= 179, "Training left no time for normal gameplay");
             Debug.Log($"DEMO GOAL TEST: hands={shift.Accounting.SettledHands}, tasks={Get(shift, "completedTasks")}");
             timeout = Time.realtimeSinceStartup + 60;
@@ -441,6 +644,9 @@ public static class FirstShiftPlayModeValidation
                 yield return null;
             }
             Check(shift.Accounting.SettledHands >= 8, "Demo service goal could not be reached with actual settled hands");
+            MoveNear(pit.transform, pit.IsPlayerInRange);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            Check(pit.IsOpen, "Pit Desk did not reopen before the shift-end handoff");
             Set(shift, "remaining", 0f);
             yield return null;
             Check(shift.IsRunning && !spawner.AcceptingArrivals,
@@ -519,9 +725,16 @@ public static class FirstShiftPlayModeValidation
             Check(patience.IsWaiting, "Exhausted dealer did not restart customer patience");
             int penalties = CustomerSatisfaction.PenaltyCount;
             patience.Begin(1);
+            Check(CasinoTaskFeedback.TryGetDeadline(exhaustedTable.GetComponent<CasinoTableAttention>(),
+                out float realDeadline, out _) && realDeadline <= 1 &&
+                !CasinoTaskFeedback.TryGetDeadline(exhaustedTable.GetComponent<CasinoTableAttention>(),
+                    TableAttentionReason.TableUnstaffed, out _, out _),
+                "Urgency did not expose customer patience or assigned a fake staffing deadline");
             yield return new WaitForSecondsRealtime(1.2f);
             Check(CustomerSatisfaction.PenaltyCount > penalties && !servedCustomer.IsSeated,
                 "Neglected exhausted table did not lose its customer and satisfaction");
+            Check(CasinoTaskFeedback.Message(exhaustedTable.GetComponent<CasinoTableAttention>()).Contains("TAKE OVER"),
+                "Exhausted station marker did not explain its actionable takeover");
             Set(exhaustedDealer, "energy", oldEnergy);
             yield return null;
             Check(exhaustedTable.IsDealerStaffed, "Restored dealer cannot serve");

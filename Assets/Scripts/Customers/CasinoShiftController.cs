@@ -69,6 +69,29 @@ public sealed class CasinoShiftController : MonoBehaviour
     private int penaltyStart;
     private int shift;
     private int lastStage = -1;
+    private GameObject lessonPanel;
+    private Text lessonTitle;
+    private Text lessonText;
+    private Text lessonDemo;
+    private Image demonstrationProp;
+    private Text demonstrationArrow;
+    private Image guidePortrait;
+    private PixelCharacterVisual guideVisual;
+    private bool lessonOpen;
+    private int shownLesson;
+    private bool reviewLesson;
+    private bool cashOutDone;
+    private bool manualBlackjackDone;
+    private bool manualRouletteDone;
+    private bool preparedManualBlackjack;
+    private bool preparedManualRoulette;
+    private bool objectivesExplained;
+    private readonly bool[] explainedLessons = new bool[13];
+    public bool IsLessonOpen => lessonOpen;
+    public int TutorialStage => !moved ? 0 : !inspectedBlackjack ? 1 : !flickDone ? 2 :
+        !inspectedRoulette ? 3 : !rouletteDone ? 4 : !cashOutDone ? 5 : !delivered ? 6 :
+        !assigned ? 7 : !breakSent ? 8 : !manualBlackjackDone ? 9 : !manualRouletteDone ? 10 :
+        !blackjack.IsDealerStaffed || !roulette.IsDealerStaffed ? 11 : !objectivesExplained ? 12 : 13;
 
     public float RemainingSeconds => remaining;
     public bool IsRunning => running;
@@ -123,6 +146,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 game.Completed += OnFlickCompleted;
             if (game is RouletteTableMinigame)
                 game.Completed += OnRouletteCompleted;
+            if (game is CashDeskPackMinigame) game.Completed += OnCashOutCompleted;
         }
         cashDesk.FloatDelivered += OnFloatDelivered;
         dealers.DealerAssigned += OnDealerAssigned;
@@ -147,6 +171,19 @@ public sealed class CasinoShiftController : MonoBehaviour
     {
         if (!running)
             return;
+        if (lessonOpen)
+        {
+            lessonDemo.rectTransform.localScale = Vector3.one * (1 + .025f * Mathf.Sin(Time.unscaledTime * 4));
+            if (guideVisual != null) guidePortrait.sprite = guideVisual.TitleFrame(Time.unscaledTime);
+            float demoProgress = Mathf.Repeat(Time.unscaledTime * .5f, 1);
+            demonstrationProp.rectTransform.anchoredPosition = new Vector2(-190 + 380 * demoProgress, -235);
+            demonstrationProp.rectTransform.localRotation = Quaternion.Euler(0, 0,
+                shownLesson == 4 || shownLesson == 10 ? Time.unscaledTime * -90 : Mathf.Sin(demoProgress * Mathf.PI) * -15);
+            demonstrationArrow.rectTransform.anchoredPosition = new Vector2(-70 + 12 * Mathf.Sin(Time.unscaledTime * 4), -235);
+            if (Keyboard.current != null && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.escapeKey.wasPressedThisFrame))
+                DismissLesson();
+            return;
+        }
 
         if (Keyboard.current != null && (Keyboard.current.pKey.wasPressedThisFrame ||
             Keyboard.current.escapeKey.wasPressedThisFrame && (paused || !AnyInteractionOpen())))
@@ -214,9 +251,14 @@ public sealed class CasinoShiftController : MonoBehaviour
         }
         shift = Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift);
         tutorial = guided;
+        spawner.SetGuidedPractice(guided);
         spawner.ConfigureShift(shift, CasinoDemoProgression.Owns(CasinoDemoUpgrade.Patience));
         foreach (AIDealer dealer in dealers.Dealers)
-            if (dealer != null) dealer.ConfigureShift(shift, CasinoDemoProgression.Owns(CasinoDemoUpgrade.DealerRest));
+            if (dealer != null)
+            {
+                dealer.ConfigureShift(shift, CasinoDemoProgression.Owns(CasinoDemoUpgrade.DealerRest));
+                dealer.TrainingProtected = guided;
+            }
         foreach (CasinoMinigame game in minigames)
             if (game is CashDeskPackMinigame pack)
                 pack.PackingBonusSeconds = CasinoDemoProgression.Owns(CasinoDemoUpgrade.Packing) ? 5 : 0;
@@ -234,6 +276,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         dealers.SetPaused(false);
         spawner.SetAcceptingArrivals(!tutorial);
         running = true;
+        if (guided) ShowLesson(0);
     }
 
     private void SetPaused(bool value)
@@ -275,9 +318,12 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void UpdateTutorial()
     {
-        int stage = !moved ? 0 : !inspectedBlackjack ? 1 : !flickDone ? 2 :
-            !inspectedRoulette ? 3 : !rouletteDone ? 4 : !delivered ? 5 :
-            !assigned ? 6 : !breakSent ? 7 : 8;
+        int stage = TutorialStage;
+        if (stage < explainedLessons.Length && !explainedLessons[stage] && !AnyInteractionOpen())
+        {
+            ShowLesson(stage);
+            return;
+        }
         if (stage != lastStage)
         {
             lastStage = stage;
@@ -286,7 +332,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         objectiveText.rectTransform.localScale = Vector3.MoveTowards(
             objectiveText.rectTransform.localScale, Vector3.one, Time.unscaledDeltaTime);
         CasinoPlayerFloatCarrier heldTray = player.GetComponent<CasinoPlayerFloatCarrier>();
-        if (stage != 5 && heldTray != null && heldTray.IsCarrying)
+        if (stage != 6 && heldTray != null && heldTray.IsCarrying)
         {
             objectiveText.text = $"E: DELIVER FLOAT TO {heldTray.CurrentOrder.DestinationId}, THEN KEEP LEARNING";
             UpdateArrow(heldTray.CurrentOrder.Destination.transform);
@@ -316,7 +362,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 if (!queuedFlick) { blackjack.QueueFlickAssistanceTest(); queuedFlick = true; }
                 EnsureGuidedCustomer(CasinoCustomerGame.Blackjack1);
                 bool ready = blackjack.IsFlickReady;
-                objectiveText.text = ready ? "BJ1: OPEN WITH E, THEN PLAY FLICK!" : "BJ1: WAIT FOR THE DEALER'S FLICK! CALL";
+                objectiveText.text = ready ? "BJ1: OPEN WITH E, THEN PLAY SHUFFLE!" : "BJ1: WAIT FOR THE DEALER'S SHUFFLE! CALL";
                 target = blackjack.transform;
                 break;
             case 3:
@@ -332,6 +378,15 @@ public sealed class CasinoShiftController : MonoBehaviour
                 target = roulette.transform;
                 break;
             case 5:
+                if (cashDesk.ActiveCustomer == null && Time.time >= nextGuidedSpawn)
+                {
+                    nextGuidedSpawn = Time.time + 8;
+                    spawner.TrySpawnGuidedCashOut();
+                }
+                objectiveText.text = "CASH DESK E: CLICK THE NEXT CHIP, THEN FINISH!";
+                target = cashDesk.transform;
+                break;
+            case 6:
                 if (!requestedFloat)
                 {
                     trainingDestination = blackjack.GetComponent<CasinoFloatRefillDestination>();
@@ -353,7 +408,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                         : "E: PACK BJ1'S FLOAT AT THE CASH DESK";
                 }
                 break;
-            case 6:
+            case 7:
                 if (!requestedDealerBreak)
                 {
                     blackjack.AssignedDealer?.RequestTutorialBreak();
@@ -364,10 +419,41 @@ public sealed class CasinoShiftController : MonoBehaviour
                     : "WAIT FOR A DEALER TO REACH THE PIT DESK";
                 target = pitDesk.transform;
                 break;
-            case 7:
+            case 8:
                 objectiveText.text = HasReadyDealer()
                     ? "PIT DESK: SEND A DEALER ON BREAK"
                     : "WAIT FOR A DEALER TO REACH THE PIT DESK";
+                target = pitDesk.transform;
+                break;
+            case 9:
+                if (!preparedManualBlackjack || blackjack.IsDealerStaffed)
+                {
+                    blackjack.AssignedDealer?.RequestTutorialTakeover();
+                    preparedManualBlackjack = true;
+                }
+                EnsureGuidedCustomer(CasinoCustomerGame.Blackjack1);
+                target = blackjack.transform;
+                objectiveText.text = "BJ1 E: TAKE OVER! SPACE DEALS / PAYS. FINISH A HAND.";
+                break;
+            case 10:
+                if (!preparedManualRoulette || roulette.IsDealerStaffed)
+                {
+                    roulette.AssignedDealer?.RequestTutorialTakeover();
+                    preparedManualRoulette = true;
+                }
+                if (!queuedRoulette)
+                {
+                    rouletteScheduler.RequestTutorialAssistance();
+                    queuedRoulette = true;
+                }
+                EnsureGuidedCustomer(CasinoCustomerGame.Roulette, 2);
+                target = roulette.transform;
+                objectiveText.text = "ROULETTE E: TAKE OVER! SPACE STARTS SPIN / SWEEP / PAY.";
+                break;
+            case 11:
+                objectiveText.text = HasReadyDealer()
+                    ? "PIT DESK E: ASSIGN RESTED COVER TO BOTH TABLES."
+                    : "PIT DESK E: SEND RETURNED TIRED STAFF ON BREAK, THEN ASSIGN.";
                 target = pitDesk.transform;
                 break;
             default:
@@ -408,13 +494,18 @@ public sealed class CasinoShiftController : MonoBehaviour
     private bool HasReadyDealer()
     {
         foreach (AIDealer dealer in dealers.Dealers)
-            if (dealer != null && dealer.IsReadyAtPitDesk) return true;
+            if (dealer != null && dealer.IsReadyAtPitDesk && dealer.Energy > 0) return true;
         return false;
     }
 
     private void CompleteTutorial()
     {
+        if (lessonOpen) DismissLesson();
+        if (!tutorial) return;
         tutorial = false;
+        spawner.SetGuidedPractice(false);
+        foreach (AIDealer dealer in dealers.Dealers)
+            if (dealer != null) dealer.TrainingProtected = false;
         rouletteScheduler.CancelTutorialAssistance();
         PlayerPrefs.SetInt(SaveTutorial, 1);
         PlayerPrefs.Save();
@@ -484,13 +575,34 @@ public sealed class CasinoShiftController : MonoBehaviour
         return pounds.ToString("£0.00;−£0.00;£0.00");
     }
 
-    private void OnBlackjackSettled(BlackjackTableRound round) { if (running) accounting.RecordBlackjack(round); }
-    private void OnRouletteSettled(RouletteCustomerBet bet) { if (running) accounting.RecordRoulette(bet); }
+    private void OnBlackjackSettled(BlackjackTableRound round)
+    {
+        if (!running) return;
+        accounting.RecordBlackjack(round);
+        if (blackjack.IsPlayerOperating && preparedManualBlackjack && blackjack.ActiveRound == round) manualBlackjackDone = true;
+    }
+    private void OnRouletteSettled(RouletteCustomerBet bet)
+    {
+        if (!running) return;
+        accounting.RecordRoulette(bet);
+        if (roulette.IsPlayerOperating && preparedManualRoulette) manualRouletteDone = true;
+    }
     private void OnTaskSucceeded(CasinoMinigameResult result) { if (running) completedTasks++; }
-    private void OnMinigameCompleted(CasinoMinigameResult result) { if (running && !result.Success) failedAttempts++; }
+    private void OnMinigameCompleted(CasinoMinigameResult result)
+    {
+        if (!running) return;
+        if (!result.Success) failedAttempts++;
+    }
+    private void OnCashOutCompleted(CasinoMinigameResult result)
+    {
+        if (running && result.Success && cashDesk.GetComponent<CashDeskPackMinigame>().IsCashOutMode) cashOutDone = true;
+    }
     private void OnMinigameAbandoned() { if (running) failedAttempts++; }
     private void OnFlickCompleted(CasinoMinigameResult result) { if (running && result.Success) flickDone = true; }
-    private void OnRouletteCompleted(CasinoMinigameResult result) { if (running && result.Success) rouletteDone = true; }
+    private void OnRouletteCompleted(CasinoMinigameResult result)
+    {
+        if (running && result.Success) { rouletteDone = true; queuedRoulette = false; }
+    }
     private void OnFloatDelivered(CasinoFloatRefillDestination destination)
     {
         if (!running || destination == null) return;
@@ -529,6 +641,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                     game.Abandoned -= OnMinigameAbandoned;
                     game.Completed -= OnFlickCompleted;
                     game.Completed -= OnRouletteCompleted;
+                    game.Completed -= OnCashOutCompleted;
                 }
         if (cashDesk != null) cashDesk.FloatDelivered -= OnFloatDelivered;
         if (dealers != null)
@@ -537,6 +650,67 @@ public sealed class CasinoShiftController : MonoBehaviour
             dealers.DealerSentOnBreak -= OnDealerBreak;
             dealers.SetPaused(false);
         }
+    }
+
+    private void ShowLesson(int lesson, bool reviewing = false)
+    {
+        if (!running || AnyInteractionOpen()) return;
+        shownLesson = Mathf.Clamp(lesson, 0, 12);
+        reviewLesson = reviewing;
+        lessonOpen = true;
+        dealers.SetPaused(true);
+        AudioListener.pause = true;
+        router.enabled = false;
+        player.SetMovementEnabled(false);
+        lessonPanel.SetActive(true);
+        hud.SetActive(false);
+        arrow.gameObject.SetActive(false);
+        string[] titles = { "WELCOME, PENGUIN BOSS!", "MEET YOUR BLACKJACK TABLE", "LET'S SHUFFLE!",
+            "MEET YOUR ROULETTE TABLE", "COVER: SPIN, SWEEP, PAY!", "CUSTOMER CASH-OUT", "KEEP THE CHIPS FLOWING",
+            "YOUR DEALERS GET TIRED", "TIME FOR A BREAK", "YOU CAN DEAL BLACKJACK!", "YOU CAN RUN ROULETTE!",
+            "HAND BACK TO YOUR TEAM", "READ THE ROOM - WIN THE SHIFT!" };
+        string[] instructions = {
+            "I'm Tiger, your guide! Customers play while you keep the floor running.\n\nWASD or ARROW KEYS move you across the screen. Walk a few steps, then follow my GOLD ARROW. E opens the station you're near. ESC closes a task; P pauses everything.",
+            "Go to BLACKJACK 1 and press E. This is one shared table screen: inspect the hands and use its task button when help is needed.\n\nCustomers place bets; the dealer deals. Your job is to keep them served, not to make their gambling decisions.",
+            "The dealer needs help preparing the opening cards! I'll arrange a practice SHUFFLE! at BJ1.\n\nOpen BJ1 with E, then choose PLAY SHUFFLE! Click the shoe for each highlighted customer or dealer hand. Cards fly to the right place and become part of this real round. Finish every card before time runs out. ESC cancels; E lets you retry.",
+            "Go to ROULETTE and press E. Inspect customer bets, the winning number and the table's finite chip stock.\n\nProfit odds: straight 35:1, split 17:1, street 11:1, corner 8:1, six-line 5:1; red/black, odd/even return 1:1. Gross payout includes your stake.",
+            "I'll arrange a full practice round. E at Roulette, then play COVER!\n\nSPIN: drag around the wheel and release. SWEEP: move every losing bet to the tray; leave winning bets. PAY: select available chips to match the exact gross return, including the stake. Finish all winners. If the float is short, refill it and retry PAY.",
+            "A customer is coming to the CASH DESK. Walk there and press E.\n\nClick the chip marked NEXT CHIP. Your selected chips appear in the customer tray. Wrong chips cost a little time. UNDO removes the last chip. When every chip is prepared, click FINISH or press E. This completes their cash-out.",
+            "Tables need a FLOAT: their own supply of chips, not casino profit. I'll request a £200 refill for BJ1.\n\nCASH DESK E: choose PACK FOR BJ1. Click £2.50 / £5 / £25 / £100 chips to match the listed counts. UNDO corrects a selection. A complete tray is automatically carried. Walk to BJ1 and press E to DELIVER. Carrying a tray makes delivery your first interaction.",
+            "Dealers lose energy as they work. When energy reaches ZERO, dealing STOPS and waiting customers lose patience!\n\nPIT DESK E: choose a READY dealer and ASSIGN to BJ1. The replacement walks there before taking over. The tired dealer returns to the desk. Never abandon an exhausted table: assign cover or take over yourself.",
+            "At PIT DESK, a returned dealer is ready for a decision. Press E and choose SEND ON BREAK.\n\nThey walk to the Break Room, sit, recover energy and return to the desk rested. Only READY staff can be assigned. I'll protect the rest of the team during practice so you can learn calmly.",
+            "I'll stop BJ1's dealer for practice. You can rescue the table even with no rested replacements!\n\nBJ1 E: choose TAKE OVER. SPACE or DEAL CARD advances cards and dealer draws. Customers still choose Hit / Stand. In payout, SPACE pays the exact return; the chip buttons also work. Complete ONE real hand. ESC leaves; dealing then waits for cover.",
+            "Now try taking over Roulette. ROULETTE E: choose TAKE OVER. Keep the table open while customers arrive, then SPACE starts its existing SPIN / SWEEP / PAY game.\n\nFinish the real round: all losing bets cleared, all winners paid exactly. This uses the same bets and inventory - never a second parallel round.",
+            "You're not meant to do every job forever! PIT DESK E: assign rested cover to BJ1 and Roulette.\n\nWhen a dealer reaches the table, service resumes automatically. Send the OUTGOING exhausted dealer on BREAK; they can then recover to cover the other table. If nobody is ready, keep operating a table while the team rests.",
+            "An ! always means a real job. Walk near it to see WHAT, WHERE and E. The station meter and HUD seconds use actual customer patience or task time: GREEN safe, YELLOW hurry, RED nearly expired.\n\nNo deadline means no fake meter. An expired customer leaves and lowers happiness; a timed-out task must be retried.\n\nSHIFT 1: serve 8 hands, HELP 4 times, keep 60% HAPPY. Results show real profit; float isn't income. Clear a shift, buy upgrades with stamps, then start the next shift. HELP revisits any lesson."
+        };
+        lessonTitle.text = $"TIGER'S TRAINING  {shownLesson + 1}/13\n{titles[shownLesson]}";
+        lessonText.text = instructions[shownLesson];
+        string[] demo = { "W A S D   ->   WALK   ->   E", "GOLD ARROW   ->   BJ1   ->   E", "SHOE   ->   GLOWING HAND   ->   ALL CARDS",
+            "E   ->   BETS   ->   RETURNS", "SPIN   ->   SWEEP LOSERS   ->   PAY WINNERS", "NEXT CHIP   ->   CLICK   ->   FINISH",
+            "CLICK CHIPS   ->   CARRY   ->   BJ1 E", "TIRED   ->   PIT DESK   ->   ASSIGN", "DESK   ->   BREAK   ->   RESTED",
+            "BJ1 E   ->   TAKE OVER   ->   SPACE", "ROULETTE E   ->   TAKE OVER   ->   SPACE", "RESTED COVER   ->   TABLE SERVICE",
+            "GREEN   ->   YELLOW   ->   RED   |   HANDS + HELP + HAPPY" };
+        lessonDemo.text = demo[shownLesson];
+        demonstrationProp.sprite = shownLesson == 2 || shownLesson == 9 ? CasinoPixelArt.Card :
+            shownLesson == 3 || shownLesson == 4 || shownLesson == 10 ? CasinoPixelArt.Wheel : CasinoPixelArt.Chip;
+    }
+
+    public void DismissLesson()
+    {
+        if (!lessonOpen) return;
+        if (!reviewLesson)
+        {
+            explainedLessons[shownLesson] = true;
+            if (shownLesson == 12) objectivesExplained = true;
+        }
+        lessonOpen = false;
+        lessonPanel.SetActive(false);
+        AudioListener.pause = paused;
+        dealers.SetPaused(paused);
+        router.enabled = !paused;
+        player.SetMovementEnabled(!paused && !AnyInteractionOpen());
+        hud.SetActive(!paused && !AnyInteractionOpen());
     }
 
     private void BuildInterface()
@@ -638,6 +812,43 @@ public sealed class CasinoShiftController : MonoBehaviour
         MakeButton(pauseCard.transform, "Main Menu", "MAIN MENU", new Vector2(0f, -80f), ReturnToMainMenu);
         MakeButton(pauseCard.transform, "Restart", "RESTART SHIFT", new Vector2(0f, -155f), RestartShift);
         pausePanel.SetActive(false);
+        lessonPanel = CasinoMinigamePresentation.CreateImage("Tutorial explanation", canvas.transform,
+            Vector2.zero, new Vector2(1600, 900), new Color(0, 0, 0, .8f), true);
+        RectTransform lessonShade = (RectTransform)lessonPanel.transform;
+        lessonShade.anchorMin = Vector2.zero; lessonShade.anchorMax = Vector2.one;
+        lessonShade.offsetMin = lessonShade.offsetMax = Vector2.zero;
+        GameObject lessonCard = Panel("Tiger's lesson", new Vector2(1180, 740));
+        lessonCard.transform.SetParent(lessonPanel.transform, false);
+        lessonTitle = Label(lessonCard.transform, "Lesson title", "", new Vector2(100, 260), new Vector2(880, 95), 29);
+        lessonTitle.color = CasinoHudStyle.Gold;
+        lessonText = Label(lessonCard.transform, "Lesson instructions", "", new Vector2(105, 15), new Vector2(850, 365), 23);
+        lessonText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        lessonText.verticalOverflow = VerticalWrapMode.Truncate;
+        lessonDemo = Label(lessonCard.transform, "Animated demonstration", "", new Vector2(0, -200), new Vector2(1120, 60), 20);
+        lessonDemo.color = CasinoHudStyle.Gold;
+        GameObject demoProp = CasinoMinigamePresentation.CreateImage("Practice animation prop", lessonCard.transform,
+            new Vector2(-190, -235), new Vector2(40, 40), Color.white);
+        demonstrationProp = demoProp.GetComponent<Image>();
+        demonstrationProp.preserveAspect = true;
+        demonstrationArrow = Label(lessonCard.transform, "Practice animation arrow", "->",
+            new Vector2(-70, -235), new Vector2(70, 35), 25);
+        demonstrationArrow.color = CasinoHudStyle.Gold;
+        GameObject guide = CasinoMinigamePresentation.CreateImage("Tiger guide portrait", lessonCard.transform,
+            new Vector2(-450, 55), new Vector2(165, 230), Color.white);
+        guidePortrait = guide.GetComponent<Image>();
+        guidePortrait.preserveAspect = true;
+        foreach (AIDealer dealer in dealers.Dealers)
+            if (dealer != null && dealer.DealerId == "Tiger") guideVisual = dealer.GetComponentInChildren<PixelCharacterVisual>();
+        Label(lessonCard.transform, "Guide name", "TIGER\nYOUR PIT PAL", new Vector2(-450, -130), new Vector2(200, 75), 20);
+        MakeButton(lessonCard.transform, "Practise", "LET ME TRY!  ENTER", new Vector2(0, -290), DismissLesson, new Vector2(350, 54));
+        MakeButton(lessonCard.transform, "Skip training", "SKIP TRAINING", new Vector2(375, -290), CompleteTutorial, new Vector2(270, 44));
+        MakeButton(lessonCard.transform, "Previous lesson", "<", new Vector2(-490, -290),
+            () => ShowLesson(shownLesson - 1, true), new Vector2(65, 44));
+        MakeButton(lessonCard.transform, "Next lesson", ">", new Vector2(-380, -290),
+            () => ShowLesson(shownLesson + 1, true), new Vector2(65, 44));
+        lessonPanel.SetActive(false);
+        MakeButton(hud.transform, "Review training", "HELP", new Vector2(140, -20),
+            () => ShowLesson(Mathf.Min(TutorialStage, 12), true), new Vector2(100, 32));
     }
 
     private void ShowUpgrades()

@@ -131,6 +131,12 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             return false;
         }
 
+        if (dealer.Energy <= 0)
+        {
+            reason = $"{dealer.DealerId} is exhausted. Send them on break before assigning a table.";
+            return false;
+        }
+
         if (!Contains(station))
         {
             reason = "Choose a configured casino table.";

@@ -54,6 +54,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public event Action<CasinoCustomerAI> LeavingSeat;
     public bool IsSeated => state == CustomerState.Seated;
     public bool IsWaitingAtCashDesk => state == CustomerState.VisitingCashier && cashierArrivalReported;
+    public bool IsVisitingCashier => state == CustomerState.VisitingCashier;
+    public bool CanBeGuidedToCashier => state == CustomerState.Wandering && !serviceActive;
     public bool IsInService => serviceActive;
     public CasinoSeat Seat => reservedSeat;
     public float PatienceNormalized => patience != null ? patience.Normalized : 1f;
@@ -110,7 +112,12 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         if (state == CustomerState.Seated && serviceActive && reservedSeat != null)
         {
             AIDealer dealer = reservedSeat.DealerStation != null ? reservedSeat.DealerStation.AssignedDealer : null;
-            if (dealer != null && dealer.CanServe) patience.Pause();
+            BlackjackTableInteraction blackjack = reservedSeat.DealerStation?.BlackjackTable;
+            RouletteRoundController roulette = reservedSeat.DealerStation?.GetComponent<RouletteRoundController>();
+            bool available = blackjack != null ? blackjack.IsServiceAvailable && !blackjack.IsFlickReady :
+                roulette != null ? roulette.IsServiceAvailable && !roulette.HasPendingAssistance :
+                dealer != null && dealer.CanServe;
+            if (available) patience.Pause();
             else patience.Resume();
         }
         UpdateImpatienceColor();
@@ -341,6 +348,18 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         state = CustomerState.Wandering;
         agent.isStopped = false;
         SetNextDecisionTime();
+    }
+
+    public bool TryVisitCashier()
+    {
+        if (cashierWaypoint == null || agent == null || !agent.isOnNavMesh ||
+            !agent.SetDestination(cashierWaypoint.position)) return false;
+        ReleaseSeat();
+        serviceActive = false;
+        state = CustomerState.VisitingCashier;
+        cashierArrivalReported = false;
+        agent.isStopped = false;
+        return true;
     }
 
     private bool TryChooseSeat()

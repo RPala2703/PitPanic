@@ -203,7 +203,7 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
 
         if (minigameStation.RequestMinigame(
                 CasinoMinigameType.Spin,
-                TableAttentionReason.RouletteSpinRequired))
+                TableAttentionReason.RouletteCoverRequired))
         {
             if (!roundController.TryPauseForAssistance())
             {

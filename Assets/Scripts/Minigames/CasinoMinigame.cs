@@ -25,6 +25,11 @@ public abstract class CasinoMinigame : MonoBehaviour
     public bool IsRunning { get; private set; }
     protected CasinoMinigamePresentation Presentation => presentation;
     public virtual bool CanBegin => true;
+    public virtual bool TryGetDeadline(out float remaining, out float duration)
+    {
+        remaining = duration = 0;
+        return false;
+    }
     protected virtual string PresentationTitle => GetType().Name.Replace("Minigame", string.Empty).ToUpperInvariant();
     protected virtual string PresentationInstructions => "Complete the service task. The casino remains live.";
 

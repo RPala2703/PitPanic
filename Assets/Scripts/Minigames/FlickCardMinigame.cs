@@ -58,14 +58,20 @@ public sealed class FlickCardMinigame : CasinoMinigame
                                      table.ActiveRound != null && table.RemainingFlickCardCount > 0 &&
                                      player != null && tableRoot != null && Mouse.current != null;
     protected override string PresentationTitle =>
-        table != null ? $"FLICK!  •  {table.TableDisplayName}" : "FLICK! DEAL THE OPENING HANDS";
+        table != null ? $"SHUFFLE!  •  {table.TableDisplayName}" : "SHUFFLE! PREPARE THE OPENING HANDS";
     protected override string PresentationInstructions =>
-        "GRAB A CARD  •  FLICK TO THE GLOWING HAND!";
+        "CLICK THE SHOE  •  CARDS FLY TO THE CORRECT HAND!";
     public int SuccessfulFlicks => successfulFlicks;
     public int MissedFlicks => missedFlicks;
     public bool IsConfigured => table != null && player != null && tableRoot != null;
     public bool IsDraggingCard => isDragging;
     public bool IsWaitingForCardFlight => waitingForFlight;
+    public override bool TryGetDeadline(out float remaining, out float duration)
+    {
+        remaining = timeRemaining;
+        duration = timeAllowance;
+        return IsRunning && remaining > 0;
+    }
 
     public static int RemainingOpeningCards(int activeHands) =>
         activeHands <= 0 ? 0 : activeHands + 1;
@@ -141,7 +147,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
         BuildPopup();
         RenderHands();
         RefreshHud();
-        SetFeedback("GRAB THE SHOE, AIM AT THE GLOWING HAND, THEN RELEASE.");
+        SetFeedback("CLICK THE CARD SHOE. Each click sends the next card to the highlighted hand.");
     }
 
     protected override void OnTick(float deltaTime)
@@ -162,7 +168,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
 
         if (table == null || player == null || gameArea == null)
         {
-            Debug.LogError($"{name}: FLICK lost its blackjack table, player, or popup and is exiting safely.", this);
+            Debug.LogError($"{name}: DEAL lost its blackjack table, player, or popup and is exiting safely.", this);
             table?.AbortFlickAssistance();
             Complete(false, 0);
             return;
@@ -232,19 +238,19 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private void BuildPopup()
     {
         GameObject statusPlate = CasinoMinigamePresentation.CreateImage(
-            "FLICK Status Plate", gameArea, new Vector2(0f, 250f), new Vector2(1300f, 64f),
+            "SHUFFLE Status Plate", gameArea, new Vector2(0f, 250f), new Vector2(1300f, 64f),
             new Color(0.025f, 0.12f, 0.09f, 0.96f));
         CasinoHudStyle.Panel(statusPlate.GetComponent<Image>(), new Color(0.10f, 0.30f, 0.31f));
         progressText = CasinoMinigamePresentation.CreateText(
-            statusPlate.transform, "FLICK Progress", "CARDS  0/0",
+            statusPlate.transform, "SHUFFLE Progress", "CARDS  0/0",
             new Vector2(-300f, 0f), new Vector2(560f, 54f), 24, Color.white);
         timerText = CasinoMinigamePresentation.CreateText(
-            statusPlate.transform, "FLICK Timer", "TIME  20.0",
+            statusPlate.transform, "SHUFFLE Timer", "TIME  20.0",
             new Vector2(390f, 0f), new Vector2(260f, 54f), 23,
             new Color(1f, 0.86f, 0.35f));
 
         GameObject shoe = CasinoMinigamePresentation.CreateImage(
-            "FLICK Clickable Card Shoe", gameArea, new Vector2(-535f, 6f), new Vector2(168f, 238f),
+            "SHUFFLE Clickable Card Shoe", gameArea, new Vector2(-535f, 6f), new Vector2(168f, 238f),
             new Color(0.07f, 0.15f, 0.25f));
         shoeRect = shoe.GetComponent<RectTransform>();
         CasinoHudStyle.Panel(shoe.GetComponent<Image>(), new Color(0.12f, 0.28f, 0.38f));
@@ -263,14 +269,14 @@ public sealed class FlickCardMinigame : CasinoMinigame
         }
         CasinoMinigamePresentation.CreateText(shoe.transform, "Shoe Label", "CARD SHOE",
             new Vector2(0f, 88f), new Vector2(148f, 42f), 20, Color.white);
-        CasinoMinigamePresentation.CreateText(shoe.transform, "Shoe Action", "HOLD + DRAG",
+        CasinoMinigamePresentation.CreateText(shoe.transform, "Shoe Action", "CLICK TO DEAL",
             new Vector2(0f, -90f), new Vector2(148f, 32f), 15,
             new Color(1f, 0.85f, 0.42f));
 
-        CasinoMinigamePresentation.CreateText(gameArea, "FLICK Feedback", "",
+        CasinoMinigamePresentation.CreateText(gameArea, "SHUFFLE Feedback", "",
             new Vector2(0f, -270f), new Vector2(1260f, 42f), 19,
             new Color(1f, 0.88f, 0.43f));
-        feedbackText = gameArea.Find("FLICK Feedback").GetComponent<Text>();
+        feedbackText = gameArea.Find("SHUFFLE Feedback").GetComponent<Text>();
         CreateHandTargets();
     }
 
@@ -394,43 +400,23 @@ public sealed class FlickCardMinigame : CasinoMinigame
     private void UpdatePointerInput()
     {
         Mouse mouse = Mouse.current;
-        if (mouse == null || waitingForFlight)
+        if (mouse == null || waitingForFlight || !mouse.leftButton.wasPressedThisFrame)
         {
             return;
         }
 
         Vector2 pointer = mouse.position.ReadValue();
-        if (mouse.leftButton.wasPressedThisFrame && !isDragging &&
-            CasinoMinigamePresentation.ContainsScreenPoint(shoeRect, pointer))
+        if (CasinoMinigamePresentation.ContainsScreenPoint(shoeRect, pointer))
         {
-            isDragging = true;
-            heldVisual = CreateCardVisual(gameArea, default, true, new Vector2(76f, 105f));
-            heldCardRect = heldVisual.Rect;
-            MoveToPointer(heldCardRect, pointer);
-            SetFeedback("AIM AT THE GLOWING HAND AND RELEASE.");
-        }
-
-        if (isDragging && heldCardRect != null && mouse.leftButton.isPressed)
-        {
-            MoveToPointer(heldCardRect, pointer);
-        }
-
-        if (isDragging && mouse.leftButton.wasReleasedThisFrame)
-        {
-            isDragging = false;
-            int target = FindTargetAtScreenPoint(pointer);
-            int expected = table.GetNextFlickTarget();
-            if (!IsValidFlickTarget(target, expected, waitingForFlight))
+            int target = table.GetNextFlickTarget();
+            if (target == -2)
             {
-                missedFlicks++;
-                DestroyHeldCard();
-                SetFeedback(target == -2
-                    ? "MISS! RELEASE THE CARD INSIDE THE GLOWING HAND."
-                    : "WRONG HAND! TRY THE HIGHLIGHTED TARGET.");
-                UpdateTargetHighlight();
+                Finish(true);
                 return;
             }
-
+            heldVisual = CreateCardVisual(gameArea, default, true, new Vector2(76f, 105f));
+            heldCardRect = heldVisual.Rect;
+            heldCardRect.anchoredPosition = shoeRect.anchoredPosition;
             AcceptCard(target);
         }
     }
@@ -585,7 +571,7 @@ public sealed class FlickCardMinigame : CasinoMinigame
     {
         if (success && (table == null || table.RemainingFlickCardCount != 0))
         {
-            Debug.LogError($"{name}: FLICK attempted to complete before all cards were dealt.", this);
+            Debug.LogError($"{name}: DEAL attempted to complete before all cards were dealt.", this);
             success = false;
         }
 

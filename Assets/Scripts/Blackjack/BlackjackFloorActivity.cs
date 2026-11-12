@@ -136,8 +136,9 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
             {
                 visuals.BetPlaced = true;
                 SpawnBetStack(hand, visuals);
-                hand.Customer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
-                    CasinoGesture.Pay, container.TransformPoint(HandAnchor(hand)), .8f);
+                if (hand.Customer != null)
+                    hand.Customer.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
+                        CasinoGesture.Pay, container.TransformPoint(HandAnchor(hand)), .8f);
             }
 
             while (visuals.Cards.Count < hand.Cards.Count)
@@ -370,13 +371,9 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
 
     private void Gesture(CasinoGesture gesture, Vector3 worldTarget, float duration = 0.6f)
     {
-        AIDealer dealer = table != null ? table.AssignedDealer : null;
-        if (dealer == null)
-        {
-            return;
-        }
-
-        CasinoCharacterVisual visual = dealer.GetComponentInChildren<CasinoCharacterVisual>();
+        CasinoCharacterVisual visual = table != null && table.IsPlayerOperating
+            ? FindFirstObjectByType<CasinoPlayerController>()?.GetComponentInChildren<CasinoCharacterVisual>()
+            : table?.AssignedDealer?.GetComponentInChildren<CasinoCharacterVisual>();
         if (visual != null)
         {
             visual.PlayGesture(gesture, worldTarget, duration);

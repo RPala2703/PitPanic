@@ -40,6 +40,10 @@ public sealed class CasinoPlayerController : MonoBehaviour
         if (keyboard.dKey.isPressed) input.x += 1f;
         if (keyboard.sKey.isPressed) input.y -= 1f;
         if (keyboard.wKey.isPressed) input.y += 1f;
+        if (keyboard.leftArrowKey.isPressed) input.x -= 1f;
+        if (keyboard.rightArrowKey.isPressed) input.x += 1f;
+        if (keyboard.downArrowKey.isPressed) input.y -= 1f;
+        if (keyboard.upArrowKey.isPressed) input.y += 1f;
 
         Vector3 movement = new Vector3(input.x, 0f, input.y).normalized;
         if (movement.sqrMagnitude > 0.0001f)
