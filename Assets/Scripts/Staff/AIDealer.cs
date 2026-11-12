@@ -132,6 +132,8 @@ public sealed class AIDealer : MonoBehaviour
         agent.acceleration = 10f;
         agent.angularSpeed = 540f;
         agent.stoppingDistance = 0.1f;
+        agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+        agent.avoidancePriority = 15;
         originalScale = transform.localScale;
 
         if (initialStation != null)

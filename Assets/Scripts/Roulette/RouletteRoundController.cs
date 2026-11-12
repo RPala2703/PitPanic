@@ -434,6 +434,9 @@ public sealed class RouletteRoundController : MonoBehaviour
                 break;
             case RouletteRoundPhase.SettlingBets:
             case RouletteRoundPhase.ClearingTable:
+                if (Phase == RouletteRoundPhase.SettlingBets &&
+                    assistanceBets.Count == 0 && !TrySettleAutomaticPayouts())
+                    return;
                 phaseTimer -= Time.deltaTime;
                 if (phaseTimer <= 0f)
                 {
@@ -495,6 +498,8 @@ public sealed class RouletteRoundController : MonoBehaviour
                 ? new RouletteBet(i % 2 == 0 ? RouletteBetType.Red : RouletteBetType.Black, -1, 500)
                 : CreateCustomerBet();
             RouletteCustomerBet customerBet = new RouletteCustomerBet(activeRoundId, i, customer, bet);
+            if (!TryAddWagerToFloat(bet.StakePence))
+                throw new InvalidOperationException($"Could not record {FormatPounds(bet.StakePence)} in the roulette table float.");
             currentBets.Add(customerBet);
             customer.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(CasinoGesture.Pay, transform.position);
             CreateVisibleBetChips(customerBet);
@@ -506,19 +511,51 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     private static RouletteBet CreateCustomerBet()
     {
-        RouletteBetType type = (RouletteBetType)UnityEngine.Random.Range(
-            0, Enum.GetValues(typeof(RouletteBetType)).Length);
-        int number = type == RouletteBetType.StraightUp
-            ? UnityEngine.Random.Range(0, 37)
-            : -1;
+        RouletteBetType[] types = (RouletteBetType[])Enum.GetValues(typeof(RouletteBetType));
+        RouletteBetType type = types[UnityEngine.Random.Range(0, types.Length)];
+        int row = UnityEngine.Random.Range(0, 12);
+        int column = UnityEngine.Random.Range(0, 3);
+        int number = row * 3 + column + 1;
+        int[] numbers = null;
+        switch (type)
+        {
+            case RouletteBetType.Split:
+                numbers = column < 2 ? new[] { number, number + 1 } : new[] { number, number + 3 };
+                break;
+            case RouletteBetType.Street:
+                number = row * 3 + 1;
+                numbers = new[] { number, number + 1, number + 2 };
+                break;
+            case RouletteBetType.Corner:
+                row = UnityEngine.Random.Range(0, 11);
+                column = UnityEngine.Random.Range(0, 2);
+                number = row * 3 + column + 1;
+                numbers = new[] { number, number + 1, number + 3, number + 4 };
+                break;
+            case RouletteBetType.SixLine:
+                row = UnityEngine.Random.Range(0, 11);
+                number = row * 3 + 1;
+                numbers = new[] { number, number + 1, number + 2, number + 3, number + 4, number + 5 };
+                break;
+        }
         int[] stakes = { 500, 1000, 2500 };
         int stake = stakes[UnityEngine.Random.Range(0, stakes.Length)];
-        return new RouletteBet(type, number, stake);
+        return type switch
+        {
+            RouletteBetType.StraightUp => new RouletteBet(type, UnityEngine.Random.Range(0, 37), stake),
+            RouletteBetType.Split or RouletteBetType.Street or RouletteBetType.Corner or RouletteBetType.SixLine =>
+                new RouletteBet(type, numbers, stake),
+            _ => new RouletteBet(type, -1, stake)
+        };
     }
 
     public static string GetBetLabel(RouletteBet bet) => bet.Type switch
     {
         RouletteBetType.StraightUp => $"NUMBER {bet.Number}",
+        RouletteBetType.Split => $"SPLIT {string.Join("/", bet.Numbers)}",
+        RouletteBetType.Street => $"STREET {string.Join("/", bet.Numbers)}",
+        RouletteBetType.Corner => $"CORNER {string.Join("/", bet.Numbers)}",
+        RouletteBetType.SixLine => $"SIX LINE {string.Join("/", bet.Numbers)}",
         RouletteBetType.Red => "RED",
         RouletteBetType.Black => "BLACK",
         RouletteBetType.Odd => "ODD",
@@ -564,6 +601,20 @@ public sealed class RouletteRoundController : MonoBehaviour
             tableChips.Add(chip);
             visuals.Add(chip);
         }
+    }
+
+    private bool TryAddWagerToFloat(int amountPence)
+    {
+        if (floatDestination == null) return false;
+        List<BlackjackChipDenomination> chips = BlackjackChipDenomination.GetExactComposition(
+            amountPence, BlackjackChipDenomination.CreateDefaults());
+        int[] counts = new int[4];
+        foreach (BlackjackChipDenomination chip in chips)
+        {
+            int index = chip.ValuePence switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+            if (index >= 0) counts[index]++;
+        }
+        return floatDestination.TryAddChips(counts);
     }
 
     private void BeginAutomaticSpin()
@@ -679,6 +730,25 @@ public sealed class RouletteRoundController : MonoBehaviour
 
         Phase = RouletteRoundPhase.SettlingBets;
         phaseTimer = settlementSeconds;
+    }
+
+    private bool TrySettleAutomaticPayouts()
+    {
+        foreach (RouletteCustomerBet bet in currentBets)
+        {
+            if (!bet.IsWinning || bet.IsPaid) continue;
+            if (!floatDestination.TryGetAvailableComposition((int)bet.GrossReturnPence, out int[] counts) ||
+                !floatDestination.TryConsumeChips(counts))
+            {
+                floatDestination.RequestAttention();
+                return false;
+            }
+
+            bet.PaidOutPence = bet.GrossReturnPence;
+            bet.IsPaid = true;
+        }
+
+        return true;
     }
 
     private void FinishRound()

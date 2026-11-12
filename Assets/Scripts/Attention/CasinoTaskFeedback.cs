@@ -62,7 +62,9 @@ public static class CasinoTaskFeedback
             return "Pit Desk E: assign cover, then send the tired dealer on break!";
         if (attention.GetPendingCount(TableAttentionReason.FlickAssistanceRequired) > 0 ||
             attention.GetPendingCount(TableAttentionReason.DealCards) > 0)
-            return "E: Blackjack needs DEAL! Send cards to each glowing hand.";
+            return "E: Blackjack needs SHUFFLE! Click the shoe to deal each opening card.";
+        if (attention.GetPendingCount(TableAttentionReason.RouletteCoverRequired) > 0)
+            return "E: Roulette needs COVER! Spin, sweep losing bets, then pay the winners.";
         if (attention.GetPendingCount(TableAttentionReason.RouletteSpinRequired) > 0 ||
             attention.GetPendingCount(TableAttentionReason.RouletteSweepRequired) > 0)
             return "E: Roulette needs SPIN! Clear losers, then pay winners exactly.";

@@ -323,6 +323,11 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
         }
         else if (activeCustomer != null)
         {
+            int[] cashOutCounts = new int[4];
+            for (int i = 0; i < cashOutCounts.Length; i++)
+                cashOutCounts[i] = packMinigame.PackedCounts[i];
+            if (packMinigame.IsCashOutMode && !TryConsumeRegisterStock(cashOutCounts))
+                throw new InvalidOperationException("The completed customer cash-out exceeded available register chip stock.");
             activeCustomer.CompleteCashierVisit();
             queuedCustomers.Remove(activeCustomer);
             activeCustomer = null;
@@ -341,17 +346,8 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
 
     private void BeginNextPackIfReady()
     {
-        if (!IsConfigured || minigameStation.IsTaskPending || minigameStation.IsMinigameRunning ||
-            carryingOrder != null)
+        if (!IsConfigured || minigameStation.IsMinigameRunning || carryingOrder != null)
         {
-            return;
-        }
-
-        IReadOnlyList<CasinoFloatRefillOrder> requestedOrders = GetRequestedOrders();
-        if (requestedOrders.Count > 0)
-        {
-            packMinigame.SetAvailableFloatOrders(requestedOrders);
-            minigameStation.RequestMinigame(CasinoMinigameType.Pack, TableAttentionReason.CashDeskPackRequired);
             return;
         }
 
@@ -371,13 +367,69 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
             }
         }
 
-        if (activeCustomer == null)
+        if (activeCustomer != null)
         {
-            return;
+            List<int> payableAmounts = new List<int>();
+            List<int[]> payableCompositions = new List<int[]>();
+            foreach (int amount in AvailablePackAmountsPence)
+            {
+                if (TryGetRegisterComposition(amount, out int[] composition))
+                {
+                    payableAmounts.Add(amount);
+                    payableCompositions.Add(composition);
+                }
+            }
+
+            if (payableAmounts.Count > 0)
+            {
+                int selected = UnityEngine.Random.Range(0, payableAmounts.Count);
+                packMinigame.SetCashOutAmount(payableAmounts[selected], payableCompositions[selected]);
+                minigameStation.RequestMinigame(CasinoMinigameType.Pack, TableAttentionReason.CashDeskPackRequired);
+                return;
+            }
         }
 
-        packMinigame.SetCashOutAmount(AvailablePackAmountsPence[UnityEngine.Random.Range(0, AvailablePackAmountsPence.Length)]);
-        minigameStation.RequestMinigame(CasinoMinigameType.Pack, TableAttentionReason.CashDeskPackRequired);
+        IReadOnlyList<CasinoFloatRefillOrder> requestedOrders = GetRequestedOrders();
+        if (requestedOrders.Count > 0)
+        {
+            packMinigame.SetAvailableFloatOrders(requestedOrders);
+            minigameStation.RequestMinigame(CasinoMinigameType.Pack, TableAttentionReason.CashDeskPackRequired);
+        }
+    }
+
+    private bool TryGetRegisterComposition(int amountPence, out int[] counts)
+    {
+        counts = new int[registerChipStock.Length];
+        int[] values = { 500, 250, 2500, 10000 };
+        var failed = new HashSet<long>();
+        return FindRegisterComposition(0, amountPence, values, counts, failed);
+    }
+
+    private bool FindRegisterComposition(int denomination, int remaining, int[] values,
+        int[] counts, HashSet<long> failed)
+    {
+        if (denomination == values.Length) return remaining == 0;
+        long key = ((long)denomination << 32) | (uint)remaining;
+        if (failed.Contains(key)) return false;
+        int max = Mathf.Min(registerChipStock[denomination], remaining / values[denomination]);
+        for (int count = max; count >= 0; count--)
+        {
+            counts[denomination] = count;
+            if (FindRegisterComposition(denomination + 1,
+                    remaining - count * values[denomination], values, counts, failed))
+                return true;
+        }
+        counts[denomination] = 0;
+        failed.Add(key);
+        return false;
+    }
+
+    private bool TryConsumeRegisterStock(int[] requestedCounts)
+    {
+        if (!HasRegisterStock(requestedCounts)) return false;
+        for (int i = 0; i < registerChipStock.Length; i++)
+            registerChipStock[i] -= requestedCounts[i];
+        return true;
     }
 
     private void ReturnOrderToRequested(CasinoFloatRefillOrder order, bool refundStock)

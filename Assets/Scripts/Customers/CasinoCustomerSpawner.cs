@@ -231,7 +231,12 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     public bool TrySpawnGuidedCashOut()
     {
         foreach (CasinoCustomerAI customer in activeCustomers)
-            if (customer != null && customer.IsVisitingCashier) return true;
+        {
+            if (customer == null) continue;
+            if (customer.IsVisitingCashier) return true;
+            if (customer.CanBeGuidedToCashier && customer.TryVisitCashier()) return true;
+        }
+
         CasinoCustomerAI visitor = SpawnCustomer(activeCustomers.Count * 2);
         if (visitor == null) return false;
         if (visitor.TryVisitCashier()) return true;

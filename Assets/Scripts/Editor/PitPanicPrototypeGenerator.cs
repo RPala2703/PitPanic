@@ -458,7 +458,7 @@ public static class PitPanicPrototypeGenerator
             CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Spin) ||
             !CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Pack))
         {
-            throw new System.InvalidOperationException("DEAL! retry state or remaining-card counts are incorrect.");
+            throw new System.InvalidOperationException("SHUFFLE! retry state or remaining-card counts are incorrect.");
         }
 
         if (DealerAssignmentManager.ShouldRequestPitDeskDecision(false) ||
@@ -473,7 +473,7 @@ public static class PitPanicPrototypeGenerator
         {
             if (FlickCardMinigame.OpeningTargetForStep(3, dealStep) != expectedFlickTargets[dealStep])
             {
-                throw new System.InvalidOperationException($"DEAL! recipient at opening-deal step {dealStep} is incorrect.");
+                throw new System.InvalidOperationException($"SHUFFLE! recipient at opening-deal step {dealStep} is incorrect.");
             }
         }
 
@@ -482,7 +482,7 @@ public static class PitPanicPrototypeGenerator
             FlickCardMinigame.IsValidFlickTarget(1, 1, true) ||
             FlickCardMinigame.IsValidFlickTarget(-2, -2, false))
         {
-            throw new System.InvalidOperationException("DEAL! accepted an invalid, duplicate, or in-flight card target.");
+            throw new System.InvalidOperationException("SHUFFLE! accepted an invalid, duplicate, or in-flight card target.");
         }
 
         if (!RouletteTableMinigame.TryGetWinningNumber(0f, out int firstPocket) || firstPocket != 0 ||
@@ -681,9 +681,12 @@ public static class PitPanicPrototypeGenerator
 
         if (!floatDestination.TryConsumeChips(new[] { 10, 0, 0, 0 }) ||
             !floatDestination.NeedsRefill() ||
-            floatDestination.TryConsumeChips(new[] { 1, 0, 0, 0 }))
+            floatDestination.TryConsumeChips(new[] { 1, 0, 0, 0 }) ||
+            !floatDestination.TryGetAvailableComposition(7500, out int[] availablePayout) ||
+            !RouletteRoundController.PayoutChipsMatchAmount(availablePayout, 7500) ||
+            floatDestination.TryGetAvailableComposition(15250, out _))
         {
-            throw new System.InvalidOperationException("Table float consumption did not atomically trigger a low-stock refill.");
+            throw new System.InvalidOperationException("Table float consumption, bounded payout composition, or low-stock refill handling failed.");
         }
 
         UnityEngine.Object.DestroyImmediate(floatDestinationObject);
@@ -1150,7 +1153,7 @@ public static class PitPanicPrototypeGenerator
                 flickMinigame == null || !flickMinigame.IsConfigured ||
                 !HasBettingSpots(blackjackTable.transform))
             {
-                throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or DEAL! system.");
+                throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or SHUFFLE! system.");
             }
 
             string expectedTableLabel = blackjackTable.name == "Blackjack Table 1" ? "BLACKJACK 1" : "BLACKJACK 2";
@@ -1767,6 +1770,19 @@ public static class PitPanicPrototypeGenerator
         AssertRouletteGrossReturn(redWin, 7, 1000);
         AssertRouletteGrossReturn(blackWin, 2, 5000);
         AssertRouletteGrossReturn(oddWin, 7, 2000);
+        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.Split, new[] { 1, 2 }, 500), 2, 9000);
+        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.Street, new[] { 1, 2, 3 }, 500), 3, 6000);
+        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.Corner, new[] { 1, 2, 4, 5 }, 500), 5, 4500);
+        AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.SixLine,
+            new[] { 1, 2, 3, 4, 5, 6 }, 500), 6, 3000);
+        if (!EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 2, 3 }, 500)) ||
+            EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 0, 3 }, 500)) ||
+            EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 3, 4 }, 500)) ||
+            EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Street, new[] { 2, 3, 4 }, 500)) ||
+            EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Corner, new[] { 1, 2, 4, 6 }, 500)) ||
+            EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.SixLine,
+                new[] { 1, 2, 3, 7, 8, 9 }, 500)))
+            throw new System.InvalidOperationException("Roulette inside bets accepted an illegal number layout.");
 
         int[] payout = RouletteTableMinigame.GetPayoutComposition(18000);
         if (payout.Length != 4 || payout[0] * 500 + payout[1] * 250 +

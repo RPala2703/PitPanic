@@ -101,9 +101,12 @@ public sealed class RouletteTableMinigame : CasinoMinigame
     public override bool CanBegin => IsConfigured && Mouse.current != null &&
                                      roundController.Phase == RouletteRoundPhase.AwaitingAssistance &&
                                      roundController.AssistanceBets.Count > 0;
-    protected override string PresentationTitle => "SPIN!";
+    protected override string PresentationTitle =>
+        roundController != null && !roundController.IsPlayerOperating ? "COVER!" : "SPIN!";
     protected override string PresentationInstructions =>
-        "DRAG THE WHEEL  •  LET IT FLY!";
+        roundController != null && !roundController.IsPlayerOperating
+            ? "COVER THIS ROUND  •  SPIN, SWEEP LOSERS, PAY WINNERS."
+            : "DRAG THE WHEEL  •  LET IT FLY!";
     public int WinningNumber => winningNumber;
     public int SweptChipCount => sweptCount;
     public long AssistanceRoundId => assistanceRoundId;
@@ -683,6 +686,14 @@ public sealed class RouletteTableMinigame : CasinoMinigame
         if (stage != RouletteStage.Pay || currentPayoutBet == null ||
             denominationIndex < 0 || denominationIndex >= PayoutDenominationsPence.Length)
         {
+            return;
+        }
+
+        int stock = roundController.FloatDestination.GetChipCount(denominationIndex);
+        if (selectedPayoutCounts[denominationIndex] + payoutQuantity > stock)
+        {
+            roundController.FloatDestination.RequestAttention();
+            payoutFeedbackText.text = $"ONLY {stock} {PayoutChipNames[denominationIndex]} CHIPS IN THIS FLOAT";
             return;
         }
 

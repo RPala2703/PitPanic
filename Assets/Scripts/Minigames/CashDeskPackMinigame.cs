@@ -46,6 +46,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     private Text nextChipText;
     private RectTransform floatTrayRect;
     private int cashOutAmountPence = 4000;
+    private int[] cashOutChipCounts;
     private int totalRequired;
     private int packedCount;
     private int sequenceIndex;
@@ -211,14 +212,24 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     public void SetCashOutAmount(int amountPence)
     {
+        SetCashOutAmount(amountPence, null);
+    }
+
+    public void SetCashOutAmount(int amountPence, int[] chipCounts)
+    {
         if (amountPence <= 0)
         {
             throw new System.ArgumentOutOfRangeException(nameof(amountPence));
         }
+        if (chipCounts != null &&
+            (chipCounts.Length != FloatDenominationsPence.Length ||
+             !CountsMatchAmount(chipCounts, amountPence)))
+            throw new System.ArgumentException("Cash-out chips must exactly match the requested amount.", nameof(chipCounts));
 
         availableOrders.Clear();
         selectedOrder = null;
         cashOutAmountPence = amountPence;
+        cashOutChipCounts = chipCounts != null ? (int[])chipCounts.Clone() : null;
         cashOutMode = true;
     }
 
@@ -360,10 +371,15 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     private void BeginCashOutPacking()
     {
-        int[] composition = GetExactChipComposition(cashOutAmountPence, CustomerDenominationsPence);
-        for (int i = 0; i < composition.Length; i++)
+        if (cashOutChipCounts != null)
         {
-            requiredCounts[GetFloatDenominationIndex(composition[i])]++;
+            System.Array.Copy(cashOutChipCounts, requiredCounts, requiredCounts.Length);
+        }
+        else
+        {
+            int[] composition = GetExactChipComposition(cashOutAmountPence, CustomerDenominationsPence);
+            for (int i = 0; i < composition.Length; i++)
+                requiredCounts[GetFloatDenominationIndex(composition[i])]++;
         }
 
         cashOutMode = true;
@@ -371,6 +387,18 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         BuildPackingLayout();
         SetStatus($"CUSTOMER CASH-OUT  •  {FormatPounds(cashOutAmountPence)}");
         SetInstruction("Click the NEXT CHIP shown. UNDO removes the last chip. FINISH (E) pays the exact total.");
+    }
+
+    private static bool CountsMatchAmount(int[] counts, int amountPence)
+    {
+        int[] values = { 500, 250, 2500, 10000 };
+        long total = 0;
+        for (int i = 0; i < counts.Length; i++)
+        {
+            if (counts[i] < 0) return false;
+            total += (long)counts[i] * values[i];
+        }
+        return total == amountPence;
     }
 
     private void StartPacking(int[] counts)
@@ -503,6 +531,10 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         amount.rectTransform.offsetMax = new Vector2(-3f, -3f);
         CreateText($"{ChipNames[denominationIndex]} Chip Name", ChipNames[denominationIndex],
             new Vector2(position.x, position.y - 68f), new Vector2(150f, 28f), 16, Color.white);
+        CreateText($"{ChipNames[denominationIndex]} Register Stock",
+            $"IN REGISTER: {refillManager?.GetRegisterStock(denominationIndex) ?? 0}",
+            new Vector2(position.x, position.y - 88f), new Vector2(158f, 24f), 11,
+            new Color(0.75f, 0.9f, 0.82f));
         return button;
     }
 

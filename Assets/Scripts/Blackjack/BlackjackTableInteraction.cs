@@ -39,6 +39,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private int roundsSinceFlick;
     private AIDealer assignedDealer;
     [SerializeField] private CasinoMinigameStation flickStation;
+    [SerializeField] private CasinoFloatRefillDestination floatDestination;
     [SerializeField] private string tableIdentifier;
     private float nextDealerActionTime;
     private string message = "Waiting for customers.";
@@ -48,6 +49,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         interactionZone != null &&
         interactionZone.IsConfigured &&
         attention != null &&
+        (floatDestination != null || GetComponent<CasinoFloatRefillDestination>() != null) &&
         seats != null &&
         seats.Length == 3;
 
@@ -129,6 +131,13 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         tableView = GetComponent<BlackjackTableView>();
+        if (floatDestination == null) floatDestination = GetComponent<CasinoFloatRefillDestination>();
+        if (floatDestination == null)
+        {
+            Debug.LogError($"{nameof(BlackjackTableInteraction)} on {name} has no table chip inventory.", this);
+            enabled = false;
+            return;
+        }
         if (tableView == null)
         {
             tableView = gameObject.AddComponent<BlackjackTableView>();
@@ -226,7 +235,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         tableView.SetPromptVisible(
             inRange && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen() && !CasinoMinigamePresentation.IsOpen &&
                 playerController.GetComponent<CasinoPlayerFloatCarrier>()?.IsCarrying != true,
-            $"E  •  {TableDisplayName}{(flickReady ? "  •  DEAL! READY" : "")}");
+            $"E  •  {TableDisplayName}{(flickReady ? "  •  SHUFFLE! READY" : "")}");
         tableView.SetAssistance(IsFlickReady, StartAssistance);
     }
 
@@ -353,10 +362,20 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             if (payoutHandIndex >= 0)
             {
                 selectedPayoutChips.Clear();
-                foreach (BlackjackChipDenomination chip in BlackjackChipDenomination.GetExactComposition(
-                    round.CustomerHands[payoutHandIndex].PayoutPence, chipDenominations))
-                    selectedPayoutChips.Add(chip.ValuePence);
-                ConfirmPayout();
+                if (TryGetAvailablePayout(round.CustomerHands[payoutHandIndex].PayoutPence, out int[] counts))
+                {
+                    int[] values = { 500, 250, 2500, 10000 };
+                    for (int i = 0; i < counts.Length; i++)
+                        for (int chip = 0; chip < counts[i]; chip++)
+                            selectedPayoutChips.Add(values[i]);
+                    ConfirmPayout();
+                }
+                else
+                {
+                    floatDestination?.RequestAttention();
+                    message = "The table float is short. Deliver a refill to finish this payout.";
+                    RefreshView();
+                }
             }
         }
         else if (state != BlackjackTableState.ClearingTable)
@@ -426,6 +445,15 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         {
             CasinoCustomerAI customer = participants[i];
             int betPence = participantBetsPence[i];
+            List<BlackjackChipDenomination> wager = BlackjackChipDenomination.GetExactComposition(betPence, chipDenominations);
+            int[] wagerCounts = new int[4];
+            foreach (BlackjackChipDenomination chip in wager)
+            {
+                int index = chip.ValuePence switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+                if (index >= 0) wagerCounts[index]++;
+            }
+            if (floatDestination != null && !floatDestination.TryAddChips(wagerCounts))
+                Debug.LogError($"Could not record the wager from {GetCustomerName(customer)} at {TableDisplayName}.", this);
             round.AddCustomer(customer, customer.Seat, betPence);
             bets.Add($"{GetCustomerName(customer)} {FormatPounds(betPence)}");
         }
@@ -795,6 +823,13 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         int selected = GetSelectedPayoutTotal();
         int required = round.CustomerHands[payoutHandIndex].PayoutPence;
+        if (!HasChipAvailable(denomination))
+        {
+            floatDestination?.RequestAttention();
+            message = $"{FormatPounds(denomination)} chips are out of stock. Request or deliver a table float.";
+            RefreshView();
+            return;
+        }
         if (selected + denomination > required)
         {
             message = "That chip exceeds the remaining payout. Remove a chip or choose a smaller value.";
@@ -839,8 +874,18 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             return;
         }
 
+        int[] payoutCounts = GetSelectedPayoutCounts();
+        if (floatDestination == null || !floatDestination.TryConsumeChips(payoutCounts))
+        {
+            floatDestination?.RequestAttention();
+            message = "The table float cannot cover these chips. Refill the table before paying.";
+            RefreshView();
+            return;
+        }
+
         if (!round.TryMarkPayoutPaid(hand))
         {
+            floatDestination.TryAddChips(payoutCounts);
             Debug.LogError("Blackjack payout was already completed or is not payable.", this);
             return;
         }
@@ -849,7 +894,34 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         attention.ResolveAttention(TableAttentionReason.PayoutRequired);
         selectedPayoutChips.Clear();
         message = $"Correct payout to {GetCustomerName(hand)}.";
+        if (floatDestination != null && floatDestination.NeedsRefill())
+            floatDestination.RequestAttention();
         SelectNextPayout();
+    }
+
+    private bool HasChipAvailable(int denominationPence)
+    {
+        int index = denominationPence switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+        return index >= 0 && floatDestination != null && floatDestination.GetChipCount(index) > 0;
+    }
+
+    private int[] GetSelectedPayoutCounts()
+    {
+        int[] counts = new int[4];
+        foreach (int denomination in selectedPayoutChips)
+        {
+            int index = denomination switch { 500 => 0, 250 => 1, 2500 => 2, 10000 => 3, _ => -1 };
+            if (index >= 0) counts[index]++;
+        }
+        return counts;
+    }
+
+    private bool TryGetAvailablePayout(int amountPence, out int[] counts)
+    {
+        if (floatDestination != null)
+            return floatDestination.TryGetAvailableComposition(amountPence, out counts);
+        counts = null;
+        return false;
     }
 
     private void BeginClearingTable()
@@ -917,6 +989,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             awaitingCustomerCard,
             !IsPlayerOperating,
             message);
+        tableView.SetFloatInventory(floatDestination);
         tableView.SetTakeover(!IsDealerStaffed, IsPlayerOperating, BeginPlayerTakeover);
     }
 
@@ -973,7 +1046,18 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             {
                 if (!hand.PayoutPaid && hand.PayoutPence > 0)
                 {
-                    round.TryMarkPayoutPaid(hand);
+                    if (floatDestination == null ||
+                        !TryGetAvailablePayout(hand.PayoutPence, out int[] counts) ||
+                        !floatDestination.TryConsumeChips(counts))
+                    {
+                        floatDestination?.RequestAttention();
+                        message = "Table float is short; deliver a refill to complete the automatic payout.";
+                        RefreshView();
+                        return;
+                    }
+
+                    bool paid = round.TryMarkPayoutPaid(hand);
+                    if (!paid) floatDestination.TryAddChips(counts);
                 }
             }
 
@@ -1016,7 +1100,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
         else
         {
-            Debug.Log($"{name}: DEAL! testing task queued for the next safe blackjack-deal boundary.", this);
+            Debug.Log($"{name}: SHUFFLE! testing task queued for the next safe blackjack-deal boundary.", this);
         }
     }
 
@@ -1113,8 +1197,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                                  round != null && state == BlackjackTableState.InitialDeal;
             flickDealerPaused = flickBoundaryReady;
             message = flickBoundaryReady
-                ? "DEAL! is paused and ready to retry."
-                : "DEAL! was cancelled; the dealer will continue.";
+                ? "SHUFFLE! is paused and ready to retry."
+                : "SHUFFLE! was cancelled; the dealer will continue.";
             RefreshView();
             return;
         }
@@ -1135,7 +1219,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     {
         if (IsFlickReady)
         {
-            message = "DEAL! was not completed. Press E to try again.";
+            message = "SHUFFLE! was not completed. Press E to try again.";
             RefreshView();
         }
     }
@@ -1158,7 +1242,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         flickDealerPaused = true;
         nextFlickTaskTime = Time.time + 60f;
         roundsSinceFlick = 0;
-        message = "The dealer needs a hand. Flick the next cards to the highlighted targets!";
+        message = "The dealer needs a hand. Click the card shoe to send each card to the highlighted hand!";
         RefreshView();
         return true;
     }

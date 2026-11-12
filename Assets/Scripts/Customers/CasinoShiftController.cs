@@ -362,7 +362,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 if (!queuedFlick) { blackjack.QueueFlickAssistanceTest(); queuedFlick = true; }
                 EnsureGuidedCustomer(CasinoCustomerGame.Blackjack1);
                 bool ready = blackjack.IsFlickReady;
-                objectiveText.text = ready ? "BJ1: OPEN WITH E, THEN PLAY DEAL!" : "BJ1: WAIT FOR THE DEALER'S DEAL! CALL";
+                objectiveText.text = ready ? "BJ1: OPEN WITH E, THEN PLAY SHUFFLE!" : "BJ1: WAIT FOR THE DEALER'S SHUFFLE! CALL";
                 target = blackjack.transform;
                 break;
             case 3:
@@ -665,16 +665,16 @@ public sealed class CasinoShiftController : MonoBehaviour
         lessonPanel.SetActive(true);
         hud.SetActive(false);
         arrow.gameObject.SetActive(false);
-        string[] titles = { "WELCOME, PENGUIN BOSS!", "MEET YOUR BLACKJACK TABLE", "LET'S DEAL!",
-            "MEET YOUR ROULETTE TABLE", "SPIN, SWEEP, PAY!", "CUSTOMER CASH-OUT", "KEEP THE CHIPS FLOWING",
+        string[] titles = { "WELCOME, PENGUIN BOSS!", "MEET YOUR BLACKJACK TABLE", "LET'S SHUFFLE!",
+            "MEET YOUR ROULETTE TABLE", "COVER: SPIN, SWEEP, PAY!", "CUSTOMER CASH-OUT", "KEEP THE CHIPS FLOWING",
             "YOUR DEALERS GET TIRED", "TIME FOR A BREAK", "YOU CAN DEAL BLACKJACK!", "YOU CAN RUN ROULETTE!",
             "HAND BACK TO YOUR TEAM", "READ THE ROOM - WIN THE SHIFT!" };
         string[] instructions = {
-            "I'm Tiger, your guide! Customers play while you keep the floor running.\n\nWASD moves you across the screen. Walk a few steps, then follow my GOLD ARROW. E opens the station you're near. ESC closes a task; P pauses everything.",
+            "I'm Tiger, your guide! Customers play while you keep the floor running.\n\nWASD or ARROW KEYS move you across the screen. Walk a few steps, then follow my GOLD ARROW. E opens the station you're near. ESC closes a task; P pauses everything.",
             "Go to BLACKJACK 1 and press E. This is one shared table screen: inspect the hands and use its task button when help is needed.\n\nCustomers place bets; the dealer deals. Your job is to keep them served, not to make their gambling decisions.",
-            "The dealer needs your help with the opening cards! I'll arrange a practice DEAL! at BJ1.\n\nOpen BJ1 with E, then choose PLAY DEAL! Grab a card from the shoe, drag toward a GLOWING HAND and release. Each correct throw deals one real card. Finish EVERY glowing hand before TIME reaches zero. ESC cancels; E lets you retry.",
-            "Go to ROULETTE and press E. Inspect its real customer bets, winning number and chip stock.\n\nRed / black bets return twice the stake when they win; a straight-number bet returns 36 times. The payout includes the original stake.",
-            "I'll arrange a full practice round. E at Roulette, then PLAY!\n\nSPIN: drag around the wheel and RELEASE.\nSWEEP: drag every LOSING bet into the tray; leave winners alone.\nPAY: add chips until the selected winner's EXACT RETURN is matched, then PAY. Finish ALL winners. ESC cancels safely and lets you retry the same round.",
+            "The dealer needs help preparing the opening cards! I'll arrange a practice SHUFFLE! at BJ1.\n\nOpen BJ1 with E, then choose PLAY SHUFFLE! Click the shoe for each highlighted customer or dealer hand. Cards fly to the right place and become part of this real round. Finish every card before time runs out. ESC cancels; E lets you retry.",
+            "Go to ROULETTE and press E. Inspect customer bets, the winning number and the table's finite chip stock.\n\nProfit odds: straight 35:1, split 17:1, street 11:1, corner 8:1, six-line 5:1; red/black, odd/even return 1:1. Gross payout includes your stake.",
+            "I'll arrange a full practice round. E at Roulette, then play COVER!\n\nSPIN: drag around the wheel and release. SWEEP: move every losing bet to the tray; leave winning bets. PAY: select available chips to match the exact gross return, including the stake. Finish all winners. If the float is short, refill it and retry PAY.",
             "A customer is coming to the CASH DESK. Walk there and press E.\n\nClick the chip marked NEXT CHIP. Your selected chips appear in the customer tray. Wrong chips cost a little time. UNDO removes the last chip. When every chip is prepared, click FINISH or press E. This completes their cash-out.",
             "Tables need a FLOAT: their own supply of chips, not casino profit. I'll request a £200 refill for BJ1.\n\nCASH DESK E: choose PACK FOR BJ1. Click £2.50 / £5 / £25 / £100 chips to match the listed counts. UNDO corrects a selection. A complete tray is automatically carried. Walk to BJ1 and press E to DELIVER. Carrying a tray makes delivery your first interaction.",
             "Dealers lose energy as they work. When energy reaches ZERO, dealing STOPS and waiting customers lose patience!\n\nPIT DESK E: choose a READY dealer and ASSIGN to BJ1. The replacement walks there before taking over. The tired dealer returns to the desk. Never abandon an exhausted table: assign cover or take over yourself.",

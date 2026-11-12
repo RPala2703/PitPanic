@@ -5,8 +5,8 @@ Open `Assets/Scenes/PitPanicPrototype.unity` in Unity and press Play. Choose
 the lessons. Tiger's large lesson cards pause the casino and audio. **Let Me Try**
 or Enter dismisses the explanation and resumes practice; Escape dismisses a lesson
 rather than opening another menu. **HELP** revisits all 13 explanations without
-changing progress. Gold arrows point to the relevant station. Use WASD
-to move, E to open a table and play its available task, and P to pause, including
+changing progress. Gold arrows point to the relevant station. Use WASD or the
+arrow keys to move, E to open a table and play its available task, and P to pause, including
 during a minigame. The tutorial can also be skipped using the HUD button.
 Q remains a compatibility shortcut to the same table interface. When carrying
 a float tray, E delivers the tray before opening a table. Escape closes an
@@ -69,7 +69,8 @@ shows a demo-complete message and allows replay. New Game resets progression
 and perks, as stated in the introduction, but leaves sound/settings unchanged.
 Training retains at least three minutes on the clock until lessons are complete,
 so a learner cannot time out before learning dealer management. Practice covers
-movement, table inspection, DEAL!, SPIN!/SWEEP!/PAY!, customer cash-out, float
+movement, table inspection, SHUFFLE!, staffed Roulette COVER!, SPIN!/SWEEP!/PAY!,
+customer cash-out, float
 packing/delivery, assignments/breaks, both manual table takeovers, returning
 staff to duty and reading the shift goals. It forces real customers/tasks rather
 than depending on random requests, and advances after successful actions.
@@ -77,7 +78,7 @@ than depending on random requests, and advances after successful actions.
 ## Task urgency and emergency dealing
 
 Station meters and task-HUD seconds read actual customer patience, active
-DEAL!/PACK! attempt time and working-dealer exhaustion time. Green means more
+SHUFFLE!/PACK! attempt time and working-dealer exhaustion time. Green means more
 than half remains, yellow means 20–50%, red means under 20%. Expired customers
 leave and lower satisfaction. Failed attempts stay retryable; their attempt
 meter closes, while an outstanding customer's patience continues. Float orders
@@ -136,6 +137,14 @@ denominations now match Blackjack/Roulette: red £5, blue £2.50, green £25,
 black £100. The standard refill still totals **£200**: 10 red, 20 blue, 4 green.
 Starting blue inventory/register counts were increased fourfold to preserve
 their original monetary value when correcting the former £10 mismatch.
+Table floats are finite: accepted customer stakes enter the table float and
+settled payouts debit the exact physical chip counts. An unavailable payout
+keeps settlement pending and requests a refill rather than creating chips.
+The Cash Desk's register stock is also finite; float orders reserve their
+denominations, and completed customer cash-outs consume the same stock.
+European Roulette supports straight (35:1 profit), split (17:1), street (11:1),
+corner (8:1), six-line (5:1), and outside (1:1) bets. Gross returns include
+the original stake. The table inspection shows the odds and current bets.
 The penguin uses holding poses even while standing, and one direction-aware
 tray graphic follows its hands rather than duplicating a tray inside the atlas.
 

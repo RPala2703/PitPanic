@@ -55,6 +55,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public bool IsSeated => state == CustomerState.Seated;
     public bool IsWaitingAtCashDesk => state == CustomerState.VisitingCashier && cashierArrivalReported;
     public bool IsVisitingCashier => state == CustomerState.VisitingCashier;
+    public bool CanBeGuidedToCashier => state == CustomerState.Wandering && !serviceActive;
     public bool IsInService => serviceActive;
     public CasinoSeat Seat => reservedSeat;
     public float PatienceNormalized => patience != null ? patience.Normalized : 1f;

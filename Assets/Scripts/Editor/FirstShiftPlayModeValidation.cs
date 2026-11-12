@@ -283,6 +283,14 @@ public static class FirstShiftPlayModeValidation
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
             Check((bool)Get(shift, "moved"), "W movement did not advance tutorial");
+            Vector3 arrowStart = player.transform.position;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(UnityEngine.InputSystem.Key.UpArrow));
+            yield return new WaitForSecondsRealtime(0.25f);
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return null;
+            Check(player.transform.position.z > arrowStart.z + 0.1f &&
+                  Mathf.Abs(player.transform.position.x - arrowStart.x) < 0.1f,
+                "Arrow-key movement did not follow the screen-aligned axes");
             foreach (AIDealer dealer in manager.Dealers)
                 if (dealer.IsAtStation)
                     Check(Vector3.Distance(dealer.GetComponentInChildren<PixelCharacterVisual>().transform.localPosition,
@@ -334,19 +342,11 @@ public static class FirstShiftPlayModeValidation
             Check(flick.IsRunning, "DEAL retry after failure failed");
             while (flick.IsRunning)
             {
-                int targetId = blackjack.GetNextFlickTarget();
-                var targets = (IList)Get(flick, "handTargets");
-                RectTransform target = null;
-                foreach (object t in targets)
-                    if ((int)t.GetType().GetField("Id").GetValue(t) == targetId)
-                        target = (RectTransform)t.GetType().GetField("Rect").GetValue(t);
-                Check(target != null, "DEAL target missing");
                 var shoe = (RectTransform)Get(flick, "shoeRect");
                 Vector2 start = RectTransformUtility.WorldToScreenPoint(null, shoe.position);
-                Vector2 end = RectTransformUtility.WorldToScreenPoint(null, target.position);
                 InputSystem.QueueStateEvent(mouse, new MouseState { position = start, buttons = 1 });
                 yield return null;
-                InputSystem.QueueStateEvent(mouse, new MouseState { position = end, buttons = 0 });
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = start, buttons = 0 });
                 yield return null;
                 yield return new WaitForSeconds(0.35f);
             }
@@ -356,6 +356,8 @@ public static class FirstShiftPlayModeValidation
             Check(inspection.IsOpen, "Q failed to inspect roulette");
             yield return null;
             yield return Press(UnityEngine.InputSystem.Key.Escape);
+            Check(roulette.FloatDestination.TryAddChips(new[] { 100, 100, 100, 100 }),
+                "Could not provision synthetic roulette payout inventory");
             timeout = Time.realtimeSinceStartup + 75;
             while (!roulette.HasPendingAssistance && Time.realtimeSinceStartup < timeout) yield return null;
             Check(roulette.HasPendingAssistance, "Roulette task did not become ready");
@@ -396,7 +398,20 @@ public static class FirstShiftPlayModeValidation
             Check((bool)Get(shift, "rouletteDone"), "Roulette did not advance tutorial");
             timeout = Time.realtimeSinceStartup + 40;
             while (desk.ActiveCustomer == null && Time.realtimeSinceStartup < timeout) yield return null;
-            Check(desk.ActiveCustomer != null, "Guided cash-out customer did not reach the Cash Desk");
+            string customerSnapshot = "";
+            foreach (object customerObject in (IEnumerable)Get(spawner, "activeCustomers"))
+            {
+                CasinoCustomerAI customer = customerObject as CasinoCustomerAI;
+                if (customer == null) continue;
+                var agent = customer.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                customerSnapshot += $"{customer.name}:cashier={customer.IsVisitingCashier}," +
+                    $"waiting={customer.IsWaitingAtCashDesk},seat={customer.Seat?.name ?? "none"}," +
+                    $"position={customer.transform.position},path={agent.pathStatus}/{agent.remainingDistance:0.0} ";
+            }
+            Check(desk.ActiveCustomer != null,
+                $"Guided cash-out customer did not reach the Cash Desk; stage={shift.TutorialStage}, " +
+                $"active={spawner.ActiveCustomerCount}, requestedOrders={desk.GetRequestedOrders().Count}, " +
+                $"packTaskPending={desk.GetComponent<CasinoMinigameStation>().IsTaskPending}, customers={customerSnapshot}");
             var station = desk.GetComponent<CasinoMinigameStation>();
             MoveNear(desk.transform, station.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.E);
@@ -580,10 +595,19 @@ public static class FirstShiftPlayModeValidation
                     for (int i = 0; i < manager.Dealers.Count; i++)
                         if (manager.Dealers[i].IsReadyAtPitDesk)
                         {
-                            if (manager.Dealers[i].Energy > 0) { readyIndex = i; break; }
-                            Check(!manager.CanAssignDealer(manager.Dealers[i], targetStation, out string exhaustedReason) &&
-                                exhaustedReason.Contains("break"), "Exhausted off-duty staff could be assigned back to a table");
-                            Call(pit, "SendDealerOnBreak", i);
+                            if (manager.Dealers[i].Energy > 0 &&
+                                manager.CanAssignDealer(manager.Dealers[i], targetStation, out _))
+                            {
+                                readyIndex = i;
+                                break;
+                            }
+
+                            if (manager.Dealers[i].Energy <= 0)
+                            {
+                                Check(!manager.CanAssignDealer(manager.Dealers[i], targetStation, out string exhaustedReason) &&
+                                    exhaustedReason.Contains("break"), "Exhausted off-duty staff could be assigned back to a table");
+                                Call(pit, "SendDealerOnBreak", i);
+                            }
                         }
                     if (readyIndex < 0) yield return null;
                 }
@@ -594,9 +618,16 @@ public static class FirstShiftPlayModeValidation
                 Call(pit, "SelectDealer", readyIndex);
                 Call(pit, "AssignSelectedDealer", Array.IndexOf(new System.Collections.Generic.List<CasinoDealerStation>(manager.Stations).ToArray(), targetStation));
                 timeout = Time.realtimeSinceStartup + 60;
+                AIDealer assignedCover = manager.Dealers[readyIndex];
                 while (targetStation.AssignedDealer == null || !targetStation.AssignedDealer.CanServe)
                 {
-                    Check(Time.realtimeSinceStartup < timeout, "Rested cover did not resume table service");
+                    Check(Time.realtimeSinceStartup < timeout,
+                        $"Rested cover did not resume {targetStation.StationName}; " +
+                        $"assigned={targetStation.AssignedDealer?.DealerId ?? "none"}, " +
+                        $"pending={targetStation.PendingReplacement?.DealerId ?? "none"}, " +
+                        $"cover={assignedCover.DealerId}:{assignedCover.State}, " +
+                        $"pathFailed={assignedCover.HasReportedPathFailure}, " +
+                        $"destination={assignedCover.Destination?.name ?? "none"}");
                     yield return null;
                 }
             }

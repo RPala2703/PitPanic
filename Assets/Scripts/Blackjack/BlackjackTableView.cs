@@ -66,7 +66,7 @@ public sealed class BlackjackTableView : MonoBehaviour
             assistanceButton = root.AddComponent<Button>();
             assistanceButton.targetGraphic = root.GetComponent<Image>();
             CasinoHudStyle.Button(assistanceButton);
-            CasinoMinigamePresentation.CreateText(root.transform, "Action", "PLAY DEAL!",
+            CasinoMinigamePresentation.CreateText(root.transform, "Action", "PLAY SHUFFLE!",
                 Vector2.zero, new Vector2(280f, 40f), 22, CasinoHudStyle.Ink);
             assistanceButton.onClick.AddListener(() => start());
         }
@@ -74,6 +74,13 @@ public sealed class BlackjackTableView : MonoBehaviour
     }
 
     public string TableDisplayName => tableDisplayName;
+
+    public void SetFloatInventory(CasinoFloatRefillDestination destination)
+    {
+        if (accuracyText == null || destination == null) return;
+        accuracyText.text += $"  •  FLOAT R{destination.GetChipCount(0)} B{destination.GetChipCount(1)} " +
+                             $"G{destination.GetChipCount(2)} K{destination.GetChipCount(3)}";
+    }
 
     public void Configure(
         Action dealAction,

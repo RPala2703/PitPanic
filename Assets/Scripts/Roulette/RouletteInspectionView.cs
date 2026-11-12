@@ -254,6 +254,9 @@ public sealed class RouletteInspectionView : MonoBehaviour
             new Vector2(-405f, -10f), new Vector2(590f, 660f));
         CreateText(layoutPanel.transform, "Layout Title", "BETTING LAYOUT",
             new Vector2(0f, 290f), new Vector2(510f, 34f), 22, new Color(1f, 0.86f, 0.42f));
+        CreateText(layoutPanel.transform, "Payout Guide",
+            "PROFIT ODDS  •  STRAIGHT 35:1  •  SPLIT 17:1  •  STREET 11:1\nCORNER 8:1  •  SIX LINE 5:1  •  OUTSIDE 1:1  •  STAKE RETURNED",
+            new Vector2(0f, 260f), new Vector2(550f, 42f), 12, Color.white);
         CreateBettingLayout(layoutPanel.transform);
         bettingMarkerRoot = layoutPanel.transform;
 
@@ -436,7 +439,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private void CreateBettingLayout(Transform parent)
     {
         const float zeroX = -195f;
-        Vector2 firstCell = new Vector2(-100f, 225f);
+        Vector2 firstCell = new Vector2(-100f, 205f);
         const float columnSpacing = 100f;
         const float rowSpacing = 37f;
         for (int number = 0; number <= 36; number++)
@@ -520,15 +523,25 @@ public sealed class RouletteInspectionView : MonoBehaviour
 
         foreach (RouletteCustomerBet bet in bets)
         {
-            RectTransform cell = bet.Bet.Type == RouletteBetType.StraightUp
-                ? numberCells[bet.Bet.Number]
-                : outsideBetCells[bet.Bet.Type];
+            Vector2 betPosition;
+            if (bet.Bet.Type == RouletteBetType.StraightUp)
+            {
+                betPosition = numberCells[bet.Bet.Number].anchoredPosition;
+            }
+            else if (RouletteBettingLayout.IsOutsideBet(bet.Bet.Type))
+            {
+                betPosition = outsideBetCells[bet.Bet.Type].anchoredPosition;
+            }
+            else
+            {
+                betPosition = Vector2.zero;
+                foreach (int number in bet.Bet.Numbers)
+                    betPosition += numberCells[number].anchoredPosition;
+                betPosition /= bet.Bet.Numbers.Length;
+            }
             GameObject marker = CreateObject($"Current Bet Marker {bet.BetId}", bettingMarkerRoot);
-            Vector2 offset = bet.Bet.Type == RouletteBetType.StraightUp
-                ? new Vector2(14f, 0f)
-                : new Vector2(-22f, 0f);
             SetRect(marker, new Vector2(0.5f, 0.5f),
-                cell.anchoredPosition + offset, new Vector2(24f, 16f));
+                betPosition + new Vector2(14f, 0f), new Vector2(30f, 18f));
             Image image = marker.AddComponent<Image>();
             image.color = bet.IsWinning
                 ? new Color(0.93f, 0.72f, 0.16f)
