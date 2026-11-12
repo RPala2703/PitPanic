@@ -13,9 +13,6 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
     private Image urgencyFill;
     private GameObject urgencyMeter;
     private Text urgencyTime;
-    private Canvas contextCanvas;
-    private Text contextText;
-    private float nextRefresh;
     public CasinoTableAttention Attention => attention;
 
     public void Configure(CasinoTableAttention tableAttention, Canvas worldCanvas, Text text)
@@ -69,12 +66,6 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
         urgencyFill.rectTransform.anchoredPosition = new Vector2(-110, 0);
         urgencyTime = CasinoMinigamePresentation.CreateText(indicatorCanvas.transform, "Deadline seconds", "",
             new Vector2(0, -146), new Vector2(260, 35), 25, Color.white);
-        contextCanvas = CasinoMinigameHud.Create(name + " Task explanation", 72);
-        contextCanvas.transform.SetParent(transform, false);
-        contextCanvas.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1600, 900);
-        contextText = CasinoMinigamePresentation.CreateText(contextCanvas.transform, "What to do", "",
-            new Vector2(0, -310), new Vector2(1300, 80), 22, CasinoHudStyle.Gold);
-        contextCanvas.enabled = false;
         SetVisible(attention.HasPendingTasks);
     }
 
@@ -88,42 +79,26 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (attention != null && CasinoShiftController.Active != null &&
-            CasinoShiftController.Active.IsTraining && !attention.HasVisibleTasks)
+        if (indicatorCanvas == null || attention == null) return;
+        if (!attention.HasVisibleTasks)
         {
-            indicatorCanvas.enabled = false;
-            contextCanvas.enabled = false;
+            SetVisible(false);
             return;
         }
         if (AudioListener.pause) return;
-        if (Time.unscaledTime >= nextRefresh)
+        bool timed = CasinoTaskFeedback.TryGetDeadline(attention, out float remaining, out float duration);
+        urgencyMeter.SetActive(timed);
+        urgencyTime.gameObject.SetActive(timed);
+        if (timed)
         {
-            nextRefresh = Time.unscaledTime + .1f;
-            bool timed = CasinoTaskFeedback.TryGetDeadline(attention, out float remaining, out float duration);
-            urgencyMeter.SetActive(timed);
-            urgencyTime.gameObject.SetActive(timed);
-            if (timed)
-            {
-                float fraction = Mathf.Clamp01(remaining / duration);
-                urgencyFill.rectTransform.sizeDelta = new Vector2(220 * fraction, 24);
-                urgencyFill.color = CasinoTaskFeedback.UrgencyColor(fraction);
-                urgencyTime.text = $"{Mathf.CeilToInt(remaining)}s";
-                urgencyTime.color = urgencyFill.color;
-            }
-            indicatorCanvas.enabled = attention.HasVisibleTasks || timed;
-            badge.gameObject.SetActive(attention.HasVisibleTasks);
-            CasinoPlayerController player = FindFirstObjectByType<CasinoPlayerController>();
-            bool closest = player != null && Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z),
-                new Vector3(player.transform.position.x, 0, player.transform.position.z)) < 5;
-            if (closest)
-                foreach (CasinoAttentionIndicator other in FindObjectsByType<CasinoAttentionIndicator>(FindObjectsSortMode.None))
-                    if (other != this && other.Attention.HasVisibleTasks &&
-                        (other.transform.position - player.transform.position).sqrMagnitude <
-                        (transform.position - player.transform.position).sqrMagnitude) { closest = false; break; }
-            contextCanvas.enabled = Time.timeScale > 0 && closest && attention.HasVisibleTasks &&
-                !CasinoMinigamePresentation.IsOpen && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen();
-            contextText.text = CasinoTaskFeedback.Message(attention) + (timed ? $"\n{Mathf.CeilToInt(remaining)}s until consequence" : "");
+            float fraction = Mathf.Clamp01(remaining / duration);
+            urgencyFill.rectTransform.sizeDelta = new Vector2(220 * fraction, 24);
+            urgencyFill.color = CasinoTaskFeedback.UrgencyColor(fraction);
+            urgencyTime.text = $"{Mathf.CeilToInt(remaining)}s";
+            urgencyTime.color = urgencyFill.color;
         }
+        indicatorCanvas.enabled = true;
+        badge.gameObject.SetActive(true);
         if (targetCamera == null)
         {
             targetCamera = Camera.main;
@@ -147,6 +122,11 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
         if (indicatorCanvas != null)
         {
             indicatorCanvas.enabled = visible && attention != null && attention.HasVisibleTasks;
+            if (!indicatorCanvas.enabled)
+            {
+                if (urgencyMeter != null) urgencyMeter.SetActive(false);
+                if (urgencyTime != null) urgencyTime.gameObject.SetActive(false);
+            }
         }
     }
 }

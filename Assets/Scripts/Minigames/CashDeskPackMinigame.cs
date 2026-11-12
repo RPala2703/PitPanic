@@ -365,8 +365,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
             return;
         }
 
-        selectedOrder = order;
-        StartPacking(order.Counts);
+        selectedOrder = refillManager.ActiveOrder;
+        StartPacking(selectedOrder.Counts);
     }
 
     private void BeginCashOutPacking()
@@ -420,9 +420,9 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     {
         selectionHistory.Clear();
         ClearDynamicLayout();
-        CreatePanel("Register Chip Choices", new Vector2(-515f, -5f), new Vector2(500f, 560f));
+        CreatePanel("Register Chip Choices", new Vector2(-515f, -20f), new Vector2(500f, 530f));
         CreateText("Rack Label", cashOutMode ? "CLICK THE NEXT CHIP!" : "CLICK CHIPS TO PACK!",
-            new Vector2(-515f, 235f), new Vector2(460f, 38f), 21, new Color(1f, 0.83f, 0.44f));
+            new Vector2(-515f, 210f), new Vector2(460f, 38f), 21, new Color(1f, 0.83f, 0.44f));
         float[] chipX = { -625f, -405f, -625f, -405f };
         float[] chipY = { 95f, 95f, -120f, -120f };
         for (int i = 0; i < chipButtons.Length; i++)
@@ -431,8 +431,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
             chipButtons[i] = CreateChipButton(denominationIndex, new Vector2(chipX[i], chipY[i]));
         }
 
-        CreatePanel("Target Chip Tray", new Vector2(260f, -5f), new Vector2(990f, 590f));
-        RectTransform trayRect = CreateRect("Float Tray Target", hud.transform, new Vector2(0.5f, 0.5f), new Vector2(260f, -5f), new Vector2(950f, 545f));
+        CreatePanel("Target Chip Tray", new Vector2(260f, -20f), new Vector2(990f, 530f));
+        RectTransform trayRect = CreateRect("Float Tray Target", hud.transform, new Vector2(0.5f, 0.5f), new Vector2(260f, -20f), new Vector2(950f, 510f));
         floatTrayRect = trayRect;
         Image trayImage = trayRect.gameObject.AddComponent<Image>();
         trayImage.color = new Color(0.04f, 0.18f, 0.14f, 0.95f);
@@ -441,7 +441,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         outline.effectDistance = new Vector2(4f, -4f);
         trayImage.raycastTarget = false;
         CreateText("Tray Label", cashOutMode ? "CUSTOMER TRAY" : "CLICKED CHIPS APPEAR HERE!",
-            new Vector2(260f, 225f), new Vector2(880f, 38f), 20, new Color(0.63f, 1f, 0.7f));
+            new Vector2(260f, 210f), new Vector2(880f, 38f), 20, new Color(0.63f, 1f, 0.7f));
         sequenceText = CreateText("Packing Sequence", "", new Vector2(260f, 160f), new Vector2(890f, 94f), 18, Color.white);
         sequenceText.horizontalOverflow = HorizontalWrapMode.Wrap;
         sequenceText.verticalOverflow = VerticalWrapMode.Truncate;
@@ -749,7 +749,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
         sequenceText.text = BuildOrderRequirementsDisplay(requiredCounts);
         sequenceText.fontSize = 19;
-        nextChipText.text = "DRAG CHIPS INTO THE FLOAT TRAY";
+        nextChipText.text = "CLICK CHIPS TO FILL THE TRAY";
     }
 
     private static string BuildOrderRequirementsDisplay(IReadOnlyList<int> counts)
@@ -772,7 +772,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         for (int denominationIndex = 0; denominationIndex < packedCounts.Length; denominationIndex++)
         {
             List<RectTransform> views = trayChipViews[denominationIndex];
-            int visibleChipCount = packedCounts[denominationIndex];
+            int visibleChipCount = Mathf.Min(packedCounts[denominationIndex], 15);
             while (views.Count > visibleChipCount)
             {
                 int last = views.Count - 1;
@@ -786,7 +786,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
                 views.Add(CreateChip(
                     $"Tray {ChipNames[denominationIndex]} Chip {stackIndex + 1}",
                     denominationIndex,
-                    new Vector2(stackX[denominationIndex] + (stackIndex % 5 - 2) * 34f, -24f - (stackIndex / 5) * 42f),
+                    new Vector2(stackX[denominationIndex] + (stackIndex % 5 - 2) * 34f, -24f - (stackIndex / 5) * 34f),
                     30f,
                     removable: !cashOutMode));
             }
@@ -841,6 +841,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         CreateBackdrop();
         statusText = CreateText("Cash Desk Status", "PACK! CASINO FLOAT", new Vector2(0f, 372f), new Vector2(1200f, 58f), 34, new Color(1f, 0.82f, 0.41f));
         instructionText = CreateText("Cash Desk Instructions", "", new Vector2(0f, 325f), new Vector2(1400f, 42f), 20, Color.white);
+        statusText.gameObject.SetActive(false);
+        instructionText.gameObject.SetActive(false);
     }
 
     private void CreateBackdrop()
@@ -964,6 +966,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     private void SetStatus(string value)
     {
+        Presentation?.SetTitle(value);
         if (statusText != null)
         {
             statusText.text = value;
@@ -972,6 +975,7 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 
     private void SetInstruction(string value)
     {
+        Presentation?.SetInstructions(value);
         if (instructionText != null)
         {
             instructionText.text = value;

@@ -15,6 +15,8 @@ public sealed class CasinoPlayerController : MonoBehaviour
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        if (GetComponent<CasinoSpeechBubble>() == null)
+            gameObject.AddComponent<CasinoSpeechBubble>();
         if (GetComponent<CasinoPlayerInteractionRouter>() == null)
         {
             gameObject.AddComponent<CasinoPlayerInteractionRouter>();

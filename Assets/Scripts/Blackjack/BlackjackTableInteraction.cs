@@ -381,7 +381,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                 }
                 else
                 {
-                    floatDestination?.RequestAttention();
+                    floatDestination?.RequestAttention(round.CustomerHands[payoutHandIndex].WinningsPence);
                     message = "The table float is short. Deliver a refill to finish this payout.";
                     RefreshView();
                 }
@@ -845,7 +845,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         int required = round.CustomerHands[payoutHandIndex].WinningsPence;
         if (!HasChipAvailable(denomination))
         {
-            floatDestination?.RequestAttention();
+            floatDestination?.RequestAttention(required);
             message = $"{FormatPounds(denomination)} chips are out of stock. Request or deliver a table float.";
             RefreshView();
             return;
@@ -897,7 +897,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         int[] payoutCounts = GetSelectedPayoutCounts();
         if (floatDestination == null || !floatDestination.TryConsumeChips(payoutCounts))
         {
-            floatDestination?.RequestAttention();
+            floatDestination?.RequestAttention(hand.WinningsPence);
             message = "The table float cannot cover these chips. Refill the table before paying.";
             RefreshView();
             return;
@@ -1069,7 +1069,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                         !TryGetAvailablePayout(hand.WinningsPence, out int[] counts) ||
                         !floatDestination.TryConsumeChips(counts))
                     {
-                        floatDestination?.RequestAttention();
+                        floatDestination?.RequestAttention(hand.WinningsPence);
                         message = "Table float is short; deliver a refill to complete the automatic payout.";
                         RefreshView();
                         return;

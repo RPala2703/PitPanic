@@ -1998,9 +1998,14 @@ public static class PitPanicPrototypeGenerator
                 vipAtlas.GetPixel(16, 22) == customerAtlas.GetPixel(16, 22) ||
                 vipAtlas.GetPixel(24, 61).a < .9f)
                 throw new System.InvalidOperationException($"VIP {species} must have a formal outfit and top hat in its animation frames.");
-            Color forwardCard = customerAtlas.GetPixel(8, ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 42);
-            if (forwardCard.r < .8f || forwardCard.g < .7f)
-                throw new System.InvalidOperationException($"Away-facing seated {species} must hold cards toward the table, not behind their back.");
+            for (int frame = 0; frame < PixelCharacterVisual.AnimationFramesPerDirection; frame++)
+            {
+                int cardY = ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 42;
+                Color cardFace = new Color32(255, 235, 184, 255);
+                if (customerAtlas.GetPixel(frame * 48 + 8, cardY) == cardFace ||
+                    vipAtlas.GetPixel(frame * 48 + 8, cardY) == cardFace)
+                    throw new System.InvalidOperationException($"Seated {species} must keep cards on the felt, not in their hands.");
+            }
             for (int pose = 0; pose < PixelCharacterVisual.PoseCount; pose++)
             {
                 HashSet<int> frameHashes = new HashSet<int>();

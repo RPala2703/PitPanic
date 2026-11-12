@@ -289,6 +289,30 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
                 ScreenCapture.CaptureScreenshot(Path.Combine(directory, "roulette-details.png"));
                 yield return new WaitForSecondsRealtime(.5f);
                 typeof(RouletteInspectionView).GetMethod("Close", flags).Invoke(inspection, null);
+                first.AssignedDealer.RequestTutorialTakeover();
+                MoveToTable(player, first.transform);
+                yield return new WaitForSecondsRealtime(.5f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(directory, "task-speech-bubbles.png"));
+                yield return new WaitForSecondsRealtime(.5f);
+                CasinoFloatRefillDestination stock = first.GetComponent<CasinoFloatRefillDestination>();
+                if (!stock.TryConsumeChips(new[] { stock.GetChipCount(0), stock.GetChipCount(1), 0, 0 }))
+                    throw new InvalidOperationException("Could not prepare large refill capture.");
+                CasinoCashDeskInteraction desk = FindFirstObjectByType<CasinoCashDeskInteraction>();
+                desk.RefreshFloatRequests();
+                CashDeskPackMinigame pack = desk.GetComponent<CashDeskPackMinigame>();
+                IReadOnlyList<CasinoFloatRefillOrder> orders = desk.GetRequestedOrders();
+                int orderIndex = -1;
+                for (int i = 0; i < orders.Count; i++)
+                    if (orders[i].Destination == stock) orderIndex = i;
+                if (orderIndex < 0) throw new InvalidOperationException("Missing real large-refill order.");
+                pack.SetAvailableFloatOrders(orders);
+                pack.Begin();
+                typeof(CashDeskPackMinigame).GetMethod("SelectFloatOrder", flags).Invoke(pack, new object[] { orderIndex });
+                for (int chip = 0; chip < pack.PackedOrder.CountFor(1); chip++) pack.SelectRackChip(1);
+                yield return new WaitForSecondsRealtime(.5f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(directory, "large-refill.png"));
+                yield return new WaitForSecondsRealtime(.5f);
+                pack.Abandon();
             }
             Debug.Log($"SEATING CHECK level {level}: all ten customers reached and aligned with their chairs.");
         }

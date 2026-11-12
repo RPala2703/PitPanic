@@ -204,6 +204,18 @@ settlement and takeover PAY! pay **winnings only**, excluding the stake:
 Table screens foreground animated cards, guest/dealer portraits, the wheel,
 chips and the next action. Roulette's full bet ledger, staff energy and float
 figures remain available through **MORE INFO**, not as the default screen.
+Blackjack seat boxes show hands and bets without character portraits. Seated
+customers look at the cards on the felt rather than holding duplicate cards.
+Roulette PAY! adds one chip per click; the unused stack-quantity controls are gone.
+Packing displays bounded chip stacks with exact counters, so even large orders
+cannot spill out of their denomination lanes. An unfunded payout requests the
+remaining winners' chips plus reserve stock (at least 25% of each required
+denomination, or its normal starting reserve). Unstarted queued orders can expand
+for this demand; reserved/packed orders keep their exact contents through retries.
+Task meters belong only to visible, active timed tasks and disappear as soon as
+those tasks resolve. Nearby work appears as a short player speech bubble rather
+than a bottom-screen instruction. Exhausted/resting dealers show **Zzz**.
+The shift HUD reports tasks completed and missed as counts, not a help-target fraction.
 The penguin uses holding poses even while standing, and one direction-aware
 tray graphic follows its hands rather than duplicating a tray inside the atlas.
 
