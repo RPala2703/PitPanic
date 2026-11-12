@@ -10,6 +10,19 @@ public sealed class CasinoTableAttention : MonoBehaviour
 
     public event Action<bool> AttentionChanged;
     public bool HasPendingTasks { get; private set; }
+    public bool HasVisibleTasks
+    {
+        get
+        {
+            foreach (TableAttentionReason reason in pendingTasks.Keys)
+                if (GetVisiblePendingCount(reason) > 0) return true;
+            return false;
+        }
+    }
+
+    public int GetVisiblePendingCount(TableAttentionReason reason) =>
+        CasinoShiftController.Active == null || CasinoShiftController.Active.AllowsTrainingAttention(this, reason)
+            ? GetPendingCount(reason) : 0;
 
     public int GetPendingCount(TableAttentionReason reason)
     {

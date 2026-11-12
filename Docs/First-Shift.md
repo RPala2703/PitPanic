@@ -11,6 +11,10 @@ during a minigame. The tutorial can also be skipped using the HUD button.
 Q remains a compatibility shortcut to the same table interface. When carrying
 a float tray, E delivers the tray before opening a table. Escape closes an
 interface or cancels a minigame without trapping movement.
+During training, station exclamation marks, contextual hints and task-HUD entries
+show only the current practice objective (and an actual refill needed to finish it).
+Incidental SHUFFLE!/COVER! requests at other stations are not scheduled. Underlying
+staff and inventory state is preserved; normal attention returns after training.
 Outside an interaction, Escape opens the pause menu; P or Escape resumes.
 Pause freezes the shift, customers, dealers, minigame timers, visual effects and audio,
 and blocks input to the underlying interface. **Resume** keeps your current task open.
@@ -92,10 +96,38 @@ Hit/Stand using their existing AI. In settlement, Space pays the exact return,
 or use the chip/confirm buttons. At Roulette, Take Over first keeps the table
 available for customers; **Space** then starts its existing SPIN/SWEEP/PAY round.
 Both use the current round and existing payout/deduplication paths, not new bets.
+Blackjack stops immediately if all customers bust; the dealer does not draw
+unnecessary cards. Stakes remain on the felt until settlement. Losing stakes
+enter the table float; surviving stakes return automatically. The payment task
+asks only for winnings: **1× the bet for a win, 1.5× for Blackjack, and no payment
+for a push**. Results still account for stakes and gross returns correctly.
 Escape relinquishes table ownership; a returning dealer resumes the same state.
 The Roulette task retains ownership through its settlement/clearing animation,
 then releases it. At Pit Desk, send outgoing exhausted staff on break before
 waiting for them to cover another table.
+
+## COVER! versus Roulette takeover
+
+A working dealer spins the real wheel first. When COVER! is requested, open
+Roulette with **E → COVER!**, read the revealed number, and click each winning
+customer bet or its numbered chip on the 3-column, 12-row layout. Matching
+numbers identify the same customer in the bet list and on the layout, including
+separate chips for identical bets. Leave losers alone; use **NO WINNERS** if
+none win. **BET GUIDE** shows simple examples and profit odds.
+
+COVER! never spins, sweeps or asks the player to build payouts. It uses that
+round's actual bets and result. It covers straight-up, split (including legal
+0/1, 0/2 and 0/3 splits), street, corner, six-line, red/black and odd/even bets.
+Zero loses every outside bet. Early rounds use simple bets before gradually
+introducing inside bets.
+
+The attempt has a real 60-second deadline. Escape or timeout keeps the same
+round and result available for retry, without paying anything. When every
+winner is marked, the dealer clears losers and pays actual chips from the table
+float. A shortage requests a real delivery and resumes only unpaid bets; it
+never invents chips or pays twice. If the dealer becomes unavailable, COVER!
+closes and the player can use the separate **TAKE OVER → SPIN! → SWEEP! → PAY!**
+flow. An already spun result is preserved rather than rerolled.
 
 The batch-mode interaction check can be run from the project directory:
 

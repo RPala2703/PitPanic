@@ -38,6 +38,7 @@ public sealed class BlackjackHand
     public BlackjackHandStatus Status { get; internal set; }
     public BlackjackOutcome Outcome { get; internal set; }
     public int PayoutPence { get; internal set; }
+    public int WinningsPence => BlackjackRules.GetWinningsPence(Outcome, BetPence);
     public bool PayoutPaid { get; internal set; }
 
     internal BlackjackHand(CasinoCustomerAI customer, CasinoSeat seat, int betPence)
@@ -65,6 +66,7 @@ public sealed class BlackjackTableRound
     public IReadOnlyList<BlackjackCard> DealerCards => dealerCards;
     public int DealerTotal => BlackjackRules.CalculateBestTotal(dealerCards);
     public bool DealerHasNatural => dealerCards.Count == 2 && DealerTotal == 21;
+    public bool NeedsDealerComparison => customerHands.Exists(hand => hand.Total <= 21 && !hand.IsNatural);
     public bool IsSettled { get; private set; }
 
     public BlackjackTableRound(BlackjackShoe shoe = null)
@@ -156,7 +158,7 @@ public sealed class BlackjackTableRound
                         : hand.Total > 21
                             ? BlackjackHandStatus.Bust
                             : BlackjackHandStatus.Lose;
-            hand.PayoutPaid = outcome == BlackjackOutcome.Lose;
+            hand.PayoutPaid = hand.WinningsPence == 0;
         }
 
         IsSettled = true;

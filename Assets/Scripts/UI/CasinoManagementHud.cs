@@ -201,7 +201,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
             for (int sourceIndex = 0; sourceIndex < attentionSources.Length; sourceIndex++)
             {
                 CasinoTableAttention attention = attentionSources[sourceIndex];
-                int count = attention != null ? attention.GetPendingCount(reason) : 0;
+                int count = attention != null ? attention.GetVisiblePendingCount(reason) : 0;
                 if (count <= 0)
                 {
                     continue;

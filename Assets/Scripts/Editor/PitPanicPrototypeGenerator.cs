@@ -309,7 +309,7 @@ public static class PitPanicPrototypeGenerator
         RouletteAssistanceScheduler scheduler = Object.FindFirstObjectByType<RouletteAssistanceScheduler>();
         if (scheduler == null || !scheduler.ForceTaskForDevelopment())
         {
-            Debug.LogWarning("Roulette assistance can be forced only during an accepting-bets round with an active dealer and no other minigame.");
+            Debug.LogWarning("COVER can be forced only after a completed dealer spin with an active dealer and no other minigame.");
         }
     }
 
@@ -328,6 +328,10 @@ public static class PitPanicPrototypeGenerator
         AssertOutcome("equal totals", BlackjackOutcome.Push, 19, 19, false, false);
         for (int betPence = 500; betPence <= 5000; betPence += 500)
         {
+            if (BlackjackRules.GetWinningsPence(BlackjackOutcome.Push, betPence) != 0 ||
+                BlackjackRules.GetWinningsPence(BlackjackOutcome.Win, betPence) != betPence ||
+                BlackjackRules.GetWinningsPence(BlackjackOutcome.Blackjack, betPence) != betPence * 3 / 2)
+                throw new System.InvalidOperationException("Blackjack must pay profit only, never the stake a second time.");
             AssertPayout($"natural 3:2 gross return at {betPence}p", betPence + betPence * 3 / 2,
                 BlackjackOutcome.Blackjack, betPence);
             AssertPayout($"ordinary win gross return at {betPence}p", betPence * 2,
@@ -843,12 +847,14 @@ public static class PitPanicPrototypeGenerator
         }
 
         if (!sharedRound.TryMarkPayoutPaid(naturalHand) || sharedRound.TryMarkPayoutPaid(naturalHand) ||
-            !sharedRound.TryMarkPayoutPaid(pushHand) || sharedRound.TryMarkPayoutPaid(bustHand))
+            sharedRound.TryMarkPayoutPaid(pushHand) || !pushHand.PayoutPaid ||
+            sharedRound.TryMarkPayoutPaid(bustHand))
         {
             throw new System.InvalidOperationException("A payout was duplicated or a losing bet incorrectly required a payout.");
         }
 
         AssertThrows("settling a round twice", sharedRound.Settle);
+        CasinoGameplayValidation.Run();
 
         Debug.Log("Blackjack rule checks passed.");
     }
@@ -1769,7 +1775,7 @@ public static class PitPanicPrototypeGenerator
         AssertRouletteGrossReturn(new RouletteBet(RouletteBetType.SixLine,
             new[] { 1, 2, 3, 4, 5, 6 }, 500), 6, 3000);
         if (!EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 2, 3 }, 500)) ||
-            EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 0, 3 }, 500)) ||
+            !EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 0, 3 }, 500)) ||
             EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Split, new[] { 3, 4 }, 500)) ||
             EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Street, new[] { 2, 3, 4 }, 500)) ||
             EuropeanRouletteRules.IsValidBet(new RouletteBet(RouletteBetType.Corner, new[] { 1, 2, 4, 6 }, 500)) ||

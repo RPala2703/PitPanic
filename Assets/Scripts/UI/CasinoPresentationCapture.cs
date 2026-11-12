@@ -13,6 +13,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
     private int oldTutorial;
     private bool watch;
     private bool demoCheck;
+    private bool coverCheck;
     private readonly Dictionary<string, int> savedProgress = new Dictionary<string, int>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -27,6 +28,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         capture.directory = args[index + 1];
         capture.watch = Array.IndexOf(args, "--pit-watch") >= 0;
         capture.demoCheck = Array.IndexOf(args, "--pit-demo-check") >= 0;
+        capture.coverCheck = Array.IndexOf(args, "--pit-cover-check") >= 0;
         capture.oldTutorial = PlayerPrefs.GetInt("PitPanic.TutorialComplete", -1);
         foreach (string key in new[] { "PitPanic.TutorialComplete", "PitPanic.UnlockedShift",
             CasinoDemoProgression.CreditsKey, CasinoDemoProgression.UpgradeKeys[0],
@@ -46,13 +48,13 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "intro.png"));
         yield return new WaitForSecondsRealtime(1);
         foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
-            if (button.name == (watch || demoCheck ? "Skip" : "Begin") && button.transform.parent.name == "Introduction")
+            if (button.name == (watch || demoCheck || coverCheck ? "Skip" : "Begin") && button.transform.parent.name == "Introduction")
             {
                 button.onClick.Invoke();
                 break;
             }
         yield return new WaitForSecondsRealtime(3);
-        if (!watch && !demoCheck)
+        if (!watch && !demoCheck && !coverCheck)
         {
             CasinoShiftController guidedShift = FindFirstObjectByType<CasinoShiftController>();
             ScreenCapture.CaptureScreenshot(Path.Combine(directory, "tutorial.png"));
@@ -63,6 +65,11 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         }
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "casino.png"));
         yield return new WaitForSecondsRealtime(1);
+        if (coverCheck)
+        {
+            yield return CaptureCover();
+            yield break;
+        }
         if (demoCheck)
         {
             DealerAssignmentManager manager = FindFirstObjectByType<DealerAssignmentManager>();
@@ -78,6 +85,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
                 Application.Quit(1);
                 yield break;
             }
+
             ScreenCapture.CaptureScreenshot(Path.Combine(directory, "failed-results.png"));
             yield return new WaitForSecondsRealtime(1);
             GameObject resultPanel = (GameObject)typeof(CasinoShiftController).GetField("results",
@@ -161,6 +169,64 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             ScreenCapture.CaptureScreenshot(Path.Combine(directory, $"carrying-{facing[i]}.png"));
             yield return new WaitForSecondsRealtime(.5f);
         }
+        Application.Quit();
+    }
+
+    private IEnumerator CaptureCover()
+    {
+        RouletteRoundController rounds = FindFirstObjectByType<RouletteRoundController>();
+        FindFirstObjectByType<RouletteAssistanceScheduler>().RequestTutorialAssistance();
+        FindFirstObjectByType<CasinoCustomerSpawner>().TrySpawnGuidedCustomer(CasinoCustomerGame.Roulette, 4);
+        float deadline = Time.realtimeSinceStartup + 75;
+        while (!rounds.IsCoverReady && Time.realtimeSinceStartup < deadline) yield return null;
+        if (!rounds.IsCoverReady)
+        {
+            Debug.LogError("Standalone COVER check did not reach a real completed dealer spin.");
+            Application.Quit(1);
+            yield break;
+        }
+        CasinoPlayerController player = FindFirstObjectByType<CasinoPlayerController>();
+        RouletteInspectionView inspection = rounds.GetComponent<RouletteInspectionView>();
+        MoveToTable(player, rounds.transform);
+        if (!inspection.TryOpenInspectionFromPlayerInput())
+        {
+            Debug.LogError("Standalone COVER check could not inspect Roulette.");
+            Application.Quit(1);
+            yield break;
+        }
+        yield return null;
+        GameObject board = (GameObject)typeof(RouletteInspectionView).GetField("board",
+            BindingFlags.Instance | BindingFlags.NonPublic).GetValue(inspection);
+        board.transform.Find("Start assistance").GetComponent<Button>().onClick.Invoke();
+        RouletteTableMinigame game = rounds.GetComponent<RouletteTableMinigame>();
+        if (!game.IsCoverMode || game.WinningNumber != rounds.AssistanceWinningNumber)
+        {
+            Debug.LogError("Standalone COVER check opened the wrong mode or result.");
+            Application.Quit(1);
+            yield break;
+        }
+        yield return new WaitForSecondsRealtime(1);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cover.png"));
+        yield return new WaitForSecondsRealtime(.5f);
+        Transform area = FindFirstObjectByType<CasinoMinigamePresentation>().GameArea;
+        area.Find("COVER Bet Guide").GetComponent<Button>().onClick.Invoke();
+        yield return new WaitForSecondsRealtime(.5f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cover-guide.png"));
+        yield return new WaitForSecondsRealtime(.5f);
+        area.Find("COVER Bet Guide Panel/Close bet guide").GetComponent<Button>().onClick.Invoke();
+        List<RouletteCustomerBet> actualBets = new List<RouletteCustomerBet>(rounds.AssistanceBets);
+        foreach (RouletteCustomerBet bet in actualBets)
+            if (bet.IsWinning) game.SelectCoverBet(bet.BetId);
+        if (game.CoverSelection.CanDeclareNoWinners) game.DeclareNoCoverWinners();
+        deadline = Time.realtimeSinceStartup + 5;
+        while (game.IsRunning && Time.realtimeSinceStartup < deadline) yield return null;
+        if (game.IsRunning || actualBets.Exists(bet => !bet.IsSettled))
+        {
+            Debug.LogError("Standalone COVER check did not complete and settle its real round.");
+            Application.Quit(1);
+            yield break;
+        }
+        Debug.Log("STANDALONE COVER CHECK PASSED: actual round/result, interactive layout, guide and winner selection.");
         Application.Quit();
     }
 

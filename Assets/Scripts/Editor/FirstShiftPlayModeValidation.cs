@@ -300,21 +300,37 @@ public static class FirstShiftPlayModeValidation
             yield return new WaitForSecondsRealtime(0.5f);
             Check(Mathf.Approximately(pausedAt, shift.RemainingSeconds), "Pause did not stop timer");
             yield return Press(UnityEngine.InputSystem.Key.P);
+            CasinoTableAttention unrelatedAttention = Array.Find(
+                FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None),
+                table => table != blackjack).GetComponent<CasinoTableAttention>();
+            unrelatedAttention.RequestAttention(TableAttentionReason.CustomerComplaint);
+            foreach (CasinoAttentionIndicator indicator in FindObjectsByType<CasinoAttentionIndicator>(FindObjectsSortMode.None))
+            {
+                Set(indicator, "nextRefresh", 0f);
+                Call(indicator, "LateUpdate");
+                Check(!((Canvas)Get(indicator, "indicatorCanvas")).enabled,
+                    "Unrelated task marker interrupted the movement lesson");
+            }
+            Check(unrelatedAttention.HasPendingTasks && !unrelatedAttention.HasVisibleTasks,
+                "Training hid a task by deleting its actual gameplay state");
+            unrelatedAttention.ResolveAttention(TableAttentionReason.CustomerComplaint);
             Vector3 movementStart = player.transform.position;
             InputSystem.QueueStateEvent(keyboard, new KeyboardState(UnityEngine.InputSystem.Key.W));
-            yield return new WaitForSecondsRealtime(2.0f);
+            yield return new WaitForSeconds(1f);
             Debug.Log($"MOVEMENT TEST {movementStart} -> {player.transform.position}; key={keyboard.wKey.isPressed}; timeScale={Time.timeScale}");
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
             Check((bool)Get(shift, "moved"), "W movement did not advance tutorial");
+            while (shift.IsLessonOpen) yield return null;
+            yield return null;
             Vector3 arrowStart = player.transform.position;
             InputSystem.QueueStateEvent(keyboard, new KeyboardState(UnityEngine.InputSystem.Key.UpArrow));
-            yield return new WaitForSecondsRealtime(0.25f);
+            yield return new WaitForSeconds(0.25f);
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
             Check(player.transform.position.z > arrowStart.z + 0.1f &&
                   Mathf.Abs(player.transform.position.x - arrowStart.x) < 0.1f,
-                "Arrow-key movement did not follow the screen-aligned axes");
+                $"Arrow-key movement did not follow the screen-aligned axes: {arrowStart} -> {player.transform.position}");
             foreach (AIDealer dealer in manager.Dealers)
                 if (dealer.IsAtStation)
                     Check(Vector3.Distance(dealer.GetComponentInChildren<PixelCharacterVisual>().transform.localPosition,
@@ -328,6 +344,10 @@ public static class FirstShiftPlayModeValidation
             float timeout = Time.realtimeSinceStartup + 60;
             while (!blackjack.IsShuffleReady && Time.realtimeSinceStartup < timeout) yield return null;
             Check(blackjack.IsShuffleReady, "SHUFFLE did not become ready");
+            Check(blackjack.GetComponent<CasinoTableAttention>().HasVisibleTasks &&
+                !unrelatedAttention.GetComponent<CasinoMinigameStation>().RequestMinigame(
+                    CasinoMinigameType.Shuffle, TableAttentionReason.ShuffleAssistanceRequired),
+                "Training did not focus task requests on the active Blackjack lesson");
             yield return Press(UnityEngine.InputSystem.Key.E);
             Check(blackjack.IsInspectionOpen, "E did not open unified BJ1 interface");
             Check(!blackjack.GetComponent<CasinoMinigameStation>().TryBegin(), "Minigame overlapped table inspection");
@@ -415,29 +435,48 @@ public static class FirstShiftPlayModeValidation
             ((GameObject)Get(inspection, "board")).transform.Find("Start assistance")
                 .GetComponent<Button>().onClick.Invoke();
             Check(rgame.IsRunning, "Roulette retry failed");
-            Call(rgame, "BeginSpin");
-            yield return new WaitForSeconds(3f);
-            IList chips = (IList)Get(rgame, "sweepChips");
-            var tray = (RectTransform)Get(rgame, "trayHitArea");
-            Vector2 trayPoint = RectTransformUtility.WorldToScreenPoint(null, tray.position);
-            foreach (object chip in new ArrayList(chips))
+            Check(rgame.IsCoverMode && roulette.IsCoverReady && rgame.WinningNumber == roulette.AssistanceWinningNumber,
+                "Staffed Roulette did not open real-result COVER");
+            int coverNumber = rgame.WinningNumber;
+            long coverRound = rgame.AssistanceRoundId;
+            Check((Transform)Get(rgame, "spinStageRoot") == null && (Transform)Get(rgame, "sweepStageRoot") == null,
+                "COVER still builds SPIN or SWEEP gameplay");
+            Set(rgame, "coverRemaining", 0f);
+            yield return null;
+            Check(!rgame.IsRunning && roulette.IsCoverReady && roulette.AssistanceWinningNumber == coverNumber &&
+                roulette.AssistanceRoundId == coverRound, "COVER timeout lost the real result or bets");
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            Button coverButton = ((GameObject)Get(inspection, "board")).transform.Find("Start assistance").GetComponent<Button>();
+            Check(coverButton.GetComponentInChildren<Text>().text == "COVER!", "Roulette button is not simply COVER!");
+            coverButton.onClick.Invoke();
+            Check(rgame.IsCoverMode && rgame.WinningNumber == coverNumber, "COVER retry spun a new number");
+            long inventoryBeforeCover = roulette.FloatDestination.InventoryValuePence;
+            long expectedCoverPayment = 0;
+            foreach (RouletteCustomerBet bet in roulette.AssistanceBets)
             {
-                Type type = chip.GetType();
-                if ((bool)type.GetField("Protected").GetValue(chip)) continue;
-                var rect = (RectTransform)type.GetField("Rect").GetValue(chip);
-                Call(rgame, "BeginPointerAction", RectTransformUtility.WorldToScreenPoint(null, rect.position));
-                Call(rgame, "EndPointerAction", trayPoint);
+                if (!bet.IsWinning)
+                {
+                    Check(!rgame.SelectCoverBet(bet.BetId), "COVER accepted a losing bet");
+                    continue;
+                }
+                expectedCoverPayment += bet.GrossReturnPence;
+                rgame.DeclareNoCoverWinners();
+                Check(rgame.IsRunning && rgame.CoverSelection.MarkedCount == 0, "NO WINNERS bypassed a winner");
+                Transform area = FindFirstObjectByType<CasinoMinigamePresentation>().GameArea;
+                area.Find($"COVER Bet {bet.BetId}").GetComponent<Button>().onClick.Invoke();
+                Check(!rgame.SelectCoverBet(bet.BetId), "COVER accepted a duplicate mark");
             }
-            while (rgame.IsRunning)
-            {
-                var bet = (RouletteCustomerBet)Get(rgame, "currentPayoutBet");
-                Check(bet != null, "PAY stage did not open");
-                int[] counts = RouletteTableMinigame.GetPayoutComposition((int)bet.GrossReturnPence);
-                for (int i = 0; i < counts.Length; i++)
-                    for (int n = 0; n < counts[i]; n++) Call(rgame, "AddPayoutChips", i);
-                Call(rgame, "ConfirmPayout");
-                yield return new WaitForSecondsRealtime(0.7f);
-            }
+            if (rgame.CoverSelection.CanDeclareNoWinners) rgame.DeclareNoCoverWinners();
+            while (rgame.IsRunning) yield return null;
+            Check(roulette.Phase == RouletteRoundPhase.SettlingBets, "COVER did not settle its real round");
+            yield return null;
+            while (shift.IsLessonOpen) yield return null;
+            yield return null;
+            Check(roulette.FloatDestination.InventoryValuePence == inventoryBeforeCover - expectedCoverPayment,
+                $"COVER automatic payouts did not deduct actual inventory exactly once: " +
+                $"before={inventoryBeforeCover}, expectedPayment={expectedCoverPayment}, actual={roulette.FloatDestination.InventoryValuePence}");
+            foreach (RouletteCustomerBet bet in roulette.CurrentBets)
+                Check(!bet.IsWinning || bet.IsPaid, "COVER left a funded winner unpaid");
             Check((bool)Get(shift, "rouletteDone"), "Roulette did not advance tutorial");
             timeout = Time.realtimeSinceStartup + 40;
             while (desk.ActiveCustomer == null && Time.realtimeSinceStartup < timeout) yield return null;
@@ -605,9 +644,9 @@ public static class FirstShiftPlayModeValidation
                 $"range={roulette.GetComponent<CasinoMinigameStation>().IsPlayerInRange(player.transform)}");
             Call(rgame, "BeginSpin");
             yield return new WaitForSeconds(3);
-            chips = (IList)Get(rgame, "sweepChips");
-            tray = (RectTransform)Get(rgame, "trayHitArea");
-            trayPoint = RectTransformUtility.WorldToScreenPoint(null, tray.position);
+            IList chips = (IList)Get(rgame, "sweepChips");
+            var tray = (RectTransform)Get(rgame, "trayHitArea");
+            Vector2 trayPoint = RectTransformUtility.WorldToScreenPoint(null, tray.position);
             foreach (object chip in new ArrayList(chips))
             {
                 Type type = chip.GetType();

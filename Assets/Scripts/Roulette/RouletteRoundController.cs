@@ -86,6 +86,10 @@ public sealed class RouletteRoundController : MonoBehaviour
     public IReadOnlyList<RouletteCustomerBet> AssistanceBets => assistanceBets;
     public long AssistanceRoundId => assistanceRoundId;
     public int AssistanceWinningNumber => assistanceWinningNumber;
+    public bool IsCoverAssistance => HasPendingAssistance &&
+        assistanceStation.MinigameType == CasinoMinigameType.Cover && !IsPlayerOperating;
+    public bool IsCoverReady => IsCoverAssistance && IsDealerStaffed &&
+        Phase == RouletteRoundPhase.AwaitingAssistance && assistanceWinningNumber >= 0;
     public IReadOnlyList<int> RecentResults => recentResults.ToArray();
     public int RoulettePositionCount => customerPositions == null ? 0 : customerPositions.Length;
     public int ValidRoulettePositionCount
@@ -148,6 +152,15 @@ public sealed class RouletteRoundController : MonoBehaviour
         RouletteInspectionView view = GetComponent<RouletteInspectionView>();
         if (Time.timeScale == 0 || IsDealerStaffed || view == null || !view.IsOpen) return false;
         IsPlayerOperating = true;
+        if (Phase == RouletteRoundPhase.Spinning)
+        {
+            Phase = RouletteRoundPhase.AwaitingAssistance;
+            assistanceRoundId = activeRoundId;
+            assistanceBets.Clear();
+            assistanceBets.AddRange(currentBets);
+            assistanceWinningNumber = -1;
+            TrySetAssistanceWinningNumber(activeRoundId, pendingWinningNumber);
+        }
         return true;
     }
     public void EndPlayerTakeover() => IsPlayerOperating = false;
@@ -156,6 +169,8 @@ public sealed class RouletteRoundController : MonoBehaviour
         if (!IsPlayerOperating || Time.timeScale == 0) return false;
         if (Phase == RouletteRoundPhase.WaitingForPlayers) TryBeginRound();
         if (Phase != RouletteRoundPhase.AcceptingBets && Phase != RouletteRoundPhase.AwaitingAssistance) return false;
+        if (HasPendingAssistance && assistanceStation.MinigameType == CasinoMinigameType.Cover)
+            assistanceStation.ResolveTaskAfterFatalFailure();
         if (!HasPendingAssistance)
             assistanceStation.RequestMinigame(CasinoMinigameType.Spin, TableAttentionReason.RouletteSpinRequired);
         if (Phase == RouletteRoundPhase.AcceptingBets && !TryPauseForAssistance()) return false;
@@ -178,7 +193,7 @@ public sealed class RouletteRoundController : MonoBehaviour
     {
         RouletteRoundPhase.WaitingForPlayers => IsServiceAvailable ? "WAITING FOR PLAYERS" : "UNSTAFFED",
         RouletteRoundPhase.AcceptingBets => "ACCEPTING BETS",
-        RouletteRoundPhase.AwaitingAssistance => "AWAITING PIT BOSS SPIN",
+        RouletteRoundPhase.AwaitingAssistance => IsCoverAssistance ? "COVER! MARK WINNING BETS" : "AWAITING PIT BOSS TAKEOVER",
         RouletteRoundPhase.Spinning => "SPINNING",
         RouletteRoundPhase.SettlingBets => "SETTLING BETS",
         RouletteRoundPhase.ClearingTable => "CLEARING TABLE",
@@ -207,7 +222,10 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     public bool TryPauseForAssistance()
     {
-        if (Phase != RouletteRoundPhase.AcceptingBets || currentBets.Count == 0 ||
+        bool cover = assistanceStation != null && assistanceStation.MinigameType == CasinoMinigameType.Cover;
+        if ((cover ? Phase != RouletteRoundPhase.Spinning || spinElapsed < spinSeconds ||
+                     pendingWinningNumber < 0 || !IsDealerStaffed || IsPlayerOperating
+                   : Phase != RouletteRoundPhase.AcceptingBets || !IsPlayerOperating) || currentBets.Count == 0 ||
             !IsServiceAvailable || !HasActiveCustomersAndDealer ||
             assistanceStation == null || !assistanceStation.IsTaskPending)
         {
@@ -219,6 +237,7 @@ public sealed class RouletteRoundController : MonoBehaviour
         assistanceBets.Clear();
         assistanceBets.AddRange(currentBets);
         assistanceWinningNumber = -1;
+        if (cover) TrySetAssistanceWinningNumber(assistanceRoundId, pendingWinningNumber);
         return true;
     }
 
@@ -356,6 +375,7 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     public bool CanAcceptAssistanceResult(int number) =>
         Phase == RouletteRoundPhase.AwaitingAssistance &&
+        number == assistanceWinningNumber &&
         CanSettleRound(roundSettled, currentBets.Count, number);
 
     public static bool CanSettleRound(bool alreadySettled, int betCount, int winningNumber) =>
@@ -363,6 +383,8 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     public void RefreshAssistanceStatus()
     {
+        if (IsCoverAssistance && !IsDealerStaffed && !assistanceStation.IsMinigameRunning)
+            assistanceStation.ResolveTaskAfterFatalFailure();
         if (Phase == RouletteRoundPhase.AwaitingAssistance && assistanceStation != null &&
             assistanceStation.IsTaskPending && !assistanceStation.IsMinigameRunning &&
             !activeCustomers.Any(customer => customer != null && customer.IsSeated))
@@ -373,7 +395,9 @@ public sealed class RouletteRoundController : MonoBehaviour
         if (Phase == RouletteRoundPhase.AwaitingAssistance &&
             (assistanceStation == null || !assistanceStation.IsTaskPending))
         {
-            BeginAutomaticSpin();
+            if (!IsDealerStaffed || IsPlayerOperating) return;
+            if (assistanceWinningNumber >= 0) SettleRound(assistanceWinningNumber);
+            else BeginAutomaticSpin();
         }
     }
 
@@ -422,11 +446,7 @@ public sealed class RouletteRoundController : MonoBehaviour
                 phaseTimer -= Time.deltaTime;
                 if (phaseTimer <= 0f)
                 {
-                    AssistanceOpportunity?.Invoke(this);
-                    if (Phase == RouletteRoundPhase.AcceptingBets)
-                    {
-                        BeginAutomaticSpin();
-                    }
+                    BeginAutomaticSpin();
                 }
                 break;
             case RouletteRoundPhase.Spinning:
@@ -434,8 +454,7 @@ public sealed class RouletteRoundController : MonoBehaviour
                 break;
             case RouletteRoundPhase.SettlingBets:
             case RouletteRoundPhase.ClearingTable:
-                if (Phase == RouletteRoundPhase.SettlingBets &&
-                    assistanceBets.Count == 0 && !TrySettleAutomaticPayouts())
+                if (Phase == RouletteRoundPhase.SettlingBets && !TrySettleAutomaticPayouts())
                     return;
                 phaseTimer -= Time.deltaTime;
                 if (phaseTimer <= 0f)
@@ -509,9 +528,13 @@ public sealed class RouletteRoundController : MonoBehaviour
         phaseTimer = bettingSeconds;
     }
 
-    private static RouletteBet CreateCustomerBet()
+    private RouletteBet CreateCustomerBet()
     {
-        RouletteBetType[] types = (RouletteBetType[])Enum.GetValues(typeof(RouletteBetType));
+        RouletteBetType[] types = activeRoundId <= 3
+            ? new[] { RouletteBetType.StraightUp, RouletteBetType.Red, RouletteBetType.Black, RouletteBetType.Odd, RouletteBetType.Even }
+            : activeRoundId <= 6
+                ? new[] { RouletteBetType.StraightUp, RouletteBetType.Red, RouletteBetType.Black, RouletteBetType.Split, RouletteBetType.Street }
+                : (RouletteBetType[])Enum.GetValues(typeof(RouletteBetType));
         RouletteBetType type = types[UnityEngine.Random.Range(0, types.Length)];
         int row = UnityEngine.Random.Range(0, 12);
         int column = UnityEngine.Random.Range(0, 3);
@@ -520,7 +543,8 @@ public sealed class RouletteRoundController : MonoBehaviour
         switch (type)
         {
             case RouletteBetType.Split:
-                numbers = column < 2 ? new[] { number, number + 1 } : new[] { number, number + 3 };
+                numbers = column < 2 ? new[] { number, number + 1 } :
+                    row < 11 ? new[] { number, number + 3 } : new[] { number - 3, number };
                 break;
             case RouletteBetType.Street:
                 number = row * 3 + 1;
@@ -675,7 +699,10 @@ public sealed class RouletteRoundController : MonoBehaviour
         visibleBall.localPosition = new Vector3(Mathf.Cos(ballAngle) * .6f, .32f, Mathf.Sin(ballAngle) * .6f);
         if (spinElapsed >= spinSeconds)
         {
-            SettleRound(pendingWinningNumber);
+            float resultAngle = ((Array.IndexOf(CasinoPixelArt.WheelOrder, pendingWinningNumber) + .5f) / 37f * 2 - 1) * Mathf.PI;
+            visibleBall.localPosition = new Vector3(Mathf.Cos(resultAngle) * .6f, .32f, Mathf.Sin(resultAngle) * .6f);
+            AssistanceOpportunity?.Invoke(this);
+            if (Phase == RouletteRoundPhase.Spinning) SettleRound(pendingWinningNumber);
         }
     }
 
@@ -725,7 +752,11 @@ public sealed class RouletteRoundController : MonoBehaviour
                 customerBet.IsWinning ? CasinoGesture.Pay : CasinoGesture.Collect,
                 customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
             BetSettled?.Invoke(customerBet);
-            if (assistanceBets.Count == 0) AnimateSettlement(customerBet, customerBet.IsWinning);
+            if (!customerBet.IsWinning && !customerBet.IsSwept)
+            {
+                AnimateSettlement(customerBet, false);
+                customerBet.IsSwept = true;
+            }
         }
 
         Phase = RouletteRoundPhase.SettlingBets;
@@ -746,6 +777,7 @@ public sealed class RouletteRoundController : MonoBehaviour
 
             bet.PaidOutPence = bet.GrossReturnPence;
             bet.IsPaid = true;
+            AnimateSettlement(bet, true);
         }
 
         return true;

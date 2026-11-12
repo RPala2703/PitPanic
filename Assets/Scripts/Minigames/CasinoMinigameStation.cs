@@ -20,7 +20,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
     public event Action<CasinoMinigameResult> TaskSucceeded;
     public event Action TaskAbandoned;
     public static bool ShouldResolveTaskOnAbandon(CasinoMinigameType type) =>
-        type != CasinoMinigameType.Shuffle && type != CasinoMinigameType.Spin;
+        type != CasinoMinigameType.Shuffle && type != CasinoMinigameType.Spin && type != CasinoMinigameType.Cover;
 
     public bool IsConfigured => player != null && interactionZone != null &&
                                 interactionZone.IsConfigured && attention != null &&
@@ -45,6 +45,9 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     public bool RequestMinigame(CasinoMinigameType type, TableAttentionReason reason)
     {
+        if (CasinoShiftController.Active != null &&
+            !CasinoShiftController.Active.AllowsTrainingTask(attention, type))
+            return false;
         if (IsTaskPending)
         {
             return false;

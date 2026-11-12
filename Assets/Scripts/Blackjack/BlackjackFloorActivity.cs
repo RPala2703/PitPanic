@@ -149,14 +149,14 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
                 Gesture(CasinoGesture.Deal, container.TransformPoint(target));
             }
 
-            if (hand.PayoutPaid && !visuals.PayoutShown)
+            if (hand.PayoutPaid && hand.WinningsPence > 0 && !visuals.PayoutShown)
             {
                 visuals.PayoutShown = true;
                 SpawnPayout(hand, visuals);
             }
 
             if (state == BlackjackTableState.Settlement && !visuals.BetCollected &&
-                hand.Outcome == BlackjackOutcome.Lose && !hand.PayoutPaid)
+                hand.Outcome == BlackjackOutcome.Lose)
             {
                 visuals.BetCollected = true;
                 CollectChips(visuals);
@@ -266,7 +266,7 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
     private void SpawnPayout(BlackjackHand hand, HandVisuals visuals)
     {
         Vector3 anchor = HandAnchor(hand) + new Vector3(0.30f, 0f, 0f);
-        int count = Mathf.Clamp(hand.PayoutPence / 500, 1, 6);
+        int count = Mathf.Clamp(hand.WinningsPence / 500, 1, 6);
         BuildChipStack(anchor, count, visuals.Chips, TrayLocal, 1);
         Gesture(CasinoGesture.Pay, container.TransformPoint(anchor), 0.8f);
     }
