@@ -240,7 +240,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
 
     private static (Color accent, Color board, Color game) GetTheme(string title)
     {
-        if (title.Contains("FLICK"))
+        if (title.Contains("DEAL"))
         {
             return (new Color(0.46f, 0.86f, 0.82f), new Color(0.12f, 0.09f, 0.17f, 0.99f),
                 new Color(0.18f, 0.24f, 0.27f, 1f));

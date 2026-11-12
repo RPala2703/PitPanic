@@ -9,9 +9,9 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
     [SerializeField] private string displayName;
     [SerializeField] private TableInteractionZone interactionZone;
     [SerializeField] private CasinoTableAttention attention;
-    [SerializeField, Min(0)] private int[] startingChipCounts = { 12, 8, 4, 2 };
-    [SerializeField, Min(0)] private int[] refillThresholdCounts = { 3, 2, 1, 0 };
-    [SerializeField, Min(0)] private int[] refillOrderCounts = { 10, 5, 4, 0 };
+    [SerializeField, Min(0)] private int[] startingChipCounts = { 12, 32, 4, 2 };
+    [SerializeField, Min(0)] private int[] refillThresholdCounts = { 3, 8, 1, 0 };
+    [SerializeField, Min(0)] private int[] refillOrderCounts = { 10, 20, 4, 0 };
 
     private readonly int[] chipCounts = new int[4];
     private readonly HashSet<string> receivedOrderIds = new HashSet<string>();

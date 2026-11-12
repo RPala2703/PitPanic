@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -137,7 +138,30 @@ public sealed class RouletteRoundController : MonoBehaviour
                                   dealerStation.AssignedDealer.isActiveAndEnabled &&
                                   dealerStation.AssignedDealer.AssignedStation == dealerStation &&
                                   dealerStation.AssignedDealer.CanServe;
-    public bool HasActiveCustomersAndDealer => IsDealerStaffed && ParticipantCount > 0 &&
+    public bool IsPlayerOperating { get; private set; }
+    private CasinoCharacterVisual OperatorVisual => IsPlayerOperating
+        ? FindFirstObjectByType<CasinoPlayerController>()?.GetComponentInChildren<CasinoCharacterVisual>()
+        : AssignedDealer?.GetComponentInChildren<CasinoCharacterVisual>();
+    public bool IsServiceAvailable => IsDealerStaffed || IsPlayerOperating;
+    public bool BeginPlayerTakeover()
+    {
+        RouletteInspectionView view = GetComponent<RouletteInspectionView>();
+        if (Time.timeScale == 0 || IsDealerStaffed || view == null || !view.IsOpen) return false;
+        IsPlayerOperating = true;
+        return true;
+    }
+    public void EndPlayerTakeover() => IsPlayerOperating = false;
+    public bool RunManualSpin()
+    {
+        if (!IsPlayerOperating || Time.timeScale == 0) return false;
+        if (Phase == RouletteRoundPhase.WaitingForPlayers) TryBeginRound();
+        if (Phase != RouletteRoundPhase.AcceptingBets && Phase != RouletteRoundPhase.AwaitingAssistance) return false;
+        if (!HasPendingAssistance)
+            assistanceStation.RequestMinigame(CasinoMinigameType.Spin, TableAttentionReason.RouletteSpinRequired);
+        if (Phase == RouletteRoundPhase.AcceptingBets && !TryPauseForAssistance()) return false;
+        return HasPendingAssistance;
+    }
+    public bool HasActiveCustomersAndDealer => IsServiceAvailable && ParticipantCount > 0 &&
                                                Phase != RouletteRoundPhase.WaitingForPlayers;
     public bool IsConfigured => dealerStation != null && dealerStation.IsConfigured &&
                                 customerPositions != null && customerPositions.Length == 4 &&
@@ -149,10 +173,10 @@ public sealed class RouletteRoundController : MonoBehaviour
     public AIDealer AssignedDealer => dealerStation != null ? dealerStation.AssignedDealer : null;
     public bool HasPendingAssistance => assistanceStation != null && assistanceStation.IsTaskPending;
     public CasinoFloatRefillDestination FloatDestination => floatDestination;
-    public string PhaseLabel => AssignedDealer != null && AssignedDealer.IsAtStation && !AssignedDealer.CanServe
+    public string PhaseLabel => !IsPlayerOperating && AssignedDealer != null && AssignedDealer.IsAtStation && !AssignedDealer.CanServe
         ? "EXHAUSTED! ASSIGN COVER" : Phase switch
     {
-        RouletteRoundPhase.WaitingForPlayers => IsDealerStaffed ? "WAITING FOR PLAYERS" : "UNSTAFFED",
+        RouletteRoundPhase.WaitingForPlayers => IsServiceAvailable ? "WAITING FOR PLAYERS" : "UNSTAFFED",
         RouletteRoundPhase.AcceptingBets => "ACCEPTING BETS",
         RouletteRoundPhase.AwaitingAssistance => "AWAITING PIT BOSS SPIN",
         RouletteRoundPhase.Spinning => "SPINNING",
@@ -184,7 +208,7 @@ public sealed class RouletteRoundController : MonoBehaviour
     public bool TryPauseForAssistance()
     {
         if (Phase != RouletteRoundPhase.AcceptingBets || currentBets.Count == 0 ||
-            !IsDealerStaffed || !HasActiveCustomersAndDealer ||
+            !IsServiceAvailable || !HasActiveCustomersAndDealer ||
             assistanceStation == null || !assistanceStation.IsTaskPending)
         {
             return false;
@@ -276,8 +300,8 @@ public sealed class RouletteRoundController : MonoBehaviour
         customerBet.IsPaid = true;
         AnimateSettlement(customerBet, true);
         CasinoSoundscape.Play(CasinoSoundCue.Chip, transform.position);
-        customerBet.Customer?.GetComponentInChildren<PixelCharacterVisual>()?.React(true);
-        AssignedDealer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
+        if (customerBet.Customer != null) customerBet.Customer.GetComponentInChildren<PixelCharacterVisual>()?.React(true);
+        OperatorVisual?.PlayGesture(
             CasinoGesture.Pay, customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
         return true;
     }
@@ -339,6 +363,13 @@ public sealed class RouletteRoundController : MonoBehaviour
 
     public void RefreshAssistanceStatus()
     {
+        if (Phase == RouletteRoundPhase.AwaitingAssistance && assistanceStation != null &&
+            assistanceStation.IsTaskPending && !assistanceStation.IsMinigameRunning &&
+            !activeCustomers.Any(customer => customer != null && customer.IsSeated))
+        {
+            assistanceStation.ResolveTaskAfterFatalFailure();
+            if (assistanceWinningNumber >= 0) { SettleRound(assistanceWinningNumber); return; }
+        }
         if (Phase == RouletteRoundPhase.AwaitingAssistance &&
             (assistanceStation == null || !assistanceStation.IsTaskPending))
         {
@@ -371,8 +402,12 @@ public sealed class RouletteRoundController : MonoBehaviour
     private void Update()
     {
         if (Time.timeScale == 0) return;
+        if (IsPlayerOperating && !GetComponent<RouletteInspectionView>().IsOpen && !assistanceStation.IsMinigameRunning &&
+            Phase != RouletteRoundPhase.SettlingBets && Phase != RouletteRoundPhase.ClearingTable)
+            IsPlayerOperating = false;
+        if (IsPlayerOperating && IsDealerStaffed) IsPlayerOperating = false;
         RefreshAssistanceStatus();
-        if (!IsDealerStaffed)
+        if (!IsServiceAvailable)
         {
             return;
         }
@@ -383,6 +418,7 @@ public sealed class RouletteRoundController : MonoBehaviour
                 TryBeginRound();
                 break;
             case RouletteRoundPhase.AcceptingBets:
+                if (IsPlayerOperating) break;
                 phaseTimer -= Time.deltaTime;
                 if (phaseTimer <= 0f)
                 {
@@ -632,8 +668,9 @@ public sealed class RouletteRoundController : MonoBehaviour
             customerBet.GrossReturnPence = grossReturn;
             customerBet.IsWinning = EuropeanRouletteRules.Wins(customerBet.Bet, winningNumber);
             customerBet.IsSettled = true;
-            customerBet.Customer?.GetComponentInChildren<PixelCharacterVisual>()?.React(customerBet.IsWinning);
-            AssignedDealer?.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
+            if (customerBet.Customer != null)
+                customerBet.Customer.GetComponentInChildren<PixelCharacterVisual>()?.React(customerBet.IsWinning);
+            OperatorVisual?.PlayGesture(
                 customerBet.IsWinning ? CasinoGesture.Pay : CasinoGesture.Collect,
                 customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
             BetSettled?.Invoke(customerBet);

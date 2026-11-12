@@ -20,7 +20,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
     [SerializeField] private CasinoMinigameStation minigameStation;
     [SerializeField] private CashDeskPackMinigame packMinigame;
     [SerializeField] private CasinoPlayerController player;
-    [SerializeField, Min(0)] private int[] registerChipStock = { 500, 500, 500, 50 };
+    [SerializeField, Min(0)] private int[] registerChipStock = { 500, 2000, 500, 50 };
     [SerializeField] private CasinoFloatRefillDestination[] configuredDestinations;
     [SerializeField] private GameObject carriedTrayPrefab;
 

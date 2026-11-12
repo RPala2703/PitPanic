@@ -42,6 +42,7 @@ public sealed class AIDealer : MonoBehaviour
     public string DealerId => string.IsNullOrWhiteSpace(dealerId) ? name : dealerId;
     public float Energy => energy;
     public bool CanServe => IsAtStation && energy > 0f;
+    public bool TrainingProtected { get; set; }
     public float TiredThreshold => tiredThreshold;
     public float ExhaustedThreshold => exhaustedThreshold;
     public float FullRestThreshold => fullRestThreshold;
@@ -86,6 +87,13 @@ public sealed class AIDealer : MonoBehaviour
             return;
         energy = Mathf.Min(energy, tiredThreshold);
         RequestBreak();
+    }
+
+    public void RequestTutorialTakeover()
+    {
+        if (!IsAtStation) return;
+        energy = 0;
+        if (!NeedsBreak) RequestBreak();
     }
 
     public string StatusLabel => IsAtStation && energy <= 0 ? "EXHAUSTED! SERVICE STOPPED" : state switch
@@ -368,6 +376,16 @@ public sealed class AIDealer : MonoBehaviour
     }
 
     private float blockedSeconds;
+    public float SecondsUntilExhausted
+    {
+        get
+        {
+            bool busy = AssignedStation != null && (AssignedStation.BlackjackTable?.IsActivelyServing == true ||
+                AssignedStation.GetComponent<RouletteRoundController>()?.HasActiveCustomersAndDealer == true);
+            return energy / Mathf.Max(.001f, energyDrainPerSecond * (busy ? 1 : .5f));
+        }
+    }
+    public float ExhaustionWarningDuration => energy > 0 ? SecondsUntilExhausted * 30 / energy : 0;
 
     private void Update()
     {
@@ -391,7 +409,8 @@ public sealed class AIDealer : MonoBehaviour
             bool busy = AssignedStation.BlackjackTable != null
                 ? AssignedStation.BlackjackTable.IsActivelyServing
                 : roulette != null && roulette.HasActiveCustomersAndDealer;
-            energy = CalculateEnergyAfterWork(energy, energyDrainPerSecond, Time.deltaTime * (busy ? 1f : 0.5f));
+            if (!TrainingProtected)
+                energy = CalculateEnergyAfterWork(energy, energyDrainPerSecond, Time.deltaTime * (busy ? 1f : 0.5f));
 
             if (state == DealerDutyState.Working && energy <= tiredThreshold)
             {

@@ -16,7 +16,7 @@ public static class PitPanicPrototypeGenerator
     private const string MaterialsPath = "Assets/Materials/PitPanic";
     private const string NavigationPath = "Assets/Navigation";
     private const string NavigationDataPath = NavigationPath + "/CasinoNavMesh.asset";
-    private static readonly int[] HealthyFloatStartingChipCounts = { 12, 8, 4, 2 };
+    private static readonly int[] HealthyFloatStartingChipCounts = { 12, 32, 4, 2 };
 
     [MenuItem("Pit Panic/Run Prototype Validation")]
     public static void RunPrototypeValidation()
@@ -458,7 +458,7 @@ public static class PitPanicPrototypeGenerator
             CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Spin) ||
             !CasinoMinigameStation.ShouldResolveTaskOnAbandon(CasinoMinigameType.Pack))
         {
-            throw new System.InvalidOperationException("FLICK! retry state or remaining-card counts are incorrect.");
+            throw new System.InvalidOperationException("DEAL! retry state or remaining-card counts are incorrect.");
         }
 
         if (DealerAssignmentManager.ShouldRequestPitDeskDecision(false) ||
@@ -473,7 +473,7 @@ public static class PitPanicPrototypeGenerator
         {
             if (FlickCardMinigame.OpeningTargetForStep(3, dealStep) != expectedFlickTargets[dealStep])
             {
-                throw new System.InvalidOperationException($"FLICK! recipient at opening-deal step {dealStep} is incorrect.");
+                throw new System.InvalidOperationException($"DEAL! recipient at opening-deal step {dealStep} is incorrect.");
             }
         }
 
@@ -482,7 +482,7 @@ public static class PitPanicPrototypeGenerator
             FlickCardMinigame.IsValidFlickTarget(1, 1, true) ||
             FlickCardMinigame.IsValidFlickTarget(-2, -2, false))
         {
-            throw new System.InvalidOperationException("FLICK! accepted an invalid, duplicate, or in-flight card target.");
+            throw new System.InvalidOperationException("DEAL! accepted an invalid, duplicate, or in-flight card target.");
         }
 
         if (!RouletteTableMinigame.TryGetWinningNumber(0f, out int firstPocket) || firstPocket != 0 ||
@@ -566,17 +566,18 @@ public static class PitPanicPrototypeGenerator
             throw new System.InvalidOperationException("Weighted customer game choice or round-based assistance scheduling is invalid.");
         }
 
-        int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 1000, 2500, 10000 });
-        if (packedChips.Length != 3 || packedChips[0] != 2500 ||
-            packedChips[1] != 1000 || packedChips[2] != 500 ||
-            CashDeskPackMinigame.GetExactChipComposition(5000, new[] { 500, 1000, 2500, 10000 }).Length != 2)
+        int[] packedChips = CashDeskPackMinigame.GetExactChipComposition(4000, new[] { 500, 250, 2500, 10000 });
+        if (packedChips.Length != 4 || packedChips[0] != 2500 ||
+            packedChips[1] != 500 || packedChips[2] != 500 || packedChips[3] != 500 ||
+            CashDeskPackMinigame.GetExactChipComposition(5000, new[] { 500, 250, 2500, 10000 }).Length != 2 ||
+            CashDeskPackMinigame.GetExactChipComposition(2750, new[] { 500, 250, 2500, 10000 }).Length != 2)
         {
             throw new System.InvalidOperationException("Cash desk chip packing does not match the pence total exactly.");
         }
 
         int[] denominationDisplaySequence = { 1, 0, 2, 1, 0 };
         string sequenceDisplay = CashDeskPackMinigame.BuildPackingSequenceDisplay(denominationDisplaySequence, 3);
-        if (sequenceDisplay != "BLUE £10.00 • RED £5.00 • GREEN £25.00\nBLUE £10.00 • RED £5.00")
+        if (sequenceDisplay != "BLUE £2.50 • RED £5.00 • GREEN £25.00\nBLUE £2.50 • RED £5.00")
         {
             throw new System.InvalidOperationException("Cash desk sequence labels must show chip names, exact pence values, and fit deterministic rows.");
         }
@@ -596,7 +597,7 @@ public static class PitPanicPrototypeGenerator
             }
         }
 
-        int[] expectedPackingCounts = { 10, 5, 4, 0 };
+        int[] expectedPackingCounts = { 10, 20, 4, 0 };
         int[] packingSequence = CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127);
         int[] sequencedCounts = new int[4];
         foreach (int denominationIndex in packingSequence)
@@ -623,7 +624,7 @@ public static class PitPanicPrototypeGenerator
             packingSequence.Length,
             0,
             out int completedPackingIndex);
-        if (packingSequence.Length != 19 ||
+        if (packingSequence.Length != 34 ||
             !sequenceCountsMatch ||
             CashDeskPackMinigame.BuildPackingSequence(expectedPackingCounts, 127).Length != packingSequence.Length ||
             CashDeskPackMinigame.GetSequenceTimeLimit(19) <= CashDeskPackMinigame.GetSequenceTimeLimit(10) ||
@@ -646,8 +647,8 @@ public static class PitPanicPrototypeGenerator
         CasinoFloatRefillDestination floatDestination = floatDestinationObject.AddComponent<CasinoFloatRefillDestination>();
         floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, new int[4]);
         CasinoFloatRefillOrder floatOrder = CasinoFloatRefillOrder.CreateStandard("float-test", "TEST", floatDestination);
-        int[] correctFloatCounts = { 10, 5, 4, 0 };
-        int[] incorrectFloatCounts = { 10, 5, 3, 0 };
+        int[] correctFloatCounts = { 10, 20, 4, 0 };
+        int[] incorrectFloatCounts = { 10, 20, 3, 0 };
         floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, HealthyFloatStartingChipCounts);
         if (floatDestination.NeedsRefill() ||
             floatDestination.GetChipCount(0) <= 3 ||
@@ -662,13 +663,13 @@ public static class PitPanicPrototypeGenerator
         floatDestination.Configure("TEST", "Test Table", floatZone, floatAttention, new int[4]);
         floatDestination.RequestAttention();
         if (!floatDestination.NeedsRefill() ||
-            floatOrder.TotalPence != 20000 || floatOrder.TotalChips != 19 ||
-            floatOrder.GetDenominationPence(1) != 1000 ||
+            floatOrder.TotalPence != 20000 || floatOrder.TotalChips != 34 ||
+            floatOrder.GetDenominationPence(1) != 250 ||
             !floatOrder.HasExactContents(correctFloatCounts) ||
             floatOrder.HasExactContents(incorrectFloatCounts) ||
             !floatDestination.Receive(floatOrder, correctFloatCounts) ||
             floatDestination.GetChipCount(0) != 10 ||
-            floatDestination.GetChipCount(1) != 5 ||
+            floatDestination.GetChipCount(1) != 20 ||
             floatDestination.GetChipCount(2) != 4 ||
             floatDestination.NeedsRefill() ||
             floatAttention.HasPendingTasks ||
@@ -759,7 +760,7 @@ public static class PitPanicPrototypeGenerator
         if (duplicateFlickTaskAdded ||
             attention.GetPendingCount(TableAttentionReason.FlickAssistanceRequired) != 1)
         {
-            throw new System.InvalidOperationException("Repeated FLICK assistance requests created duplicate attention tasks.");
+            throw new System.InvalidOperationException("Repeated DEAL assistance requests created duplicate attention tasks.");
         }
 
         UnityEngine.Object.DestroyImmediate(attentionObject);
@@ -1111,7 +1112,7 @@ public static class PitPanicPrototypeGenerator
         cashDesk.RefreshFloatRequests();
         IReadOnlyList<CasinoFloatRefillOrder> requestedFloats = cashDesk.GetRequestedOrders();
         if (requestedFloats.Count != 3 || requestedFloats[0].TotalPence != 20000 ||
-            !requestedFloats[0].HasExactContents(new[] { 10, 5, 4, 0 }))
+            !requestedFloats[0].HasExactContents(new[] { 10, 20, 4, 0 }))
         {
             throw new System.InvalidOperationException("Low table floats did not create distinct, exact-value delivery requests.");
         }
@@ -1149,7 +1150,7 @@ public static class PitPanicPrototypeGenerator
                 flickMinigame == null || !flickMinigame.IsConfigured ||
                 !HasBettingSpots(blackjackTable.transform))
             {
-                throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or FLICK! system.");
+                throw new System.InvalidOperationException($"{blackjackTable.name} is missing its interaction, view, attention, or DEAL! system.");
             }
 
             string expectedTableLabel = blackjackTable.name == "Blackjack Table 1" ? "BLACKJACK 1" : "BLACKJACK 2";
@@ -2154,7 +2155,7 @@ public static class PitPanicPrototypeGenerator
             cardTransform.localScale != scaleBefore ||
             face.text != "Q♥")
         {
-            throw new System.InvalidOperationException("FLICK card face text is missing, attached to the physical card, or changed its transform.");
+            throw new System.InvalidOperationException("DEAL card face text is missing, attached to the physical card, or changed its transform.");
         }
 
         if (!FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(1, 3), out TextMesh updatedFace) ||
@@ -2162,7 +2163,7 @@ public static class PitPanicPrototypeGenerator
             cardTransform.Find("Card Face") == null ||
             FlickCardMinigame.TryCreateCardFaceText(cardTransform, new BlackjackCard(0, 0), out _))
         {
-            throw new System.InvalidOperationException("FLICK card face update duplicated its child or accepted an invalid card.");
+            throw new System.InvalidOperationException("DEAL card face update duplicated its child or accepted an invalid card.");
         }
 
         UnityEngine.Object.DestroyImmediate(card);
@@ -2174,7 +2175,7 @@ public static class PitPanicPrototypeGenerator
         int firstAttemptCards = FlickCardMinigame.RemainingOpeningCards(3, cancelledDealStep);
         if (firstAttemptCards != 4)
         {
-            throw new System.InvalidOperationException("A new FLICK challenge did not begin with all four remaining opening cards.");
+            throw new System.InvalidOperationException("A new DEAL challenge did not begin with all four remaining opening cards.");
         }
 
         int firstAttemptTarget = FlickCardMinigame.OpeningTargetForStep(3, cancelledDealStep);
@@ -2190,7 +2191,7 @@ public static class PitPanicPrototypeGenerator
         {
             if (FlickCardMinigame.OpeningTargetForStep(3, cancelledDealStep) == -2)
             {
-                throw new System.InvalidOperationException("A FLICK retry produced an invalid remaining-card target.");
+                throw new System.InvalidOperationException("A DEAL retry produced an invalid remaining-card target.");
             }
 
             cancelledDealStep++;
@@ -2199,7 +2200,7 @@ public static class PitPanicPrototypeGenerator
 
         if (!FlickCardMinigame.CanCompleteChallenge(retrySuccesses, retryCards, 0))
         {
-            throw new System.InvalidOperationException("A cancelled FLICK challenge could not complete on retry.");
+            throw new System.InvalidOperationException("A cancelled DEAL challenge could not complete on retry.");
         }
 
         int nextRoundDealStep = 4;
@@ -2208,7 +2209,7 @@ public static class PitPanicPrototypeGenerator
         {
             if (FlickCardMinigame.OpeningTargetForStep(3, nextRoundDealStep) == -2)
             {
-                throw new System.InvalidOperationException("A consecutive FLICK challenge produced an invalid target.");
+                throw new System.InvalidOperationException("A consecutive DEAL challenge produced an invalid target.");
             }
 
             nextRoundDealStep++;
@@ -2219,7 +2220,7 @@ public static class PitPanicPrototypeGenerator
                 nextRoundCards,
                 FlickCardMinigame.RemainingOpeningCards(3, nextRoundDealStep)))
         {
-            throw new System.InvalidOperationException("A second consecutive FLICK challenge did not complete cleanly.");
+            throw new System.InvalidOperationException("A second consecutive DEAL challenge did not complete cleanly.");
         }
     }
 

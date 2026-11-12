@@ -39,6 +39,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private CursorLockMode savedCursorLockMode;
     private bool savedCursorVisible;
     private Button assistanceButton;
+    private Button takeoverButton;
+    private bool keepTakeoverOnClose;
 
     public bool IsConfigured => player != null && interactionZone != null &&
                                 interactionZone.IsConfigured && roundController != null &&
@@ -104,6 +106,11 @@ public sealed class RouletteInspectionView : MonoBehaviour
         if (Time.timeScale == 0) return;
         if (panelOpen)
         {
+            takeoverButton.gameObject.SetActive(!roundController.IsDealerStaffed);
+            takeoverButton.GetComponentInChildren<Text>().text = roundController.IsPlayerOperating
+                ? "SPACE  •  RUN SPIN / SWEEP / PAY" : "NO DEALER? TAKE OVER!";
+            if (roundController.IsPlayerOperating && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
+                StartManualRound();
             assistanceButton.gameObject.SetActive(roundController.HasPendingAssistance);
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
@@ -134,6 +141,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
 
     private void Close()
     {
+        if (!keepTakeoverOnClose) roundController.EndPlayerTakeover();
+        keepTakeoverOnClose = false;
         CasinoSoundscape.ReleaseFocus(transform);
         panelOpen = false;
         if (board != null)
@@ -148,6 +157,25 @@ public sealed class RouletteInspectionView : MonoBehaviour
 
         Cursor.lockState = savedCursorLockMode;
         Cursor.visible = savedCursorVisible;
+    }
+
+    private void StartManualRound()
+    {
+        if (!roundController.IsPlayerOperating)
+        {
+            roundController.BeginPlayerTakeover();
+            player.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(CasinoAnimationPose.Deal, transform.position, .8f);
+            Refresh();
+            return;
+        }
+        if (!roundController.RunManualSpin()) return;
+        keepTakeoverOnClose = true;
+        Close();
+        if (!roundController.GetComponent<CasinoMinigameStation>().TryBegin())
+        {
+            roundController.EndPlayerTakeover();
+            TryOpenInspectionFromPlayerInput();
+        }
     }
 
     private void OnDisable()
@@ -201,6 +229,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         CasinoPixelArt.AddSparkle(board.transform, new Vector2(260f, 352f), 24f);
         closeButton = CreateButton(board.transform, "Close", "CLOSE  •  ESC",
             new Vector2(608f, 351f), new Vector2(190f, 48f), Close);
+        takeoverButton = CreateButton(board.transform, "Take over", "NO DEALER? TAKE OVER!",
+            new Vector2(-240, -357), new Vector2(490, 52), StartManualRound);
         assistanceButton = CreateButton(board.transform, "Start assistance", "PLAY TABLE TASK!",
             new Vector2(315f, -357f), new Vector2(420f, 52f), () =>
             {
@@ -294,7 +324,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         }
 
         AIDealer dealer = roundController.AssignedDealer;
-        dealerText.text = dealer == null || !roundController.IsDealerStaffed
+        dealerText.text = roundController.IsPlayerOperating ? "PENGUIN BOSS DEALING!\nSPACE: RUN THE ROUND\nESC: LEAVE / WAIT FOR COVER" :
+            dealer == null || !roundController.IsDealerStaffed
             ? "NEEDS A DEALER!"
             : $"DEALER  •  {dealer.DealerId}\nENERGY  •  {dealer.Energy:0}%\n{dealer.StatusLabel}";
         phaseText.text = $"{roundController.PhaseLabel}\n" +

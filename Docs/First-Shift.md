@@ -1,8 +1,11 @@
 # First shift
 
 Open `Assets/Scenes/PitPanicPrototype.unity` in Unity and press Play. Choose
-**New Game** for the short introduction and guided shift, or **Skip Training** on the introduction to start without
-the lessons. The on-screen objective points to the relevant station. Use WASD
+**New Game** for the introduction and Tiger's guided shift, or **Skip Training** on the introduction to start without
+the lessons. Tiger's large lesson cards pause the casino and audio. **Let Me Try**
+or Enter dismisses the explanation and resumes practice; Escape dismisses a lesson
+rather than opening another menu. **HELP** revisits all 13 explanations without
+changing progress. Gold arrows point to the relevant station. Use WASD
 to move, E to open a table and play its available task, and P to pause, including
 during a minigame. The tutorial can also be skipped using the HUD button.
 Q remains a compatibility shortcut to the same table interface. When carrying
@@ -20,6 +23,11 @@ a persisted sound toggle and fullscreen toggle; **Quit Game** exits the standalo
 (or stops Play Mode in the Editor). It is not a second gameplay scene.
 During the dealer lesson, BJ1's dealer is deliberately made tired so the
 player can practise assigning cover and sending a dealer on break.
+Training protects other dealers from incidental fatigue until lessons end;
+the fatigue and takeover lessons deliberately tire the relevant staff.
+Guided customers receive a real four-minute patience allowance so staff-recovery
+practice is not an unavoidable satisfaction failure. Normal arrivals and their
+next rounds return to the usual shift patience after training.
 Dealers lose 0.5 energy per second during active service and half that while
 waiting at a table. From full energy, the 30% break warning arrives after
 about 2 minutes 20 seconds of busy work, or 4 minutes 40 seconds of idle duty.
@@ -60,7 +68,32 @@ at 55 seconds and drops by 5 seconds per shift before perks. Completing Shift 3
 shows a demo-complete message and allows replay. New Game resets progression
 and perks, as stated in the introduction, but leaves sound/settings unchanged.
 Training retains at least three minutes on the clock until lessons are complete,
-so a learner cannot time out before learning dealer management.
+so a learner cannot time out before learning dealer management. Practice covers
+movement, table inspection, DEAL!, SPIN!/SWEEP!/PAY!, customer cash-out, float
+packing/delivery, assignments/breaks, both manual table takeovers, returning
+staff to duty and reading the shift goals. It forces real customers/tasks rather
+than depending on random requests, and advances after successful actions.
+
+## Task urgency and emergency dealing
+
+Station meters and task-HUD seconds read actual customer patience, active
+DEAL!/PACK! attempt time and working-dealer exhaustion time. Green means more
+than half remains, yellow means 20–50%, red means under 20%. Expired customers
+leave and lower satisfaction. Failed attempts stay retryable; their attempt
+meter closes, while an outstanding customer's patience continues. Float orders
+and staffing assignments have no invented expiry timer. Approach an ! for
+specific instructions, including where to get float and which key to use.
+
+At an exhausted or unstaffed table, **E → Take Over** enables pit-boss service.
+At Blackjack, **Space / Deal Card** advances the existing hand; customers choose
+Hit/Stand using their existing AI. In settlement, Space pays the exact return,
+or use the chip/confirm buttons. At Roulette, Take Over first keeps the table
+available for customers; **Space** then starts its existing SPIN/SWEEP/PAY round.
+Both use the current round and existing payout/deduplication paths, not new bets.
+Escape relinquishes table ownership; a returning dealer resumes the same state.
+The Roulette task retains ownership through its settlement/clearing animation,
+then releases it. At Pit Desk, send outgoing exhausted staff on break before
+waiting for them to cover another table.
 
 The batch-mode interaction check can be run from the project directory:
 
@@ -97,6 +130,14 @@ PACK! allows **15 seconds to read the order plus 2 seconds per chip**, without
 the old ten-second cap. A wrong sequence chip costs half a second, and cancelled
 or timed-out orders remain retryable. This applies to float packing and customer
 cash-outs.
+Both cash games use **click-to-select**, never dragging. **Undo Last Chip**
+works in both, including a completed cash-out tray before Finish. The shared
+denominations now match Blackjack/Roulette: red £5, blue £2.50, green £25,
+black £100. The standard refill still totals **£200**: 10 red, 20 blue, 4 green.
+Starting blue inventory/register counts were increased fourfold to preserve
+their original monetary value when correcting the former £10 mismatch.
+The penguin uses holding poses even while standing, and one direction-aware
+tray graphic follows its hands rather than duplicating a tray inside the atlas.
 
 A development macOS build with automated presentation captures can be made
 without hardcoded output paths:
@@ -111,7 +152,7 @@ PIT_PANIC_BUILD_PATH="/absolute/output/PitPanic.app" \
   -screen-width 1600 -screen-height 900 -screen-fullscreen 0
 ```
 
-Capture mode records the title, introduction, casino and table interfaces, then exits. It only
+Capture mode records the title, introduction, paused tutorial, casino and table interfaces, then exits. It only
 exists in Editor/development builds and is inactive without the explicit flag.
 It keeps rendering when unfocused, and does not complete or save tutorial progress.
 The screenshots are rendered frames, not evidence of human playtesting.

@@ -37,18 +37,36 @@ public sealed class BlackjackTableView : MonoBehaviour
     private Action onConfirmPayout;
     private string tableDisplayName = "BLACKJACK";
     private Button assistanceButton;
+    private Button takeoverButton;
+
+    public void SetTakeover(bool unavailable, bool operating, Func<bool> start)
+    {
+        if (board == null) return;
+        if (takeoverButton == null)
+        {
+            GameObject root = CasinoMinigamePresentation.CreateImage("Take over", board.transform,
+                new Vector2(0, -185), new Vector2(440, 44), CasinoHudStyle.Gold, true);
+            takeoverButton = root.AddComponent<Button>();
+            takeoverButton.targetGraphic = root.GetComponent<Image>();
+            CasinoHudStyle.Button(takeoverButton);
+            CasinoMinigamePresentation.CreateText(root.transform, "Action", "NO DEALER? TAKE OVER!",
+                Vector2.zero, new Vector2(420, 38), 18, CasinoHudStyle.Ink);
+            takeoverButton.onClick.AddListener(() => start());
+        }
+        takeoverButton.gameObject.SetActive(unavailable && !operating);
+    }
 
     public void SetAssistance(bool ready, Action start)
     {
         if (board == null) return;
         if (assistanceButton == null)
         {
-            GameObject root = CasinoMinigamePresentation.CreateImage("Start FLICK", board.transform,
+            GameObject root = CasinoMinigamePresentation.CreateImage("Start DEAL", board.transform,
                 new Vector2(0f, -240f), new Vector2(300f, 48f), CasinoHudStyle.Coral, true);
             assistanceButton = root.AddComponent<Button>();
             assistanceButton.targetGraphic = root.GetComponent<Image>();
             CasinoHudStyle.Button(assistanceButton);
-            CasinoMinigamePresentation.CreateText(root.transform, "Action", "PLAY FLICK!",
+            CasinoMinigamePresentation.CreateText(root.transform, "Action", "PLAY DEAL!",
                 Vector2.zero, new Vector2(280f, 40f), 22, CasinoHudStyle.Ink);
             assistanceButton.onClick.AddListener(() => start());
         }
@@ -150,7 +168,7 @@ public sealed class BlackjackTableView : MonoBehaviour
                 ? "START ROUND"
                 : state == BlackjackTableState.TakingBets
                     ? "DEAL OPENING CARDS"
-                    : "DEAL CARD";
+                    : "SPACE  •  DEAL CARD";
 
         bool isPayout = state == BlackjackTableState.Settlement && payoutIndex >= 0;
         foreach (Button denominationButton in denominationButtons) denominationButton.gameObject.SetActive(isPayout && !dealerAutomated);

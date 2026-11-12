@@ -28,6 +28,8 @@ public sealed class CasinoSeat : MonoBehaviour
     public CasinoCustomerGame GameType => gameType;
     public CasinoDealerStation DealerStation => dealerStation;
     public bool IsGameAvailable => dealerStation == null ||
+                                   dealerStation.BlackjackTable != null && dealerStation.BlackjackTable.IsServiceAvailable ||
+                                   dealerStation.GetComponent<RouletteRoundController>()?.IsServiceAvailable == true ||
                                    dealerStation.AssignedDealer != null &&
                                    dealerStation.AssignedDealer.isActiveAndEnabled &&
                                    dealerStation.AssignedDealer.IsAtStation;

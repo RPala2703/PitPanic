@@ -52,6 +52,15 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
                 break;
             }
         yield return new WaitForSecondsRealtime(3);
+        if (!watch && !demoCheck)
+        {
+            CasinoShiftController guidedShift = FindFirstObjectByType<CasinoShiftController>();
+            ScreenCapture.CaptureScreenshot(Path.Combine(directory, "tutorial.png"));
+            yield return new WaitForSecondsRealtime(1);
+            if (guidedShift.IsLessonOpen) guidedShift.DismissLesson();
+            typeof(CasinoShiftController).GetField("tutorial", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(guidedShift, false);
+        }
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "casino.png"));
         yield return new WaitForSecondsRealtime(1);
         if (demoCheck)
@@ -115,8 +124,8 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         yield return new WaitForSecondsRealtime(1);
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "roulette.png"));
         yield return new WaitForSecondsRealtime(1);
-        foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
-            if (button.name == "Close") { button.onClick.Invoke(); break; }
+        typeof(RouletteInspectionView).GetMethod("Close", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(roulette, null);
         BlackjackTableInteraction blackjack = FindFirstObjectByType<BlackjackTableInteraction>();
         MoveToTable(player, blackjack.transform);
         if (!blackjack.TryOpenInspectionFromPlayerInput())
@@ -128,6 +137,30 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         yield return new WaitForSecondsRealtime(1);
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "blackjack.png"));
         yield return new WaitForSecondsRealtime(1);
+        typeof(BlackjackTableInteraction).GetMethod("ClosePanel", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(blackjack, null);
+        CharacterController controller = player.GetComponent<CharacterController>();
+        controller.enabled = false;
+        player.transform.position = new Vector3(0, .08f, -6);
+        controller.enabled = true;
+        CasinoPlayerFloatCarrier carrier = player.GetComponent<CasinoPlayerFloatCarrier>();
+        CasinoFloatRefillDestination destination = blackjack.GetComponent<CasinoFloatRefillDestination>();
+        CasinoFloatRefillOrder visualOrder = CasinoFloatRefillOrder.CreateStandard("capture-tray", destination.DestinationId, destination);
+        if (!carrier.BeginCarrying(visualOrder))
+        {
+            Debug.LogError("Presentation capture could not show the carried tray.");
+            Application.Quit(1);
+            yield break;
+        }
+        Vector3[] directions = { Vector3.back, Vector3.right, Vector3.forward, Vector3.left };
+        string[] facing = { "front", "right", "away", "left" };
+        for (int i = 0; i < directions.Length; i++)
+        {
+            player.transform.rotation = Quaternion.LookRotation(directions[i]);
+            yield return new WaitForSecondsRealtime(.5f);
+            ScreenCapture.CaptureScreenshot(Path.Combine(directory, $"carrying-{facing[i]}.png"));
+            yield return new WaitForSecondsRealtime(.5f);
+        }
         Application.Quit();
     }
 

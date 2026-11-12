@@ -41,7 +41,9 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     private bool acceptingArrivals = true;
     private bool finale;
 
-    public float PatienceSeconds => patienceSeconds;
+    private bool guidedPractice;
+    public void SetGuidedPractice(bool value) => guidedPractice = value;
+    public float PatienceSeconds => guidedPractice ? Mathf.Max(240, patienceSeconds) : patienceSeconds;
     public Transform Entrance => entrance;
     public Transform CashierWaypoint => cashierWaypoint;
     public int MinimumRoundsPerVisit => minimumRoundsPerVisit;
@@ -223,6 +225,17 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         if (customer.TryVisitSeat(target))
             return true;
         Debug.LogWarning($"Guided customer could not reach {game}; normal customer behavior will retry.", this);
+        return false;
+    }
+
+    public bool TrySpawnGuidedCashOut()
+    {
+        foreach (CasinoCustomerAI customer in activeCustomers)
+            if (customer != null && customer.IsVisitingCashier) return true;
+        CasinoCustomerAI visitor = SpawnCustomer(activeCustomers.Count * 2);
+        if (visitor == null) return false;
+        if (visitor.TryVisitCashier()) return true;
+        Debug.LogWarning("Guided cash-out customer could not reach the register; retrying.", visitor);
         return false;
     }
 
