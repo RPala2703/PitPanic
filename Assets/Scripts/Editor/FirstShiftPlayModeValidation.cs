@@ -503,6 +503,9 @@ public static class FirstShiftPlayModeValidation
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             while (shift.IsLessonOpen) yield return null;
             yield return null;
+            Set(blackjack.AssignedDealer, "energy", 100f);
+            yield return null;
+            Check(!blackjack.IsDealerStaffed, "Early cover made protected manual Blackjack practice impossible");
             MoveNear(blackjack.transform, blackjack.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.E);
             Check(blackjack.BeginPlayerTakeover() && blackjack.IsPlayerOperating && !blackjack.IsDealerStaffed,
@@ -526,6 +529,9 @@ public static class FirstShiftPlayModeValidation
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(!blackjack.IsPlayerOperating, "ESC retained manual Blackjack ownership");
             while (shift.IsLessonOpen) yield return null;
+            Set(roulette.AssignedDealer, "energy", 100f);
+            yield return null;
+            Check(!roulette.IsDealerStaffed, "Early cover made protected manual Roulette practice impossible");
             MoveNear(inspection.transform, inspection.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.E);
             Call(inspection, "StartManualRound");

@@ -426,7 +426,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 target = pitDesk.transform;
                 break;
             case 9:
-                if (!preparedManualBlackjack)
+                if (!preparedManualBlackjack || blackjack.IsDealerStaffed)
                 {
                     blackjack.AssignedDealer?.RequestTutorialTakeover();
                     preparedManualBlackjack = true;
@@ -436,7 +436,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 objectiveText.text = "BJ1 E: TAKE OVER! SPACE DEALS / PAYS. FINISH A HAND.";
                 break;
             case 10:
-                if (!preparedManualRoulette)
+                if (!preparedManualRoulette || roulette.IsDealerStaffed)
                 {
                     roulette.AssignedDealer?.RequestTutorialTakeover();
                     preparedManualRoulette = true;
