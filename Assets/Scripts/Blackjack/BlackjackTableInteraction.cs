@@ -356,7 +356,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             shuffleDealerPaused = false;
             shuffleBoundaryReady = false;
         }
-        message = "YOU'RE DEALING! SPACE or DEAL CARD advances the hand. Pay the exact chips shown; ESC leaves.";
+        message = "You're up! Tap Deal or press Space.";
         playerController.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(CasinoAnimationPose.Deal, transform.position, .8f);
         RefreshView();
         return true;
@@ -472,7 +472,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
                                    Time.time >= nextShuffleTaskTime && !CasinoMinigamePresentation.IsOpen &&
                                    (roundsSinceShuffle >= 4 || Random.value < shuffleAssistanceChance));
         forceShuffleNextRound = false;
-        message = $"{string.Join(", ", bets)}. The dealer is starting the opening deal.";
+        message = "Bets are in. Let's deal!";
         RefreshView();
     }
 
@@ -729,7 +729,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
 
         if (!round.NeedsDealerComparison)
         {
-            message = "No hands need comparing. Return surviving stakes and settle the winnings.";
+            message = "All done! Let's settle up.";
             BeginSettlement();
             return;
         }
@@ -829,7 +829,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         }
 
         BlackjackHand hand = round.CustomerHands[payoutHandIndex];
-        message = $"{OutcomeName(hand.Outcome)} for {GetCustomerName(hand)}. Stake returned; pay {FormatPounds(hand.WinningsPence)} winnings.";
+        message = $"Pay {GetCustomerName(hand)}  {FormatPounds(hand.WinningsPence)}";
         RefreshView();
     }
 

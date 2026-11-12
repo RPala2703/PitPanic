@@ -165,7 +165,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         controller.enabled = true;
         CasinoPlayerFloatCarrier carrier = player.GetComponent<CasinoPlayerFloatCarrier>();
         CasinoFloatRefillDestination destination = blackjack.GetComponent<CasinoFloatRefillDestination>();
-        CasinoFloatRefillOrder visualOrder = CasinoFloatRefillOrder.CreateStandard("capture-tray", destination.DestinationId, destination);
+        CasinoFloatRefillOrder visualOrder = CasinoFloatRefillOrder.CreateRequired("capture-tray", destination.DestinationId, destination);
         if (!carrier.BeginCarrying(visualOrder))
         {
             Debug.LogError("Presentation capture could not show the carried tray.");
@@ -218,6 +218,12 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
                 yield return null;
             }
             yield return new WaitForSeconds(1.5f);
+            foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
+                if (dealer.IsAtStation && dealer.AssignedStation != null &&
+                    Vector3.ProjectOnPlane(dealer.transform.position - dealer.AssignedStation.DealerPosition.position,
+                        Vector3.up).magnitude > .15f)
+                    throw new InvalidOperationException($"Level {level}: {dealer.name} is not beside its moved table: " +
+                        $"{dealer.transform.position} versus {dealer.AssignedStation.DealerPosition.position}.");
             foreach (CasinoSeat seat in seats)
             {
                 PixelCharacterVisual visual = seat.Occupant != null
@@ -257,6 +263,33 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             yield return new WaitForSecondsRealtime(.5f);
             camera.transform.position = position;
             camera.orthographicSize = size;
+            if (level == 2)
+            {
+                first.enabled = true;
+                RouletteRoundController rounds = FindFirstObjectByType<RouletteRoundController>();
+                rounds.enabled = true;
+                yield return new WaitForSeconds(4);
+                CasinoPlayerController player = FindFirstObjectByType<CasinoPlayerController>();
+                MoveToTable(player, first.transform);
+                if (!first.TryOpenInspectionFromPlayerInput())
+                    throw new InvalidOperationException("Could not capture populated Blackjack presentation.");
+                yield return new WaitForSecondsRealtime(1);
+                ScreenCapture.CaptureScreenshot(Path.Combine(directory, "blackjack-populated.png"));
+                yield return new WaitForSecondsRealtime(.5f);
+                typeof(BlackjackTableInteraction).GetMethod("ClosePanel", flags).Invoke(first, null);
+                RouletteInspectionView inspection = rounds.GetComponent<RouletteInspectionView>();
+                MoveToTable(player, rounds.transform);
+                if (!inspection.TryOpenInspectionFromPlayerInput())
+                    throw new InvalidOperationException("Could not capture populated Roulette presentation.");
+                yield return new WaitForSecondsRealtime(1);
+                ScreenCapture.CaptureScreenshot(Path.Combine(directory, "roulette-populated.png"));
+                yield return new WaitForSecondsRealtime(.5f);
+                typeof(RouletteInspectionView).GetMethod("ToggleDetails", flags).Invoke(inspection, null);
+                yield return null;
+                ScreenCapture.CaptureScreenshot(Path.Combine(directory, "roulette-details.png"));
+                yield return new WaitForSecondsRealtime(.5f);
+                typeof(RouletteInspectionView).GetMethod("Close", flags).Invoke(inspection, null);
+            }
             Debug.Log($"SEATING CHECK level {level}: all ten customers reached and aligned with their chairs.");
         }
         Debug.Log("STANDALONE SEATING CHECK PASSED");

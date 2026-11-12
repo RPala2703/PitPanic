@@ -14,13 +14,13 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     [SerializeField] private Sprite[] expressions;
     [SerializeField] private Texture2D animationAtlas;
     [SerializeField] private Texture2D customerAnimationAtlas;
+    [SerializeField] private Texture2D vipAnimationAtlas;
+    public void ConfigureVipAnimation(Texture2D texture) => vipAnimationAtlas = texture;
     public void ConfigureCustomerAnimation(Texture2D texture) => customerAnimationAtlas = texture;
-    public bool UsesCustomerAnimation => customer != null && animationAtlas == customerAnimationAtlas;
+    public bool UsesCustomerAnimation => customer != null && (animationAtlas == customerAnimationAtlas || animationAtlas == vipAnimationAtlas);
     private static readonly Dictionary<Texture2D, Sprite[]> AnimationCache = new Dictionary<Texture2D, Sprite[]>();
-    private static Sprite vipCrown;
-    private static Sprite vipLapel;
-    private SpriteRenderer crownRenderer;
-    private SpriteRenderer lapelRenderer;
+    private static Sprite vipAura;
+    private SpriteRenderer auraRenderer;
     private Color spriteColor = Color.white;
     private bool vip;
     private Sprite[] animationFrames;
@@ -46,10 +46,13 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     {
         vip = value;
         if (spriteRenderer == null) return;
+        if (value && vipAnimationAtlas == null)
+            throw new System.InvalidOperationException("VIP customers require their formalwear animation atlas.");
         if (value) EnsureVipAccessories();
-        if (crownRenderer != null) crownRenderer.enabled = value;
-        if (lapelRenderer != null) lapelRenderer.enabled = value;
-        spriteRenderer.color = value ? Color.Lerp(spriteColor, new Color(1f, .9f, .62f), .45f) : spriteColor;
+        if (auraRenderer != null) auraRenderer.enabled = value;
+        animationAtlas = value ? vipAnimationAtlas : customerAnimationAtlas;
+        BindAnimationFrames();
+        spriteRenderer.color = spriteColor;
     }
     public Sprite TitleFrame(float elapsed)
     {
@@ -154,6 +157,11 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         restScale = spriteRenderer != null ? spriteRenderer.transform.localScale : Vector3.one;
         if (spriteRenderer != null) spriteColor = spriteRenderer.color;
         previousPosition = transform.position;
+        BindAnimationFrames();
+    }
+
+    private void BindAnimationFrames()
+    {
         if (animationAtlas != null)
         {
             if (!AnimationCache.TryGetValue(animationAtlas, out animationFrames))
@@ -166,11 +174,9 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 
     private void EnsureVipAccessories()
     {
-        if (vipCrown == null || vipLapel == null) CreateVipSprites();
-        if (crownRenderer == null)
-            crownRenderer = CreateAccessory("VIP Crown", vipCrown, new Vector3(0, 1.88f, -.02f), 2);
-        if (lapelRenderer == null)
-            lapelRenderer = CreateAccessory("VIP Gold Lapel", vipLapel, new Vector3(.28f, .86f, -.025f), 2);
+        if (vipAura == null) CreateVipSprites();
+        if (auraRenderer == null)
+            auraRenderer = CreateAccessory("VIP Golden Aura", vipAura, new Vector3(0, 1f, .03f), -1);
     }
 
     private SpriteRenderer CreateAccessory(string objectName, Sprite sprite, Vector3 localPosition, int orderOffset)
@@ -188,45 +194,21 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 
     private static void CreateVipSprites()
     {
-        Color32 transparent = new Color32(0, 0, 0, 0);
-        Color32 ink = new Color32(53, 26, 43, 255);
-        Color32 gold = new Color32(244, 191, 70, 255);
-        Color32 shine = new Color32(255, 239, 154, 255);
-        Texture2D crown = new Texture2D(18, 12, TextureFormat.RGBA32, false);
-        crown.filterMode = FilterMode.Point;
-        Color32[] pixels = new Color32[18 * 12];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = transparent;
-        for (int x = 2; x < 16; x++) { pixels[2 * 18 + x] = ink; pixels[3 * 18 + x] = gold; }
-        for (int x = 3; x < 15; x++) pixels[4 * 18 + x] = gold;
-        for (int x = 4; x < 14; x++) pixels[5 * 18 + x] = gold;
-        for (int y = 2; y <= 8; y++)
+        Texture2D glow = new Texture2D(64, 80, TextureFormat.RGBA32, false);
+        glow.filterMode = FilterMode.Point;
+        Color32[] pixels = new Color32[64 * 80];
+        for (int y = 0; y < 80; y++)
+        for (int x = 0; x < 64; x++)
         {
-            pixels[y * 18 + 1] = gold; pixels[y * 18 + 2] = ink;
-            pixels[y * 18 + 8] = gold; pixels[y * 18 + 9] = ink;
-            pixels[y * 18 + 15] = gold; pixels[y * 18 + 16] = ink;
+            float radius = new Vector2((x - 31.5f) / 32f, (y - 39.5f) / 40f).magnitude;
+            float intensity = Mathf.Clamp01(1 - radius);
+            pixels[y * 64 + x] = new Color(1f, .72f, .16f, intensity * intensity * .7f);
         }
-        for (int x = 2; x <= 4; x++) pixels[6 * 18 + x] = gold;
-        for (int x = 7; x <= 10; x++) pixels[8 * 18 + x] = gold;
-        for (int x = 13; x <= 15; x++) pixels[6 * 18 + x] = gold;
-        pixels[8 * 18 + 2] = shine; pixels[8 * 18 + 8] = shine; pixels[8 * 18 + 15] = shine;
-        crown.SetPixels32(pixels);
-        crown.Apply(false, true);
-        crown.hideFlags = HideFlags.HideAndDontSave;
-        vipCrown = Sprite.Create(crown, new Rect(0, 0, 18, 12), new Vector2(.5f, 0), 30);
-        vipCrown.hideFlags = HideFlags.HideAndDontSave;
-
-        Texture2D lapel = new Texture2D(10, 12, TextureFormat.RGBA32, false);
-        lapel.filterMode = FilterMode.Point;
-        Color32[] badge = new Color32[10 * 12];
-        for (int i = 0; i < badge.Length; i++) badge[i] = transparent;
-        for (int y = 1; y < 11; y++) { badge[y * 10 + 3] = ink; badge[y * 10 + 6] = ink; }
-        for (int y = 2; y < 10; y++) { badge[y * 10 + 4] = gold; badge[y * 10 + 5] = gold; }
-        badge[8 * 10 + 4] = shine; badge[4 * 10 + 5] = shine;
-        lapel.SetPixels32(badge);
-        lapel.Apply(false, true);
-        lapel.hideFlags = HideFlags.HideAndDontSave;
-        vipLapel = Sprite.Create(lapel, new Rect(0, 0, 10, 12), new Vector2(.5f, .5f), 30);
-        vipLapel.hideFlags = HideFlags.HideAndDontSave;
+        glow.SetPixels32(pixels);
+        glow.Apply(false, true);
+        glow.hideFlags = HideFlags.HideAndDontSave;
+        vipAura = Sprite.Create(glow, new Rect(0, 0, 64, 80), new Vector2(.5f, .5f), 24);
+        vipAura.hideFlags = HideFlags.HideAndDontSave;
     }
 
     private void LateUpdate()
@@ -303,6 +285,12 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         }
         spriteRenderer.transform.rotation = camera.transform.rotation;
         spriteRenderer.transform.localScale = restScale;
+        if (auraRenderer != null && vip)
+        {
+            auraRenderer.transform.localScale = Vector3.one * (1f + .035f * Mathf.Sin(Time.time * 2f));
+            auraRenderer.sortingOrder = spriteRenderer.sortingOrder - 1;
+            auraRenderer.color = new Color(1, 1, 1, .8f + .2f * Mathf.Sin(Time.time * 2f));
+        }
         poseElapsed += Time.deltaTime;
         gestureRemaining = Mathf.Max(0, gestureRemaining - Time.deltaTime);
         actionRemaining = Mathf.Max(0, actionRemaining - Time.deltaTime);

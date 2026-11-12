@@ -8,14 +8,14 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
 {
     private static readonly int[] FloatDenominationsPence = { 500, 250, 2500, 10000 };
     private static readonly int[] CustomerDenominationsPence = { 10000, 2500, 500, 250 };
-    private static readonly string[] ChipNames = { "RED", "BLUE", "GREEN", "BLACK" };
+    private static readonly string[] ChipNames = { "RED", "BLUE", "BLACK", "PINK" };
     private static readonly int[] SourceDisplayOrder = { 1, 0, 2, 3 };
     private static readonly Color[] FloatChipColors =
     {
-        new Color(0.81f, 0.16f, 0.13f),
-        new Color(0.16f, 0.43f, 0.78f),
-        new Color(0.20f, 0.62f, 0.34f),
-        new Color(0.08f, 0.09f, 0.11f)
+        BlackjackChipView.GetChipColor(500),
+        BlackjackChipView.GetChipColor(250),
+        BlackjackChipView.GetChipColor(2500),
+        BlackjackChipView.GetChipColor(10000)
     };
 
     [SerializeField] private CasinoPlayerController player;
@@ -510,8 +510,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
         chipRect.anchoredPosition = new Vector2(0f, -8f);
         chipRect.sizeDelta = new Vector2(100f, 100f);
         Image chipImage = chipObject.GetComponent<Image>();
-        chipImage.sprite = CasinoPixelArt.Chip;
-        chipImage.color = FloatChipColors[denominationIndex];
+        chipImage.sprite = CasinoPixelArt.ChipForValue(FloatDenominationsPence[denominationIndex]);
+        chipImage.color = Color.white;
         chipImage.raycastTarget = false;
         Outline chipOutline = chipObject.GetComponent<Outline>();
         chipOutline.effectColor = new Color(1f, 0.91f, 0.62f, 0.9f);
@@ -807,8 +807,8 @@ public sealed class CashDeskPackMinigame : CasinoMinigame, IReadOnlyIntList
     {
         RectTransform chipRect = CreateRect(objectName, hud.transform, new Vector2(0.5f, 0.5f), position, Vector2.one * diameter);
         Image image = chipRect.gameObject.AddComponent<Image>();
-        image.sprite = CasinoPixelArt.Chip;
-        image.color = FloatChipColors[denominationIndex];
+        image.sprite = CasinoPixelArt.ChipForValue(FloatDenominationsPence[denominationIndex]);
+        image.color = Color.white;
         image.raycastTarget = removable;
         if (removable)
         {

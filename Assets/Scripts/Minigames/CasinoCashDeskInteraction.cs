@@ -271,7 +271,7 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
                     orderId,
                     destination.DestinationId,
                     destination,
-                    destination.RefillOrderCounts);
+                    destination.GetRequiredRefillCounts());
                 orders.Add(orderId, order);
                 orderStatuses.Add(orderId, CasinoFloatRefillStatus.Requested);
                 activeOrdersByDestination.Add(destination.DestinationId, order);

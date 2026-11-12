@@ -21,9 +21,8 @@ public static class CasinoDemoProgression
     }
     public static int BestStars(int level) => Mathf.Clamp(PlayerPrefs.GetInt(BestStarsKey(level), 0), 0, 3);
     public static bool Owns(CasinoDemoUpgrade upgrade) => PlayerPrefs.GetInt(Key(upgrade), 0) == 1;
-    public static int ServiceGoal(int shift) => 8 + 2 * (Mathf.Clamp(shift, 1, LastShift) - 1);
-    public static bool Passed(int shift, int hands, int tasks, int satisfaction) =>
-        hands >= ServiceGoal(shift) && tasks >= 4 && satisfaction >= 60;
+    public static bool Passed(int tasks, int satisfaction, int failures) =>
+        tasks >= 4 && satisfaction >= 60 && failures <= 5;
 
     public static void StartNewGame()
     {

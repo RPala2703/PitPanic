@@ -55,6 +55,15 @@ public static class CasinoCampaignPresentation
         NavMeshSurface navigation = UnityEngine.Object.FindFirstObjectByType<NavMeshSurface>();
         if (navigation == null) throw new InvalidOperationException("Campaign layout requires a navigation surface.");
         navigation.BuildNavMesh();
+        foreach (AIDealer dealer in UnityEngine.Object.FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
+        {
+            if (!dealer.IsAtStation || dealer.AssignedStation == null) continue;
+            Transform station = dealer.AssignedStation.DealerPosition;
+            NavMeshAgent agent = dealer.GetComponent<NavMeshAgent>();
+            if (!agent.Warp(station.position))
+                throw new InvalidOperationException($"Cannot move {dealer.name} with its campaign table.");
+            dealer.transform.rotation = station.rotation;
+        }
         foreach (NavMeshAgent agent in UnityEngine.Object.FindObjectsByType<NavMeshAgent>(FindObjectsSortMode.None))
         {
             if (!agent.enabled || agent.isOnNavMesh) continue;

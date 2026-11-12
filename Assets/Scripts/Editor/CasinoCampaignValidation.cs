@@ -60,9 +60,10 @@ public static class CasinoCampaignValidation
             PlayerPrefs.Save();
         }
 
-        if (CasinoDemoProgression.ServiceGoal(1) != 8 || CasinoDemoProgression.ServiceGoal(2) != 10 ||
-            CasinoDemoProgression.ServiceGoal(3) != 12 || !CasinoCampaignPresentation.LayoutsAreSeparated())
-            throw new InvalidOperationException("Campaign objectives or level table layouts are not distinct and playable.");
+        if (!CasinoDemoProgression.Passed(4, 60, 5) || CasinoDemoProgression.Passed(3, 100, 0) ||
+            CasinoDemoProgression.Passed(10, 59, 0) || CasinoDemoProgression.Passed(10, 100, 6) ||
+            !CasinoCampaignPresentation.LayoutsAreSeparated())
+            throw new InvalidOperationException("Shift results must depend only on tasks, satisfaction and misses.");
         ValidateSecurityEvidence();
         Debug.Log("Casino campaign validation passed: 3-level unlocks, stars, legacy saves, layouts and round-derived security evidence.");
     }

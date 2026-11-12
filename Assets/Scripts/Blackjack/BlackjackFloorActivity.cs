@@ -258,34 +258,28 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
     private void SpawnBetStack(BlackjackHand hand, HandVisuals visuals)
     {
         Vector3 anchor = HandAnchor(hand);
-        int count = Mathf.Clamp(hand.BetPence / 500, 1, 6);
-        BuildChipStack(anchor, count, visuals.Chips, TrayLocal, 0);
+        BuildChipStack(anchor, hand.BetPence, visuals.Chips, TrayLocal);
         Gesture(CasinoGesture.Pay, container.TransformPoint(anchor), 0.5f);
     }
 
     private void SpawnPayout(BlackjackHand hand, HandVisuals visuals)
     {
         Vector3 anchor = HandAnchor(hand) + new Vector3(0.30f, 0f, 0f);
-        int count = Mathf.Clamp(hand.WinningsPence / 500, 1, 6);
-        BuildChipStack(anchor, count, visuals.Chips, TrayLocal, 1);
+        BuildChipStack(anchor, hand.WinningsPence, visuals.Chips, TrayLocal);
         Gesture(CasinoGesture.Pay, container.TransformPoint(anchor), 0.8f);
     }
 
-    private void BuildChipStack(Vector3 anchor, int count, List<Mover> output, Vector3 origin, int materialShift)
+    private void BuildChipStack(Vector3 anchor, int amountPence, List<Mover> output, Vector3 origin)
     {
+        List<BlackjackChipDenomination> composition = BlackjackChipDenomination.GetExactComposition(
+            amountPence, BlackjackChipDenomination.CreateDefaults());
+        int count = Mathf.Min(composition.Count, 6);
         for (int i = 0; i < count; i++)
         {
             GameObject chip = new GameObject("Table Chip");
             chip.transform.SetParent(container, false);
             SpriteRenderer renderer = PixelWorldProps.CreateSurface(chip.transform, "Pixel Chip",
-                PixelWorldProps.Chip, new Vector2(0.17f, 0.17f), -7);
-            int materialIndex = chipMaterials != null && chipMaterials.Length > 0
-                ? (count + materialShift) % chipMaterials.Length
-                : 0;
-            if (chipMaterials != null && chipMaterials.Length > 0)
-            {
-                renderer.color = chipMaterials[materialIndex].color;
-            }
+                CasinoPixelArt.ChipForValue(composition[i].ValuePence), new Vector2(0.17f, 0.17f), -7);
 
             chip.transform.localPosition = origin;
             Mover mover = new Mover

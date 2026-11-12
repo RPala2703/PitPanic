@@ -45,13 +45,12 @@ an arbitrary cash fine and does not change payout accounting.
 
 The shift duration defaults to nine minutes and can be changed on the
 **First Shift Controller** in the scene. When time runs out, arrivals stop and
-the results appear after the current interaction closes. Table profit is settled
-stakes minus gross returns; float deliveries are transfers, not income.
-Clear Shift 1 by serving **8 settled hands/bets**, completing **4 assistance,
-delivery or staff actions**, and keeping **at least 60% satisfaction**. Goals are
-shown on the existing objective HUD. Later campaign levels require 10 and 12 hands.
-Profit is reported but is not a pass condition: a lucky roulette result should
-not randomly fail an otherwise well-managed shift.
+the results appear after the current interaction closes.
+Clear a shift by completing **4 assistance, delivery or staff actions**,
+keeping **at least 60% satisfaction**, and finishing with **at most 5 missed tasks
+or failed attempts combined**. These service goals replace hand-count targets
+in every level. Table profit and hand counts are neither displayed on the results
+screen nor used to decide a win; a lucky Roulette result cannot fail a shift.
 Satisfaction reflects the share of spawned customers who did not leave because
 their patience expired. Missed tasks include pending minigames, unfinished
 float deliveries and tables awaiting dealer cover; a float's packing prompt is
@@ -70,8 +69,7 @@ Night** introduces the casino. **High Rollers** brings VIP guests who wear gold,
 place larger bets, and have less patience. **Shady Business** adds scheduled
 security alerts drawn from actual Roulette bets and results; review the animated
 Pit Desk footage before accusing or clearing a customer. A false accusation
-affects customer satisfaction. Service goals rise from 8 to 10 to 12 settled
-hands. New Game and level replay do not remove the casino's existing upgrades
+affects customer satisfaction. New Game and level replay do not remove the casino's existing upgrades
 or change settings.
 Training retains at least three minutes on the clock until lessons are complete,
 so a learner cannot time out before learning dealer management. Each lesson is
@@ -171,8 +169,13 @@ The playable pit boss is a penguin. Staff use their animal names, and customers
 use the ten-species character pool with separate civilian-shirt animation atlases,
 rather than staff uniforms. Away-facing seated hands and cards reach toward the
 table, with direction-aware resting and service poses.
-Working dealer visuals step toward the felt while their collision/navigation
-positions remain outside the table, preserving access and break-room routes.
+Dealers stand directly behind the felt at reachable station anchors. Campaign
+layout changes move working dealers with their assigned tables, not just the furniture.
+Walking keeps a connected waist and legs; front/back feet alternate forward
+and back without spreading sideways, while side views use opposing strides.
+VIP guests use their own complete animated formalwear sprites: velvet jackets,
+gold lapels, bow ties and top hats, backed by a softly pulsing golden aura.
+They no longer rely on a floating crown or colour tint.
 
 PACK! allows **15 seconds to read the order plus 2 seconds per chip**, without
 the old ten-second cap. A wrong sequence chip costs half a second, and cancelled
@@ -180,18 +183,27 @@ or timed-out orders remain retryable. This applies to float packing and customer
 cash-outs.
 Both cash games use **click-to-select**, never dragging. **Undo Last Chip**
 works in both, including a completed cash-out tray before Finish. The shared
-denominations now match Blackjack/Roulette: red £5, blue £2.50, green £25,
-black £100. The standard refill still totals **£200**: 10 red, 20 blue, 4 green.
+denominations match Blackjack/Roulette: red £5, blue £2.50, **black £25**,
+**pink £100**, with striped rims and shaded chip faces across the UI and world.
+Refills request only depleted denominations, using the gap to the configured
+target stock rather than a fixed £200 recipe. A pending large payout can request
+additional denominations needed to fund it. An explicit healthy-float practice
+request uses a small variable top-up. Once issued, an order's exact contents are
+fixed through cancellation, retry, packing and delivery.
 Starting blue inventory/register counts were increased fourfold to preserve
 their original monetary value when correcting the former £10 mismatch.
-Table floats are finite: accepted customer stakes enter the table float and
-settled payouts debit the exact physical chip counts. An unavailable payout
+Table floats are finite: losing stakes enter the float at settlement, winning
+stakes return automatically, and winnings debit exact physical chip counts. An unavailable payout
 keeps settlement pending and requests a refill rather than creating chips.
 The Cash Desk's register stock is also finite; float orders reserve their
 denominations, and completed customer cash-outs consume the same stock.
 European Roulette supports straight (35:1 profit), split (17:1), street (11:1),
-corner (8:1), six-line (5:1), and outside (1:1) bets. Gross returns include
-the original stake. The table inspection shows the odds and current bets.
+corner (8:1), six-line (5:1), and outside (1:1) bets. Both COVER! automatic
+settlement and takeover PAY! pay **winnings only**, excluding the stake:
+£5 on red pays £5, and £5 straight-up pays £175. Zero rules are unchanged.
+Table screens foreground animated cards, guest/dealer portraits, the wheel,
+chips and the next action. Roulette's full bet ledger, staff energy and float
+figures remain available through **MORE INFO**, not as the default screen.
 The penguin uses holding poses even while standing, and one direction-aware
 tray graphic follows its hands rather than duplicating a tray inside the atlas.
 
@@ -215,13 +227,13 @@ The screenshots are rendered frames, not evidence of human playtesting.
 
 ## Living casino animation and audio
 
-The existing `PixelCharacterVisual` selects the shared twelve-frame action atlas,
+The existing `PixelCharacterVisual` selects the shared 60-frame action atlas,
 not a second Animator. Each of the ten species has four directions for idle,
 walking, dealing, collecting, paying, celebration, disappointment, tiredness,
 rest, carrying, sitting, examining cards and shuffling. Sitting is played in
 reverse when standing. Service reaches include anticipation and follow-through;
 navigation and accounting remain authoritative. The generator checks exact
-atlas dimensions, point filtering and distinct drawn poses across twelve-frame
+atlas dimensions, point filtering and distinct drawn poses across 60-frame
 actions (held poses are intentional).
 
 Blackjack card/chip arrival cues come from its physical mover, with a short

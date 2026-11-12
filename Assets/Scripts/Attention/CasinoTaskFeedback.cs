@@ -50,13 +50,6 @@ public static class CasinoTaskFeedback
         if (attention.GetVisiblePendingCount(TableAttentionReason.FloatRefillRequired) > 0 ||
             attention.GetVisiblePendingCount(TableAttentionReason.ChipRefillRequired) > 0)
         {
-            CasinoFloatRefillDestination destination = attention.GetComponent<CasinoFloatRefillDestination>();
-            if (destination != null)
-            {
-                CasinoFloatRefillOrder order = new CasinoFloatRefillOrder("preview", destination.DestinationId,
-                    destination, destination.RefillOrderCounts);
-                return $"Cash Desk E: PACK {RouletteRoundController.FormatPounds(order.TotalPence)}, then E: deliver here!";
-            }
             return "Cash Desk E: prepare and deliver a float tray!";
         }
         if (attention.GetVisiblePendingCount(TableAttentionReason.DealerBreakRequired) > 0)

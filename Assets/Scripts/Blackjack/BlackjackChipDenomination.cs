@@ -26,8 +26,8 @@ public struct BlackjackChipDenomination
         {
             new BlackjackChipDenomination("£5", 500, new Color(0.81f, 0.16f, 0.13f)),
             new BlackjackChipDenomination("£2.50", 250, new Color(0.16f, 0.43f, 0.78f)),
-            new BlackjackChipDenomination("£25", 2500, new Color(0.20f, 0.62f, 0.34f)),
-            new BlackjackChipDenomination("£100", 10000, new Color(0.08f, 0.09f, 0.11f))
+            new BlackjackChipDenomination("£25", 2500, new Color(0.08f, 0.09f, 0.11f)),
+            new BlackjackChipDenomination("£100", 10000, new Color(0.95f, 0.35f, 0.65f))
         };
     }
 
