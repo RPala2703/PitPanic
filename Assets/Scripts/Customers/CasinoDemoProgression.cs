@@ -24,6 +24,16 @@ public static class CasinoDemoProgression
     public static bool Passed(int tasks, int satisfaction, int failures) =>
         tasks >= 4 && satisfaction >= 60 && failures <= 5;
 
+    /// <summary>
+    /// Star rating: satisfaction and misses as before, with the shift's tips as a bonus component
+    /// (+5 satisfaction points at half the tip target, +10 at the target). Tips never decide a pass.
+    /// </summary>
+    public static int PerformanceStars(int satisfaction, int misses, int tipsPence)
+    {
+        int effective = Mathf.Min(100, satisfaction + CasinoTipPolicy.Default.StarBonus(tipsPence));
+        return effective >= 85 && misses <= 2 ? 3 : effective >= 60 && misses <= 5 ? 2 : 1;
+    }
+
     public static void StartNewGame()
     {
         PlayerPrefs.DeleteKey("PitPanic.TutorialComplete");

@@ -137,8 +137,13 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
                 visuals.BetPlaced = true;
                 SpawnBetStack(hand, visuals);
                 if (hand.Customer != null)
+                {
                     hand.Customer.GetComponentInChildren<CasinoCharacterVisual>()?.PlayGesture(
                         CasinoGesture.Pay, container.TransformPoint(HandAnchor(hand)), .8f);
+                    // The dealer acknowledges each wager with a nod, one customer after another.
+                    CasinoPerformanceDirector.ActLater(Operator(), CasinoAnimationPose.Anticipate,
+                        hand.Customer.transform.position, .6f, .55f + h * .3f);
+                }
             }
 
             while (visuals.Cards.Count < hand.Cards.Count)
@@ -147,6 +152,10 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
                 Vector3 target = CardTarget(HandAnchor(hand), index);
                 visuals.Cards.Add(SpawnCard(hand.Cards[index], target, false));
                 Gesture(CasinoGesture.Deal, container.TransformPoint(target));
+                // The customer leans in as their card lands, eyes on the felt.
+                if (hand.Customer != null && index >= 1)
+                    CasinoPerformanceDirector.ActLater(hand.Customer, CasinoAnimationPose.Anticipate,
+                        container.TransformPoint(target), .75f, .45f);
             }
 
             if (hand.PayoutPaid && hand.WinningsPence > 0 && !visuals.PayoutShown)
@@ -176,6 +185,11 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
         {
             holeRevealed = true;
             RevealCard(dealerCards[1]);
+            // The whole table holds its breath for the hole card.
+            for (int h = 0; h < round.CustomerHands.Count; h++)
+                if (round.CustomerHands[h].Customer != null)
+                    CasinoPerformanceDirector.ActLater(round.CustomerHands[h].Customer, CasinoAnimationPose.Anticipate,
+                        container.TransformPoint(DealerCardTarget(1)), .7f, h * .12f);
         }
 
         if (state == BlackjackTableState.ClearingTable && !cleared)
@@ -362,6 +376,10 @@ public sealed class BlackjackFloorActivity : MonoBehaviour
             }
         }
     }
+
+    private Component Operator() => table != null && table.IsPlayerOperating
+        ? FindFirstObjectByType<CasinoPlayerController>()
+        : table != null ? table.AssignedDealer : null;
 
     private void Gesture(CasinoGesture gesture, Vector3 worldTarget, float duration = 0.6f)
     {

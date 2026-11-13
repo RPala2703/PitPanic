@@ -90,6 +90,10 @@ public sealed class CasinoDealerStation : MonoBehaviour
         {
             blackjackTable.SetAssignedDealer(replacement);
         }
+        // Hand-over courtesy: the fresh dealer greets the one heading off for a break.
+        if (outgoingDealer != null)
+            replacement.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
+                CasinoAnimationPose.Present, outgoingDealer.transform.position, .8f);
 
         ResolveAttention(TableAttentionReason.TableUnstaffed);
         ResolveAttention(TableAttentionReason.DealerBreakRequired);

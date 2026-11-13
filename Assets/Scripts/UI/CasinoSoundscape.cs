@@ -1,15 +1,15 @@
 using System;
 using UnityEngine;
 
-public enum CasinoSoundCue { Card, Chip, Step, Celebrate, Disappointed, Success, Mistake, Warning, Roulette, Button, TaskFailed }
+public enum CasinoSoundCue { Card, Chip, Step, Celebrate, Disappointed, Success, Mistake, Warning, Roulette, Button, TaskFailed, Tip }
 public enum CasinoMusicTrack { Title, Casino }
 
 [DefaultExecutionOrder(-110)]
 public sealed class CasinoSoundscape : MonoBehaviour
 {
     private static CasinoSoundscape instance;
-    private readonly AudioClip[] cues = new AudioClip[11];
-    private readonly float[] lastPlayed = new float[11];
+    private readonly AudioClip[] cues = new AudioClip[12];
+    private readonly float[] lastPlayed = new float[12];
     private AudioSource music;
     private AudioClip titleTrack;
     private AudioClip casinoTrack;
@@ -153,7 +153,7 @@ public sealed class CasinoSoundscape : MonoBehaviour
     private static AudioClip ComposeCue(CasinoSoundCue cue)
     {
         float length = cue == CasinoSoundCue.Roulette ? 2 : cue == CasinoSoundCue.Success || cue == CasinoSoundCue.Celebrate ? .6f :
-            cue == CasinoSoundCue.TaskFailed ? .7f : .2f;
+            cue == CasinoSoundCue.TaskFailed ? .7f : cue == CasinoSoundCue.Tip ? .45f : .2f;
         float[] samples = new float[Mathf.CeilToInt(22050 * length)];
         System.Random random = new System.Random((int)cue + 91);
         for (int i = 0; i < samples.Length; i++)
@@ -170,6 +170,8 @@ public sealed class CasinoSoundscape : MonoBehaviour
                 CasinoSoundCue.Button => 880,
                 // The success jingle climbs; a failed or missed task falls in low, buzzy steps.
                 CasinoSoundCue.TaskFailed => 330 * Mathf.Pow(.8f, Mathf.Floor(t * 6)),
+                // A tip is a bright two-note coin "ding-ding".
+                CasinoSoundCue.Tip => t < .12f ? 1319 : 1760,
                 _ => 520 * Mathf.Pow(1.25f, Mathf.Floor(t * 10))
             };
             float tone = Mathf.Sin(t * frequency * Mathf.PI * 2);

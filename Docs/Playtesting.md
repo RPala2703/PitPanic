@@ -74,3 +74,5 @@ Human nine-minute playthroughs, Windows execution, minimum-spec performance,
 high-DPI/accessibility testing and subjective difficulty/audio quality must be
 signed off by external testers before a Steam release. No Steamworks integration,
 cloud saves or achievements are included in this demo milestone.
+
+Tips: `CasinoGameplayValidation` checks that tips grow with satisfaction, VIPs tip more, customers with no money cannot tip, no service event tips twice, and the star bonus works. The Play Mode run checks bankroll deduction, an unchanged float, and safe delivery when the customer is destroyed mid-tip. Animation feel and audio sync still need a human playtest.

@@ -306,6 +306,37 @@ failure/no-reward behaviour and results Retry, then exits. This development-only
 check is not a successful human playthrough. Capture modes restore all progression
 preferences on normal exit; force-killing a process prevents that cleanup.
 
+## Customer tips and cinematic acting
+
+Happy customers tip the staff who served them. `CasinoTipPolicy` (`Assets/Scripts/Customers/CasinoTipping.cs`) holds every tunable value in integer pence:
+
+- No tip below 45% satisfaction. The tip chance rises with satisfaction, plus bonuses for a winning hand and for VIPs.
+- Regular customers tip £2.50 or £5. VIPs tip £5 or £25. A tip never exceeds the customer's bankroll, and a customer with no money cannot tip.
+- Each service event (one Blackjack hand, or one Roulette bet) has a unique key, so it can never tip twice.
+- Tips come out of the customer's bankroll and go into the shared **tip jar** at the Pit Desk. They are never added to casino profit or a table float. A tip from a table the pit boss is operating goes to the pit boss.
+
+Satisfaction starts at 72–90%. It follows patience when service begins, rises after wins, dips after losses and decays while the customer's table is unstaffed.
+
+The HUD shows **TIPS £X**, which pulses gold when a tip lands. Results list the tips and their star bonus: half the £20 target adds +5 satisfaction points toward the star rating, and the full target adds +10. Tips never override missed tasks.
+
+### Tip performance
+
+`CasinoPerformanceDirector` runs non-blocking, interruption-safe beats. A beat whose character is destroyed is skipped, and a tip whose giver has left is still delivered.
+
+1. The customer glances and leans in, and the dealer turns to face them.
+2. The customer reaches and slides a chip across in an arc. VIP tips sparkle.
+3. The dealer catches it and nods thanks. A "+£X TIP" popup rises, and the jar on the Pit Desk bounces and fills with chip colours.
+
+### Acting beats
+
+- Dealers nod to each bet.
+- Customers lean in as their cards land and at the hole-card reveal.
+- Reactions are staggered around the table instead of firing all at once.
+- Croupiers point at the wheel after a spin, and the players lean in while the wheel turns.
+- A Blackjack natural or a straight-up Roulette win makes customers at nearby tables glance over.
+- VIPs arrive in a burst of gold, and fresh dealers greet the dealer they relieve.
+- Seated customers fidget when their patience is low, and lean in now and then when they are content.
+
 ## Windows demo build
 
 Install **Windows Build Support (Mono)** for Unity 6000.3.26f1 through Unity Hub, then:
