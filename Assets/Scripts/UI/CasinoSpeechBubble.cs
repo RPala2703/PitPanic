@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(100)]
 public sealed class CasinoSpeechBubble : MonoBehaviour
 {
     private Canvas canvas;
@@ -9,12 +10,20 @@ public sealed class CasinoSpeechBubble : MonoBehaviour
     private AIDealer dealer;
     private CasinoTableAttention nearbyTask;
     private Camera targetCamera;
+    private PixelCharacterVisual visual;
 
     public string Message => canvas != null && canvas.enabled ? label.text : "";
 
     private void Start()
     {
         dealer = GetComponent<AIDealer>();
+        visual = GetComponentInChildren<PixelCharacterVisual>();
+        if (visual == null)
+        {
+            Debug.LogError("Speech bubbles require a pixel character visual.", this);
+            enabled = false;
+            return;
+        }
         GameObject bubble = new GameObject("Speech Bubble", typeof(RectTransform), typeof(Canvas));
         bubble.transform.SetParent(transform, false);
         canvas = bubble.GetComponent<Canvas>();
@@ -59,7 +68,9 @@ public sealed class CasinoSpeechBubble : MonoBehaviour
         if (!canvas.enabled) return;
         if (targetCamera == null) targetCamera = Camera.main;
         if (targetCamera == null) return;
-        canvas.transform.SetPositionAndRotation(transform.position + Vector3.up * 2.7f, targetCamera.transform.rotation);
+        float clearance = 60f * canvas.transform.lossyScale.y + .15f;
+        canvas.transform.SetPositionAndRotation(visual.HeadPosition + targetCamera.transform.up * clearance,
+            targetCamera.transform.rotation);
     }
 
     private CasinoTableAttention FindNearbyTask()

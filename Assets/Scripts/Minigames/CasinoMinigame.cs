@@ -20,6 +20,10 @@ public abstract class CasinoMinigame : MonoBehaviour
 {
     private float elapsedSeconds;
     private CasinoMinigamePresentation presentation;
+    private bool hasCarriedDeadline;
+    private float carriedRemaining;
+    private float carriedDuration;
+    private int carriedAttemptKey;
 
     public event Action<CasinoMinigameResult> Completed;
     public event Action Abandoned;
@@ -30,6 +34,36 @@ public abstract class CasinoMinigame : MonoBehaviour
     {
         remaining = duration = 0;
         return false;
+    }
+    // Tasks that opt in keep one countdown across failed or exited attempts.
+    protected virtual bool CarriesDeadlineBetweenAttempts => false;
+    protected virtual int AttemptKey => 0;
+    public bool HasCarriedDeadline => hasCarriedDeadline;
+
+    public bool TryGetCarriedDeadline(out float remaining, out float duration)
+    {
+        remaining = carriedRemaining;
+        duration = carriedDuration;
+        return !IsRunning && hasCarriedDeadline && remaining > 0 && duration > 0;
+    }
+
+    public void ClearCarriedDeadline() => hasCarriedDeadline = false;
+
+    protected float ConsumeCarriedDeadline(float fullDuration)
+    {
+        bool carry = hasCarriedDeadline && carriedAttemptKey == AttemptKey && carriedRemaining > 0;
+        hasCarriedDeadline = false;
+        return carry ? Mathf.Min(carriedRemaining, fullDuration) : fullDuration;
+    }
+
+    private void CarryDeadline()
+    {
+        if (!CarriesDeadlineBetweenAttempts || !TryGetDeadline(out float remaining, out float duration) || remaining <= 0)
+            return;
+        hasCarriedDeadline = true;
+        carriedRemaining = remaining;
+        carriedDuration = duration;
+        carriedAttemptKey = AttemptKey;
     }
     protected virtual string PresentationTitle => GetType().Name.Replace("Minigame", string.Empty).ToUpperInvariant();
     protected virtual string PresentationInstructions => "Complete the service task. The casino remains live.";
@@ -68,6 +102,7 @@ public abstract class CasinoMinigame : MonoBehaviour
             return;
         }
 
+        CarryDeadline();
         try
         {
             OnAbandon();
@@ -94,6 +129,8 @@ public abstract class CasinoMinigame : MonoBehaviour
             return;
         }
 
+        if (success) hasCarriedDeadline = false;
+        else CarryDeadline();
         IsRunning = false;
         try
         {
@@ -123,6 +160,21 @@ public abstract class CasinoMinigame : MonoBehaviour
 
     private void Update()
     {
+        if (!IsRunning && hasCarriedDeadline && Time.timeScale > 0)
+        {
+            if (carriedAttemptKey != AttemptKey) hasCarriedDeadline = false;
+            else
+            {
+                carriedRemaining -= Time.deltaTime;
+                if (carriedRemaining <= 0)
+                {
+                    // The overall task countdown ran out while the player was away: that is a missed task.
+                    hasCarriedDeadline = false;
+                    Completed?.Invoke(new CasinoMinigameResult(false, 0, elapsedSeconds));
+                }
+            }
+        }
+
         if (!IsRunning || Time.timeScale == 0)
         {
             return;

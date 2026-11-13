@@ -36,6 +36,7 @@ public sealed class AIDealer : MonoBehaviour
     private DealerDutyState state;
     private Vector3 originalScale;
     private bool hasRequestedExhaustion;
+    private bool pinnedToStation;
     private bool pathFailureReported;
     private bool requiresPitDeskDecisionOnArrival;
 
@@ -187,6 +188,7 @@ public sealed class AIDealer : MonoBehaviour
             return false;
         }
 
+        ReleaseFromStationSpot();
         agent.updateRotation = true;
         if (!agent.SetDestination(station.DealerPosition.position))
         {
@@ -213,6 +215,7 @@ public sealed class AIDealer : MonoBehaviour
 
     private bool BeginPitDeskRoute(Transform position, bool returningFromBreak, bool requiresDecision)
     {
+        ReleaseFromStationSpot();
         if (position == null || agent == null || !agent.isOnNavMesh ||
             !agent.SetDestination(position.position))
         {
@@ -239,8 +242,9 @@ public sealed class AIDealer : MonoBehaviour
 
     public bool GoToBreakRoom(Transform position)
     {
-        if (!CanRouteToBreakFromState(state) || position == null || agent == null ||
-            !agent.isOnNavMesh || !agent.SetDestination(position.position))
+        if (!CanRouteToBreakFromState(state) || position == null || agent == null) return false;
+        ReleaseFromStationSpot();
+        if (!agent.isOnNavMesh || !agent.SetDestination(position.position))
         {
             return false;
         }
@@ -277,8 +281,33 @@ public sealed class AIDealer : MonoBehaviour
 
         if (station != null)
         {
-            transform.rotation = station.DealerPosition.rotation;
+            SnapToStation();
         }
+    }
+
+    // The dealer spot sits beside a carved table footprint, so the NavMesh can only approximate it.
+    // Working dealers are pinned exactly to the spot and rejoin the NavMesh when they leave.
+    public void SnapToStation()
+    {
+        if (AssignedStation == null || AssignedStation.DealerPosition == null) return;
+        Transform spot = AssignedStation.DealerPosition;
+        if (agent != null && agent.enabled)
+        {
+            if (agent.isOnNavMesh) agent.isStopped = true;
+            agent.updatePosition = false;
+            agent.updateRotation = false;
+        }
+        transform.SetPositionAndRotation(new Vector3(spot.position.x, transform.position.y, spot.position.z), spot.rotation);
+        pinnedToStation = true;
+    }
+
+    private void ReleaseFromStationSpot()
+    {
+        if (!pinnedToStation || agent == null || !agent.enabled) return;
+        pinnedToStation = false;
+        if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+            agent.Warp(hit.position);
+        agent.updatePosition = true;
     }
 
     public void MarkReadyAtPitDesk()
@@ -323,7 +352,9 @@ public sealed class AIDealer : MonoBehaviour
     public bool RetryCurrentRoute()
     {
         Transform destination = Destination;
-        if (destination == null || agent == null || !agent.isOnNavMesh ||
+        if (destination == null || agent == null) return false;
+        ReleaseFromStationSpot();
+        if (!agent.isOnNavMesh ||
             !agent.SetDestination(destination.position))
         {
             return false;
@@ -425,6 +456,7 @@ public sealed class AIDealer : MonoBehaviour
             {
                 hasRequestedExhaustion = true;
                 AssignedStation?.Attention.RequestAttentionOnce(TableAttentionReason.DealerExhausted);
+                if (!TrainingProtected) CasinoSoundscape.Play(CasinoSoundCue.TaskFailed, transform.position);
             }
         }
         else if (state == DealerDutyState.Resting)

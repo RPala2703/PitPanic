@@ -48,13 +48,15 @@ public sealed class BlackjackShuffleMinigame : CasinoMinigame
     public override bool CanBegin => table != null && table.CanBeginShuffleAssistance() &&
                                      player != null;
     protected override string PresentationTitle => $"SHUFFLE!  •  {table.TableDisplayName}";
-    protected override string PresentationInstructions => "CLICK THE GLOWING STACK TO SHUFFLE IN RHYTHM.";
+    protected override string PresentationInstructions => "CLICK THE GLOWING STACK. A WRONG STACK MEANS STARTING AGAIN!";
     public bool IsConfigured => table != null && player != null;
     public int CompletedCards => completedCards;
     public int RequiredCards => stackSequence.Length;
     public bool IsAnimatingCard => waitingForFlight;
     public int ExpectedStack => completedCards < stackSequence.Length ? stackSequence[completedCards] : -1;
     public float TimeRemaining => timeRemaining;
+
+    protected override bool CarriesDeadlineBetweenAttempts => true;
 
     public override bool TryGetDeadline(out float remaining, out float duration)
     {
@@ -124,7 +126,8 @@ public sealed class BlackjackShuffleMinigame : CasinoMinigame
         table.PlayShuffleAssistanceAction();
 
         stackSequence = CreateStackSequence(CardsToShuffle, UnityEngine.Random.Range(0, int.MaxValue));
-        timeRemaining = timeAllowance;
+        // A retry restarts the cards but keeps the task's original countdown.
+        timeRemaining = ConsumeCarriedDeadline(timeAllowance);
         completedCards = 0;
         misses = 0;
         leftCardsRemaining = CardsToShuffle / 2;
@@ -292,10 +295,9 @@ public sealed class BlackjackShuffleMinigame : CasinoMinigame
         if (!IsCorrectStack(ExpectedStack, stackIndex))
         {
             misses++;
-            timeRemaining = Mathf.Max(0f, timeRemaining - 0.8f);
-            SetFeedback("Oops! Try the glowing stack.");
             CasinoSoundscape.Play(CasinoSoundCue.Mistake, transform.position, transform);
-            RefreshHud();
+            // A wrong stack ruins the shuffle: exit and start again while the task clock keeps running.
+            Complete(false, completedCards * 100);
             return false;
         }
 

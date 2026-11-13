@@ -518,12 +518,22 @@ public static class FirstShiftPlayModeValidation
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
             Check(shuffle.IsRunning, "SHUFFLE retry failed");
             Button wrongStack = (Button)Get(shuffle, shuffle.ExpectedStack == 0 ? "rightStackButton" : "leftStackButton");
+            float beforeMistake = shuffle.TimeRemaining;
             wrongStack.onClick.Invoke();
-            Check(shuffle.CompletedCards == 0 && (int)Get(shuffle, "misses") == 1,
-                "Incorrect SHUFFLE stack advanced the card sequence");
+            Check(!shuffle.IsRunning && blackjack.IsShuffleReady && shuffle.HasCarriedDeadline &&
+                shuffle.CompletedCards == 0 && (int)Get(shuffle, "misses") == 1,
+                "A wrong SHUFFLE stack did not end the attempt while keeping the task pending");
+            Check(shuffle.TryGetCarriedDeadline(out float carriedLeft, out _) && carriedLeft > 0,
+                "A failed SHUFFLE hid the task countdown");
+            yield return new WaitForSeconds(.5f);
+            yield return Press(UnityEngine.InputSystem.Key.E);
+            ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
+            Check(shuffle.IsRunning && shuffle.CompletedCards == 0 && shuffle.TimeRemaining < beforeMistake - .3f,
+                $"SHUFFLE retry reset the task countdown: before={beforeMistake}, now={shuffle.TimeRemaining}");
             Set(shuffle, "timeRemaining", 0f);
             yield return null;
-            Check(!shuffle.IsRunning && blackjack.IsShuffleReady, "Failed SHUFFLE did not allow retry");
+            Check(!shuffle.IsRunning && blackjack.IsShuffleReady && !shuffle.HasCarriedDeadline,
+                "Failed SHUFFLE did not allow retry");
             yield return Press(UnityEngine.InputSystem.Key.E);
             ((Button)Get(Get(blackjack, "tableView"), "assistanceButton")).onClick.Invoke();
             Check(shuffle.IsRunning, "SHUFFLE retry after failure failed");
@@ -745,8 +755,32 @@ public static class FirstShiftPlayModeValidation
             timeout = Time.realtimeSinceStartup + 20;
             while (blackjack.State == BlackjackTableState.Settlement && Time.realtimeSinceStartup < timeout)
             {
+                int payoutIndex = (int)Get(blackjack, "payoutHandIndex");
+                if (payoutIndex < 0) { yield return null; continue; }
+                BlackjackHand owed = manualRound.CustomerHands[payoutIndex];
                 blackjack.ManualDealStep();
                 yield return new WaitForSeconds(.31f);
+                Check(blackjack.State == BlackjackTableState.Settlement && !owed.PayoutPaid,
+                    "Space skipped a manual Blackjack payout");
+                Call(blackjack, "AddPayoutChip", 500);
+                Call(blackjack, "ConfirmPayout");
+                Check(owed.WinningsPence == 500 || !owed.PayoutPaid && blackjack.State == BlackjackTableState.Settlement,
+                    "An incorrect Blackjack payout skipped the winner");
+                if (!owed.PayoutPaid)
+                {
+                    var payoutArgs = new object[] { owed.WinningsPence, null };
+                    if (!(bool)Call(blackjack, "TryGetAvailablePayout", payoutArgs))
+                    {
+                        blackjack.GetComponent<CasinoFloatRefillDestination>().TryAddChips(new[] { 20, 0, 10, 5 });
+                        continue;
+                    }
+                    int[] values = { 500, 250, 2500, 10000 };
+                    int[] counts = (int[])payoutArgs[1];
+                    for (int i = 0; i < counts.Length; i++)
+                        for (int n = 0; n < counts[i]; n++) Call(blackjack, "AddPayoutChip", values[i]);
+                    Call(blackjack, "ConfirmPayout");
+                }
+                yield return null;
             }
             foreach (BlackjackHand hand in manualRound.CustomerHands)
                 Check(hand.PayoutPence == 0 || hand.PayoutPaid, "Manual Blackjack left an unpaid winner");

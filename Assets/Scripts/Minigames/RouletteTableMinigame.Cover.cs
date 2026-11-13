@@ -50,6 +50,9 @@ public sealed partial class RouletteTableMinigame
     public bool IsCoverMode => IsRunning && stage == RouletteStage.Cover;
     public RouletteCoverSelection CoverSelection => coverSelection;
 
+    protected override bool CarriesDeadlineBetweenAttempts => true;
+    protected override int AttemptKey => roundController != null ? unchecked((int)roundController.AssistanceRoundId) : 0;
+
     public override bool TryGetDeadline(out float remaining, out float duration)
     {
         remaining = coverRemaining;
@@ -60,7 +63,7 @@ public sealed partial class RouletteTableMinigame
     private void BuildCover()
     {
         coverSelection = new RouletteCoverSelection(assistanceRoundId, winningNumber, roundController.AssistanceBets);
-        coverRemaining = CoverAllowance;
+        coverRemaining = ConsumeCarriedDeadline(CoverAllowance);
         coverFinishDelay = 0;
         coverButtons.Clear();
         coverNumberCells.Clear();

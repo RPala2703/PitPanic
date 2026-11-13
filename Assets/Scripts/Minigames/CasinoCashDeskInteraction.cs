@@ -14,7 +14,15 @@ public enum CasinoFloatRefillStatus
 [DisallowMultipleComponent]
 public sealed class CasinoCashDeskInteraction : MonoBehaviour
 {
-    private static readonly int[] AvailablePackAmountsPence = { 1000, 2000, 3000, 4000, 5000 };
+    public enum CashOutStyle { Fives, Mix, BigChips }
+    private const int Red = 0, Blue = 1, Black = 2, Pink = 3;
+    private static readonly int[] ChipValuesPence = { 500, 250, 2500, 10000 };
+    private static readonly int[][] CashOutAmountsPence =
+    {
+        new[] { 1000, 1500, 2000, 3000, 4000, 5000 },
+        new[] { 3500, 4500, 6000, 7500, 11000, 13500 },
+        new[] { 2500, 5000, 7500, 10000, 12500, 20000 }
+    };
 
     [SerializeField] private CasinoTableAttention attention;
     [SerializeField] private CasinoMinigameStation minigameStation;
@@ -386,12 +394,17 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
         {
             List<int> payableAmounts = new List<int>();
             List<int[]> payableCompositions = new List<int[]>();
-            foreach (int amount in AvailablePackAmountsPence)
+            CashOutStyle preferred = ChooseCashOutStyle(activeCustomer.IsVip, UnityEngine.Random.value);
+            for (int attempt = 0; attempt < 3 && payableAmounts.Count == 0; attempt++)
             {
-                if (TryGetRegisterComposition(amount, out int[] composition))
+                CashOutStyle style = (CashOutStyle)(((int)preferred + attempt) % 3);
+                foreach (int amount in CashOutAmountsPence[(int)style])
                 {
-                    payableAmounts.Add(amount);
-                    payableCompositions.Add(composition);
+                    if (TryComposeCashOut(amount, style, registerChipStock, out int[] composition))
+                    {
+                        payableAmounts.Add(amount);
+                        payableCompositions.Add(composition);
+                    }
                 }
             }
 
@@ -412,26 +425,52 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
         }
     }
 
-    private bool TryGetRegisterComposition(int amountPence, out int[] counts)
+    // Regular players mostly ask for a mix; VIPs usually want pinks and blacks.
+    public static CashOutStyle ChooseCashOutStyle(bool vip, float roll)
     {
-        counts = new int[registerChipStock.Length];
-        int[] values = { 500, 250, 2500, 10000 };
-        var failed = new HashSet<long>();
-        return FindRegisterComposition(0, amountPence, values, counts, failed);
+        if (vip) return roll < .7f ? CashOutStyle.BigChips : CashOutStyle.Mix;
+        return roll < .3f ? CashOutStyle.Fives : roll < .75f ? CashOutStyle.Mix : CashOutStyle.BigChips;
     }
 
-    private bool FindRegisterComposition(int denomination, int remaining, int[] values,
+    // Counts use float order [red £5, blue £2.50, black £25, pink £100].
+    public static bool TryComposeCashOut(int amountPence, CashOutStyle style, IReadOnlyList<int> stock, out int[] counts)
+    {
+        counts = new int[ChipValuesPence.Length];
+        if (amountPence <= 0 || stock == null || stock.Count != ChipValuesPence.Length) return false;
+        int[] order = style == CashOutStyle.Fives ? new[] { Red, Blue } : new[] { Pink, Black, Red, Blue };
+        if (!FindComposition(order, 0, amountPence, stock, counts, new HashSet<long>())) return false;
+        if (style != CashOutStyle.Mix) return true;
+
+        // Break one large chip down so the customer receives a genuine mixture.
+        if (counts[Pink] > 0 && counts[Black] + 3 <= stock[Black] && counts[Red] + 5 <= stock[Red])
+        {
+            counts[Pink]--;
+            counts[Black] += 3;
+            counts[Red] += 5;
+        }
+        else if (counts[Black] > 0 && counts[Red] + 5 <= stock[Red])
+        {
+            counts[Black]--;
+            counts[Red] += 5;
+        }
+        int kinds = 0;
+        foreach (int count in counts) if (count > 0) kinds++;
+        return kinds >= 2;
+    }
+
+    private static bool FindComposition(int[] order, int position, int remaining, IReadOnlyList<int> stock,
         int[] counts, HashSet<long> failed)
     {
-        if (denomination == values.Length) return remaining == 0;
-        long key = ((long)denomination << 32) | (uint)remaining;
+        if (position == order.Length) return remaining == 0;
+        long key = ((long)position << 32) | (uint)remaining;
         if (failed.Contains(key)) return false;
-        int max = Mathf.Min(registerChipStock[denomination], remaining / values[denomination]);
+        int denomination = order[position];
+        int max = Mathf.Min(stock[denomination], remaining / ChipValuesPence[denomination]);
         for (int count = max; count >= 0; count--)
         {
             counts[denomination] = count;
-            if (FindRegisterComposition(denomination + 1,
-                    remaining - count * values[denomination], values, counts, failed))
+            if (FindComposition(order, position + 1, remaining - count * ChipValuesPence[denomination],
+                    stock, counts, failed))
                 return true;
         }
         counts[denomination] = 0;

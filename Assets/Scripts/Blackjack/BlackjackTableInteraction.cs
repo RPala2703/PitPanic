@@ -365,32 +365,12 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     public void ManualDealStep()
     {
         if (!IsPlayerOperating || !panelOpen || Time.timeScale == 0 || Time.time < nextDealerActionTime) return;
+        // Payouts must be counted out chip by chip and confirmed; Space never pays or skips a winner.
+        if (state == BlackjackTableState.Settlement || state == BlackjackTableState.ClearingTable) return;
         nextDealerActionTime = Time.time + .3f;
-        if (state == BlackjackTableState.Settlement)
-        {
-            if (payoutHandIndex >= 0)
-            {
-                selectedPayoutChips.Clear();
-                if (TryGetAvailablePayout(round.CustomerHands[payoutHandIndex].WinningsPence, out int[] counts))
-                {
-                    int[] values = { 500, 250, 2500, 10000 };
-                    for (int i = 0; i < counts.Length; i++)
-                        for (int chip = 0; chip < counts[i]; chip++)
-                            selectedPayoutChips.Add(values[i]);
-                    ConfirmPayout();
-                }
-                else
-                {
-                    floatDestination?.RequestAttention(round.CustomerHands[payoutHandIndex].WinningsPence);
-                    message = "The table float is short. Deliver a refill to finish this payout.";
-                    RefreshView();
-                }
-            }
-        }
-        else if (state != BlackjackTableState.ClearingTable)
-            PerformDealerAction();
+        PerformDealerAction();
         playerController.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(
-            state == BlackjackTableState.Settlement ? CasinoAnimationPose.Pay : CasinoAnimationPose.Deal, transform.position, .5f);
+            CasinoAnimationPose.Deal, transform.position, .5f);
         CasinoSoundscape.Play(CasinoSoundCue.Card, transform.position, transform);
     }
 
@@ -889,7 +869,8 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
         {
             payoutPenaltyCount++;
             selectedPayoutChips.Clear();
-            message = $"Incorrect payout. Check the chips and try again; accuracy penalty {payoutPenaltyCount}.";
+            message = $"Wrong amount! Count out {FormatPounds(hand.WinningsPence)} for {GetCustomerName(hand)} again.";
+            CasinoSoundscape.Play(CasinoSoundCue.Mistake, transform.position, transform);
             RefreshView();
             return;
         }

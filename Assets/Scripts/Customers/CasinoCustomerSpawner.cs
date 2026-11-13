@@ -41,6 +41,40 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     [SerializeField] private GameObject[] customerCharacterPrefabs;
     [SerializeField] private CasinoCashDeskInteraction cashDesk;
     private float spawnTimer;
+    private const float MinimumArrivalGap = 1.6f;
+    private const float MaximumArrivalGap = 2.6f;
+    private const float EntranceClearance = .9f;
+    private int pendingOpeningArrivals;
+    private float arrivalTimer;
+    public int PendingOpeningArrivals => pendingOpeningArrivals;
+
+    private float entranceBlockedTime;
+
+    // A loiterer in the doorway may delay, but never stop, arrivals.
+    private bool EntranceReady()
+    {
+        if (IsEntranceClear())
+        {
+            entranceBlockedTime = 0f;
+            return true;
+        }
+        entranceBlockedTime += Time.deltaTime;
+        if (entranceBlockedTime < 4f) return false;
+        entranceBlockedTime = 0f;
+        return true;
+    }
+
+    public bool IsEntranceClear()
+    {
+        foreach (CasinoCustomerAI customer in activeCustomers)
+        {
+            if (customer == null) continue;
+            if (Vector3.ProjectOnPlane(customer.transform.position - entrance.position, Vector3.up).sqrMagnitude <
+                EntranceClearance * EntranceClearance)
+                return false;
+        }
+        return true;
+    }
     private int nextCustomerNumber = 1;
     private bool acceptingArrivals = true;
     private bool finale;
@@ -172,11 +206,9 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             return;
         }
 
-        for (int i = 0; acceptingArrivals && i < initialCustomerCount; i++)
-        {
-            SpawnCustomer(i);
-        }
-
+        // Opening customers stroll in one at a time instead of popping into the doorway together.
+        pendingOpeningArrivals = acceptingArrivals ? initialCustomerCount : 0;
+        arrivalTimer = 0f;
         spawnTimer = CurrentSpawnInterval;
     }
 
@@ -187,8 +219,17 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             return;
         }
 
+        if (pendingOpeningArrivals > 0)
+        {
+            arrivalTimer -= Time.deltaTime;
+            if (arrivalTimer > 0f || !EntranceReady()) return;
+            if (SpawnCustomer(0) != null) pendingOpeningArrivals--;
+            arrivalTimer = Random.Range(MinimumArrivalGap, MaximumArrivalGap);
+            return;
+        }
+
         spawnTimer -= Time.deltaTime;
-        if (spawnTimer <= 0f)
+        if (spawnTimer <= 0f && EntranceReady())
         {
             SpawnCustomer(activeCustomers.Count * 2);
             spawnTimer = CurrentSpawnInterval;
