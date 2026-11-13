@@ -5,13 +5,21 @@ public static class CasinoTaskFeedback
     public static Color UrgencyColor(float fraction) => fraction > .5f
         ? new Color(.3f, .95f, .45f) : fraction > .2f ? CasinoHudStyle.Gold : CasinoHudStyle.Coral;
 
-    public static bool TryGetDeadline(CasinoTableAttention attention, out float remaining, out float duration)
+    public static bool TryGetDeadline(CasinoTableAttention attention, out float remaining, out float duration) =>
+        TryGetDeadline(attention, false, out remaining, out duration);
+
+    /// <summary>
+    /// With <paramref name="tableTasksOnly"/>, dealer energy is left out: it has its own bar above the dealer's
+    /// head, so the table's bar only counts down the table task itself.
+    /// </summary>
+    public static bool TryGetDeadline(CasinoTableAttention attention, bool tableTasksOnly, out float remaining, out float duration)
     {
         remaining = float.PositiveInfinity;
         duration = 0;
         if (attention == null || !attention.HasVisibleTasks) return false;
         foreach (TableAttentionReason reason in System.Enum.GetValues(typeof(TableAttentionReason)))
-            if (TryGetDeadline(attention, reason, out float time, out float total) && time < remaining)
+            if ((!tableTasksOnly || reason != TableAttentionReason.DealerBreakRequired) &&
+                TryGetDeadline(attention, reason, out float time, out float total) && time < remaining)
             { remaining = time; duration = total; }
         return !float.IsInfinity(remaining) && duration > 0;
     }

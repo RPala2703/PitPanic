@@ -7,6 +7,9 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
     [SerializeField] private CasinoTableAttention attention;
     [SerializeField] private Canvas indicatorCanvas;
 
+    // Beside the "!" badge, clear of the speech bubble above a player standing at the table.
+    private const float MeterX = 215f;
+
     private Camera targetCamera;
     private Text indicatorText;
     private RectTransform badge;
@@ -59,13 +62,13 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
         image.raycastTarget = false;
         attention.AttentionChanged += SetVisible;
         urgencyMeter = CasinoMinigamePresentation.CreateImage("Real task deadline", indicatorCanvas.transform,
-            new Vector2(0, -108), new Vector2(230, 32), CasinoHudStyle.Ink);
+            new Vector2(MeterX, 14), new Vector2(230, 32), CasinoHudStyle.Ink);
         urgencyFill = CasinoMinigamePresentation.CreateImage("Remaining time", urgencyMeter.transform,
             Vector2.zero, new Vector2(220, 24), Color.green).GetComponent<Image>();
         urgencyFill.rectTransform.pivot = new Vector2(0, .5f);
         urgencyFill.rectTransform.anchoredPosition = new Vector2(-110, 0);
         urgencyTime = CasinoMinigamePresentation.CreateText(indicatorCanvas.transform, "Deadline seconds", "",
-            new Vector2(0, -146), new Vector2(260, 35), 25, Color.white);
+            new Vector2(MeterX, -24), new Vector2(260, 35), 25, Color.white);
         SetVisible(attention.HasPendingTasks);
     }
 
@@ -86,7 +89,7 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
             return;
         }
         if (AudioListener.pause) return;
-        bool timed = CasinoTaskFeedback.TryGetDeadline(attention, out float remaining, out float duration);
+        bool timed = CasinoTaskFeedback.TryGetDeadline(attention, true, out float remaining, out float duration);
         urgencyMeter.SetActive(timed);
         urgencyTime.gameObject.SetActive(timed);
         if (timed)

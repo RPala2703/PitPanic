@@ -160,6 +160,8 @@ public sealed class AIDealer : MonoBehaviour
     {
         if (GetComponent<CasinoSpeechBubble>() == null)
             gameObject.AddComponent<CasinoSpeechBubble>();
+        if (GetComponent<DealerEnergyMeter>() == null)
+            gameObject.AddComponent<DealerEnergyMeter>();
         if (manager == null || breakRoomPosition == null ||
             pitDeskPosition == null && initialAssignedStation == null)
         {
