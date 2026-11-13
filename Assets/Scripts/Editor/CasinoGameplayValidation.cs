@@ -25,7 +25,32 @@ public static class CasinoGameplayValidation
         CheckChipPaletteAndRefills();
         CheckTaskDeadlines();
         CheckLargePayoutRefills();
+        CheckCashOutCompositions();
         Debug.Log("Casino gameplay validation passed: COVER rules, zero, duplicates, finite payout recovery and Blackjack all-bust.");
+    }
+
+    private static void CheckCashOutCompositions()
+    {
+        int[] values = { 500, 250, 2500, 10000 };
+        int[] stock = { 500, 2000, 500, 50 };
+        int Total(int[] counts) { int sum = 0; for (int i = 0; i < 4; i++) sum += counts[i] * values[i]; return sum; }
+        Check(CasinoCashDeskInteraction.TryComposeCashOut(20000, CasinoCashDeskInteraction.CashOutStyle.BigChips,
+            stock, out int[] big) && big[3] == 2 && Total(big) == 20000, "Big-chip cash-out should use pinks.");
+        Check(CasinoCashDeskInteraction.TryComposeCashOut(7500, CasinoCashDeskInteraction.CashOutStyle.BigChips,
+            stock, out int[] blacks) && blacks[2] == 3 && blacks[0] == 0, "Big-chip cash-out should use blacks.");
+        Check(CasinoCashDeskInteraction.TryComposeCashOut(13500, CasinoCashDeskInteraction.CashOutStyle.Mix,
+            stock, out int[] mix) && Total(mix) == 13500 && mix[2] > 0 && mix[0] > 0, "Mixed cash-out should mix blacks and reds.");
+        Check(CasinoCashDeskInteraction.TryComposeCashOut(3000, CasinoCashDeskInteraction.CashOutStyle.Fives,
+            stock, out int[] fives) && fives[0] == 6 && fives[2] == 0, "Fives cash-out should stay in reds.");
+        Check(!CasinoCashDeskInteraction.TryComposeCashOut(20000, CasinoCashDeskInteraction.CashOutStyle.BigChips,
+            new[] { 0, 0, 0, 1 }, out _), "Cash-outs must respect register stock.");
+        Check(CasinoCashDeskInteraction.ChooseCashOutStyle(true, .1f) == CasinoCashDeskInteraction.CashOutStyle.BigChips,
+            "VIPs should usually cash out in big chips.");
+        int nonFives = 0;
+        for (int i = 0; i < 20; i++)
+            if (CasinoCashDeskInteraction.ChooseCashOutStyle(false, i / 20f) != CasinoCashDeskInteraction.CashOutStyle.Fives)
+                nonFives++;
+        Check(nonFives >= 12, "Most regular cash-outs should include blacks or pinks.");
     }
 
     private static void CheckTaskDeadlines()
@@ -125,13 +150,23 @@ public static class CasinoGameplayValidation
                 "Red-only shortage should request only fifteen £5 chips.");
             stock.TryAddChips(redOnly);
             stock.TryConsumeChips(new[] { 0, 18, 0, 0 });
+            Check(stock.GetRequiredRefillCounts()[1] == 0,
+                "A low but non-empty £2.50 tray should not order more £2.50 chips.");
+            stock.TryConsumeChips(new[] { 0, 2, 0, 0 });
             int[] blueOnly = stock.GetRequiredRefillCounts();
-            Check(blueOnly[0] == 0 && blueOnly[1] == 18 && blueOnly[2] == 0 && blueOnly[3] == 0,
-                "Refill quantities should change with the actual shortage.");
-            stock.RequestAttention(175000);
+            Check(blueOnly[0] == 0 && blueOnly[1] > 0 && blueOnly[1] <= 10 && blueOnly[2] == 0 && blueOnly[3] == 0,
+                "An empty £2.50 tray should order a small £2.50 restock only.");
+            stock.TryAddChips(blueOnly);
+            stock.TryConsumeChips(new[] { 13, 0, 3, 0 });
+            int[] mixed = stock.GetRequiredRefillCounts();
+            Check(mixed[0] == 13 && mixed[1] == 0 && mixed[2] == 3,
+                "A normal restock should top up £5 and £25 chips without £2.50 chips.");
+            stock.TryAddChips(mixed);
+            stock.RequestAttention(175250);
             int[] largeRefill = stock.GetRequiredRefillCounts();
+            Check(largeRefill[1] <= 1, "A blocked payout should not order a large reserve of £2.50 chips.");
             stock.TryAddChips(largeRefill);
-            Check(stock.TryGetAvailableComposition(175000, out _),
+            Check(stock.TryGetAvailableComposition(175250, out _),
                 "Refill request did not cover a blocked high-roller payout.");
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
@@ -287,6 +322,11 @@ public static class CasinoGameplayValidation
             Check(push.PayoutPaid && push.WinningsPence == 0 && stock.InventoryValuePence == 2000 &&
                 win.WinningsPence == 1000 && !win.PayoutPaid, "Blackjack push demanded chips or a win required double the bet.");
             var selected = (List<int>)typeof(BlackjackTableInteraction).GetField("selectedPayoutChips", Flags).GetValue(table);
+            selected.Add(500);
+            Call(table, "ConfirmPayout");
+            Check(!win.PayoutPaid && table.State == BlackjackTableState.Settlement &&
+                (int)typeof(BlackjackTableInteraction).GetField("payoutHandIndex", Flags).GetValue(table) == 0 &&
+                stock.InventoryValuePence == 2000, "A wrong Blackjack payout skipped the winner instead of requiring a retry.");
             selected.Add(500); selected.Add(500);
             Call(table, "ConfirmPayout");
             Check(win.PayoutPaid && stock.InventoryValuePence == 1000,

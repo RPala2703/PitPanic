@@ -52,25 +52,49 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
                                 startingChipCounts.Length == 4 && refillThresholdCounts != null &&
                                 refillThresholdCounts.Length == 4 && refillOrderCounts != null &&
                                 refillOrderCounts.Length == 4;
+    private const int BlueIndex = 1;
+    private const int BlueRestockCount = 8;
+
+    // £2.50 chips are only an emergency restock when the tray is completely empty.
+    private bool IsLow(int i) => i == BlueIndex
+        ? refillOrderCounts[i] > 0 && chipCounts[i] == 0
+        : refillOrderCounts[i] > 0 && chipCounts[i] <= refillThresholdCounts[i];
+
     public int[] GetRequiredRefillCounts()
     {
         int[] needed = new int[4];
+        bool restocking = false;
         for (int i = 0; i < needed.Length; i++)
-            if (refillOrderCounts[i] > 0 && chipCounts[i] <= refillThresholdCounts[i])
-                needed[i] = Mathf.Max(startingChipCounts[i], refillOrderCounts[i]) - chipCounts[i];
+        {
+            if (!IsLow(i)) continue;
+            restocking = true;
+            needed[i] = i == BlueIndex
+                ? BlueRestockCount
+                : Mathf.Max(startingChipCounts[i], refillOrderCounts[i]) - chipCounts[i];
+        }
+        // A restock run tops the working £5 and £25 stacks back up together.
+        if (restocking)
+            foreach (int i in new[] { 0, 2 })
+                if (refillOrderCounts[i] > 0)
+                    needed[i] = Mathf.Max(needed[i], startingChipCounts[i] - chipCounts[i]);
         if (HasBlockedPayout)
         {
             int[] payout = RouletteTableMinigame.GetPayoutComposition(unpaidPayoutPence);
             for (int i = 0; i < needed.Length; i++)
             {
                 if (payout[i] == 0) continue;
-                int reserve = Mathf.Max(startingChipCounts[i], Mathf.CeilToInt(payout[i] * .25f), 1);
+                int reserve = i == BlueIndex ? 0 :
+                    Mathf.Max(startingChipCounts[i], Mathf.CeilToInt(payout[i] * .25f), 1);
                 needed[i] = Mathf.Max(needed[i], payout[i] + reserve - chipCounts[i]);
             }
         }
         bool any = Array.Exists(needed, count => count > 0);
         // Explicit practice/crew requests can top up a healthy float, too.
-        if (!any) needed[0] = 5 * UnityEngine.Random.Range(1, 4);
+        if (!any)
+        {
+            needed[0] = 5 * UnityEngine.Random.Range(1, 4);
+            needed[2] = UnityEngine.Random.Range(0, 3);
+        }
         return needed;
     }
     public long InventoryValuePence =>
@@ -202,7 +226,7 @@ public sealed class CasinoFloatRefillDestination : MonoBehaviour
 
         for (int i = 0; i < chipCounts.Length; i++)
         {
-            if (refillOrderCounts[i] > 0 && chipCounts[i] <= refillThresholdCounts[i])
+            if (IsLow(i))
             {
                 return true;
             }

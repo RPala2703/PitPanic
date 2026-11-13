@@ -36,7 +36,9 @@ public static class CasinoTaskFeedback
             reason == TableAttentionReason.CustomersWaiting || reason == TableAttentionReason.DealerExhausted;
         if (!service) return false;
         CasinoMinigame game = attention.GetComponent<CasinoMinigame>();
-        if (game != null && game.TryGetDeadline(out float taskTime, out float taskDuration))
+        if (game != null && (game.TryGetDeadline(out float taskTime, out float taskDuration) ||
+                (reason == TableAttentionReason.ShuffleAssistanceRequired || reason == TableAttentionReason.RouletteCoverRequired) &&
+                game.TryGetCarriedDeadline(out taskTime, out taskDuration)))
         { remaining = taskTime; duration = taskDuration; }
         foreach (CasinoCustomerAI customer in Object.FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None))
         {

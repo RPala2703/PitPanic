@@ -182,12 +182,17 @@ the old ten-second cap. A wrong sequence chip costs half a second, and cancelled
 or timed-out orders remain retryable. This applies to float packing and customer
 cash-outs.
 Both cash games use **click-to-select**, never dragging. **Undo Last Chip**
-works in both, including a completed cash-out tray before Finish. The shared
+works in both, including a completed cash-out tray before Finish. Customer
+cash-outs vary: about a third ask for reds only, others want a black/red mix or
+big chips (blacks and pinks); VIPs usually ask for big chips. Every cash-out is
+an exact total the register can actually pay. The shared
 denominations match Blackjack/Roulette: red £5, blue £2.50, **black £25**,
 **pink £100**, with striped rims and shaded chip faces across the UI and world.
-Refills request only depleted denominations, using the gap to the configured
-target stock rather than a fixed £200 recipe. A pending large payout can request
-additional denominations needed to fund it. An explicit healthy-float practice
+Refills are built around the most-used chips: depleted reds, blacks and pinks
+restock to their target counts and any restock also tops reds and blacks back up.
+Blue £2.50s are requested only when that tray is empty, and then only a small
+restock. A pending large payout can request the reds, blacks and pinks needed to
+fund it. An explicit healthy-float practice
 request uses a small variable top-up. Once issued, an order's exact contents are
 fixed through cancellation, retry, packing and delivery.
 Starting blue inventory/register counts were increased fourfold to preserve
@@ -254,6 +259,15 @@ floor without changing settlement accounting. Customer reaction states follow
 actual round outcomes, and tired/rest states follow dealer duty.
 Customer sprite palettes are kept intact rather than tinting the whole animal
 blue/red to represent an outfit; impatience uses a restrained warm tint.
+VIPs lose patience about 40% faster, so they always show a gold, pulsing
+**HURRY!** patience bar while waiting; regular customers show a bar only once
+they fall below half patience. Working dealers are pinned exactly to their
+table's dealer spot on arrival, including after swaps and layout changes.
+A failed or missed task plays a descending failure buzz, the opposite of the
+task-complete chime. A wrong SHUFFLE stack ends the attempt; the task stays
+pending and the retry continues the same countdown rather than resetting it.
+During Blackjack takeover settlement Space never skips a payout, and a wrong
+payout keeps the same hand selected until it is recounted correctly.
 
 `Pit Panic Welcome!` loops on the title screen; `Pixelated Roulette` loops during
 shifts. Gameplay music is deliberately mixed at 12% of the Music slider level
@@ -269,7 +283,9 @@ casino chatter. Only effects owned by the active interface/task can play;
 closing it restores the world soundscape. Music remains independently controlled.
 Pause silences all channels until resumed.
 
-Customer arrivals ramp from about 17 seconds apart to 9 seconds, then about
+Opening customers walk in one at a time, 1.6–2.6 seconds apart, and new arrivals
+wait for the doorway to clear (for at most four seconds) so customers never spawn
+overlapping. Customer arrivals then ramp from about 17 seconds apart to 9 seconds, then about
 7 seconds in the finale, retaining the existing customer cap and task scheduler.
 Dealer recovery is about 45 seconds from the tired threshold to ready before perks.
 Blackjack optional assistance has a 60-second per-table gap and becomes guaranteed

@@ -292,6 +292,18 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
                 first.AssignedDealer.RequestTutorialTakeover();
                 MoveToTable(player, first.transform);
                 yield return new WaitForSecondsRealtime(.5f);
+                foreach (CasinoSpeechBubble speech in FindObjectsByType<CasinoSpeechBubble>(FindObjectsSortMode.None))
+                {
+                    if (speech.Message.Length == 0) continue;
+                    RectTransform bubble = speech.transform.Find("Speech Bubble").GetComponent<RectTransform>();
+                    Vector3[] corners = new Vector3[4];
+                    bubble.GetWorldCorners(corners);
+                    Vector3 head = camera.WorldToScreenPoint(
+                        speech.GetComponentInChildren<PixelCharacterVisual>().HeadPosition);
+                    foreach (Vector3 corner in corners)
+                        if (camera.WorldToScreenPoint(corner).y <= head.y)
+                            throw new InvalidOperationException("Speech bubble overlaps the character's head.");
+                }
                 ScreenCapture.CaptureScreenshot(Path.Combine(directory, "task-speech-bubbles.png"));
                 yield return new WaitForSecondsRealtime(.5f);
                 CasinoFloatRefillDestination stock = first.GetComponent<CasinoFloatRefillDestination>();

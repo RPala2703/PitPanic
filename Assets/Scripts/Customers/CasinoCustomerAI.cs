@@ -67,6 +67,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
         patience = GetComponent<CustomerPatience>();
+        if (GetComponent<CustomerPatienceMeter>() == null) gameObject.AddComponent<CustomerPatienceMeter>();
         agent.radius = 0.3f;
         agent.height = 1.7f;
         agent.speed = UnityEngine.Random.Range(2.1f, 2.8f);
@@ -521,6 +522,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         {
             penaltyRecorded = true;
             CustomerSatisfaction.RecordPenalty(this, vip ? 2 : 1);
+            CasinoSoundscape.Play(CasinoSoundCue.TaskFailed, transform.position);
         }
 
         LeavingSeat?.Invoke(this);

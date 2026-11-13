@@ -13,6 +13,20 @@ public static class PitPanicRichPixelArt
     private static readonly Color32 Felt = new Color32(28, 115, 87, 255);
     private static readonly Color32 Plum = new Color32(63, 32, 72, 255);
 
+    public static void GenerateStations()
+    {
+        foreach (string kind in new[] { "Blackjack", "BlackjackV2", "Roulette", "CashDesk", "PitDesk", "BreakRoom" })
+            GenerateStation(kind);
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void GenerateStation(string kind)
+    {
+        Texture2D t = New(192, 96);
+        Station(t, kind);
+        Save(t, "Station_" + kind, new Vector2(.5f, .5f), 32);
+    }
+
     [MenuItem("Pit Panic/Upgrade Pixel Art")]
     public static void Generate()
     {
@@ -142,11 +156,7 @@ public static class PitPanicRichPixelArt
             }
         }
         foreach (string kind in new[] { "Blackjack", "BlackjackV2", "Roulette", "CashDesk", "PitDesk", "BreakRoom" })
-        {
-            Texture2D t = New(192, 96);
-            Station(t, kind);
-            Save(t, "Station_" + kind, new Vector2(.5f, .5f), 32);
-        }
+            GenerateStation(kind);
         Texture2D floor = New(512, 352);
         Floor(floor);
         Save(floor, "CasinoFloor", new Vector2(.5f, .5f), 16);
@@ -591,8 +601,9 @@ public static class PitPanicRichPixelArt
         {
             for (int x = 46; x <= 134; x += 44)
             {
+                // Betting boxes only: cards are dealt live on top of the table, never baked into its art.
                 R(t, x - 9, 42, 18, 1, Gold); R(t, x - 9, 43, 1, 9, Gold); R(t, x + 8, 43, 1, 9, Gold);
-                Card(t, x - 2, 48, true); Card(t, x + 9, 51, false);
+                R(t, x - 9, 52, 18, 1, Gold);
             }
             ChipStack(t, 25, 65, new Color32(200, 58, 79, 255), 3);
             ChipStack(t, 39, 67, new Color32(55, 141, 199, 255), 3);
@@ -726,13 +737,6 @@ public static class PitPanicRichPixelArt
             E(t, x, y + i * 3, 5, 3, Ink); E(t, x, y + i * 3 + 1, 4, 2, color);
             R(t, x - 1, y + i * 3 + 2, 2, 1, Cream);
         }
-    }
-
-    private static void Card(Texture2D t, int x, int y, bool red)
-    {
-        R(t, x, y, 10, 14, Ink); R(t, x + 1, y + 1, 8, 12, Cream);
-        Color32 ink = red ? new Color32(189, 47, 72, 255) : Ink;
-        R(t, x + 2, y + 10, 2, 2, ink); R(t, x + 4, y + 5, 3, 3, ink);
     }
 
     private static void Wheel(Texture2D t, int cx, int cy, int r)

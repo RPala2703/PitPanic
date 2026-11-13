@@ -108,7 +108,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     private void OnMinigameCompleted(CasinoMinigameResult result)
     {
-        CasinoSoundscape.Play(result.Success ? CasinoSoundCue.Success : CasinoSoundCue.Mistake, transform.position);
+        CasinoSoundscape.Play(result.Success ? CasinoSoundCue.Success : CasinoSoundCue.TaskFailed, transform.position);
         if (result.Success)
         {
             ResolveTask();
@@ -151,6 +151,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     private void ResolveTask()
     {
+        minigame?.ClearCarriedDeadline();
         if (attention != null)
         {
             attention.ResolveAttention(attentionReason);

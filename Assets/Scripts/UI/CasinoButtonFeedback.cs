@@ -13,7 +13,13 @@ public sealed class CasinoButtonFeedback : MonoBehaviour, IPointerDownHandler, I
         transform.localScale = rest * .96f;
         CasinoSoundscape.Play(CasinoSoundCue.Button, Vector3.zero, CasinoSoundscape.Focus);
     }
-    public void OnPointerUp(PointerEventData data) => transform.localScale = rest;
+    public void OnPointerUp(PointerEventData data)
+    {
+        transform.localScale = rest;
+        // Keyboard shortcuts such as Space must never resubmit the last clicked button.
+        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == gameObject)
+            EventSystem.current.SetSelectedGameObject(null);
+    }
     public void OnPointerExit(PointerEventData data) => transform.localScale = rest;
     private void OnDisable() => transform.localScale = rest;
 }

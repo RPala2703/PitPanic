@@ -62,7 +62,7 @@ public static class CasinoCampaignPresentation
             NavMeshAgent agent = dealer.GetComponent<NavMeshAgent>();
             if (!agent.Warp(station.position))
                 throw new InvalidOperationException($"Cannot move {dealer.name} with its campaign table.");
-            dealer.transform.rotation = station.rotation;
+            dealer.SnapToStation();
         }
         foreach (NavMeshAgent agent in UnityEngine.Object.FindObjectsByType<NavMeshAgent>(FindObjectsSortMode.None))
         {

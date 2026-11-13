@@ -37,6 +37,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public bool HasFrameAnimation => animationFrames != null &&
         animationFrames.Length == PoseCount * DirectionsPerPose * AnimationFramesPerDirection;
     public int CurrentFrame { get; private set; }
+    public Vector3 HeadPosition => spriteRenderer.transform.TransformPoint(
+        new Vector3(spriteRenderer.sprite.bounds.center.x, spriteRenderer.sprite.bounds.max.y, 0));
     public bool IsVip => vip;
     public void ConfigureAnimation(Texture2D texture) => animationAtlas = texture;
     private float reactionRemaining;
