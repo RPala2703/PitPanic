@@ -507,6 +507,13 @@ public static class FirstShiftPlayModeValidation
                 if (dealer.IsAtStation)
                     Check(Vector3.Distance(dealer.GetComponentInChildren<PixelCharacterVisual>().transform.localPosition,
                         Vector3.zero) < .02f, "Working dealer visual drifted away from its station");
+            foreach (AIDealer dealer in manager.Dealers)
+            {
+                DealerEnergyMeter energyMeter = dealer.GetComponent<DealerEnergyMeter>();
+                Check(energyMeter != null && energyMeter.IsShowing == (dealer.IsAtStation && dealer.Energy > 0) &&
+                      (!energyMeter.IsShowing || Mathf.Abs(energyMeter.DisplayedFraction - Mathf.Clamp01(dealer.Energy / 100f)) < .02f),
+                    "Working dealers must show their own energy bar above their head");
+            }
 
             MoveNear(blackjack.transform, blackjack.IsPlayerInRange);
             yield return Press(UnityEngine.InputSystem.Key.Q);
