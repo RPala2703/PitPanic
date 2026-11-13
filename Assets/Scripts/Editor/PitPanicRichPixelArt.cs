@@ -233,7 +233,9 @@ public static class PitPanicRichPixelArt
         float breath = (1 - Mathf.Cos(time * Mathf.PI * 2)) * .5f;
         bool locomotion = pose == CasinoAnimationPose.Walk || pose == CasinoAnimationPose.Carry;
         bool seated = pose == CasinoAnimationPose.Sit || pose == CasinoAnimationPose.Rest ||
-            pose == CasinoAnimationPose.Examine || pose == CasinoAnimationPose.SeatedIdle;
+            pose == CasinoAnimationPose.Examine || pose == CasinoAnimationPose.SeatedIdle ||
+            customer && (pose == CasinoAnimationPose.Anticipate || pose == CasinoAnimationPose.Present);
+        bool presenting = pose == CasinoAnimationPose.Present;
         bool working = pose == CasinoAnimationPose.Deal || pose == CasinoAnimationPose.Pay ||
             pose == CasinoAnimationPose.Collect || pose == CasinoAnimationPose.Shuffle;
 
@@ -301,7 +303,35 @@ public static class PitPanicRichPixelArt
             rightHand = new Vector2(30, 22 + bodyY + breath * 2);
             headY -= 2 + Mathf.RoundToInt(breath * 2);
         }
-        if (direction == 2 && working)
+        if (pose == CasinoAnimationPose.Anticipate)
+        {
+            // Lean in: settle back a touch, then commit forward and hold with hands on the rail.
+            float into = Beat(time, .1f, .32f, .72f, 1f);
+            bodyY -= Mathf.RoundToInt(anticipate);
+            if (customer)
+            {
+                headY = bodyY - Mathf.RoundToInt(into * 2);
+                leftHand = Vector2.Lerp(leftHand, new Vector2(15, 29 + bodyY), into);
+                rightHand = Vector2.Lerp(rightHand, new Vector2(33, 29 + bodyY), into);
+            }
+            else
+            {
+                // Staff acknowledge with a single nod and a small raised palm.
+                headY = bodyY - Mathf.RoundToInt(Beat(time, .18f, .34f, .42f, .62f) * 3);
+                rightHand = Vector2.Lerp(rightHand, new Vector2(39, 31 + bodyY), into);
+            }
+        }
+        if (presenting)
+        {
+            // Offer: wind up, push the hand across, hold the contact, then a grateful nod.
+            float offer = Beat(time, .14f, .42f, .64f, .95f);
+            bodyY -= Mathf.RoundToInt(anticipate);
+            headY = bodyY - Mathf.RoundToInt(Beat(time, .5f, .6f, .66f, .82f) * 2);
+            Vector2 extended = direction == 1 ? new Vector2(39, 44 + bodyY) : new Vector2(44, 33 + bodyY);
+            rightHand = Vector2.Lerp(new Vector2(38, 23 + bodyY), extended, offer);
+            leftHand = Vector2.Lerp(leftHand, new Vector2(19, 28 + bodyY), offer * .7f);
+        }
+        if (direction == 2 && (working || presenting))
         {
             Vector2 swap = leftHand;
             leftHand = new Vector2(48 - rightHand.x, rightHand.y);
@@ -356,6 +386,19 @@ public static class PitPanicRichPixelArt
                 R(t, 14 + lean, 46 + headY, 4, 1, Ink);
                 R(t, 31 + lean, 46 + headY, 4, 1, Ink);
             }
+            if (pose == CasinoAnimationPose.Anticipate && customer)
+            {
+                float wide = Beat(time, .1f, .3f, .72f, .95f);
+                if (wide > .4f)
+                {
+                    R(t, 13 + lean, 43 + headY, 6, 8, Cream);
+                    R(t, 30 + lean, 43 + headY, 6, 8, Cream);
+                    R(t, 15 + lean, 45 + headY, 2, 3, Ink);
+                    R(t, 32 + lean, 45 + headY, 2, 3, Ink);
+                }
+            }
+            if (presenting && time > .3f && time < .9f)
+            { E(t, 24 + lean, 39 + headY, 3, 1, Ink); R(t, 22 + lean, 40 + headY, 5, 1, Ink); }
             if (pose == CasinoAnimationPose.Celebrate && reach > .3f)
             { E(t, 24 + lean, 39 + headY, 3, 2, Ink); R(t, 23 + lean, 38 + headY, 3, 1, new Color32(238, 136, 157, 255)); }
         }
@@ -371,6 +414,14 @@ public static class PitPanicRichPixelArt
             float held = pose == CasinoAnimationPose.Pay ? 1 - release : reach;
             if (held > .15f && time < .9f)
             { E(t, px, py + 2, 4, 2, Ink); E(t, px, py + 3, 3, 1, Gold); }
+        }
+        if (presenting)
+        {
+            // Customers push a real chip; staff show an open palm (acknowledge, point, or thank).
+            if (customer && time > .1f && time < .6f)
+            { E(t, px, py + 2, 4, 2, Ink); E(t, px, py + 3, 3, 1, Gold); }
+            else if (!customer)
+            { E(t, px, py + 1, 4, 3, Ink); E(t, px, py + 2, 3, 2, Cream); }
         }
         if (!customer && pose == CasinoAnimationPose.Shuffle && reach > .1f)
         {

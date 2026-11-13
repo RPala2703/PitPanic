@@ -26,7 +26,57 @@ public static class CasinoGameplayValidation
         CheckTaskDeadlines();
         CheckLargePayoutRefills();
         CheckCashOutCompositions();
+        CheckTipping();
         Debug.Log("Casino gameplay validation passed: COVER rules, zero, duplicates, finite payout recovery and Blackjack all-bust.");
+    }
+
+    private static void CheckTipping()
+    {
+        CasinoTipPolicy policy = new CasinoTipPolicy();
+        int Sum(float satisfaction, bool vip, bool won, int bankroll)
+        {
+            int total = 0;
+            for (int a = 0; a < 40; a++)
+            for (int b = 0; b < 10; b++)
+                total += policy.CalculateTipPence(satisfaction, vip, won, bankroll, (a + .5f) / 40f, (b + .5f) / 10f);
+            return total;
+        }
+        Check(Sum(.3f, false, true, 100000) == 0 && Sum(.3f, true, true, 100000) == 0,
+            "Unhappy customers must never tip.");
+        Check(Sum(.6f, false, false, 100000) < Sum(.8f, false, false, 100000) &&
+              Sum(.8f, false, false, 100000) < Sum(1f, false, false, 100000),
+            "Tips must grow with satisfaction.");
+        Check(Sum(.9f, true, false, 100000) > 2 * Sum(.9f, false, false, 100000),
+            "VIPs must tip noticeably more than regular customers.");
+        Check(Sum(.9f, false, true, 100000) > Sum(.9f, false, false, 100000), "Winning customers should tip more.");
+        Check(Sum(.9f, false, false, 100000) > 0 && Sum(.9f, false, true, 100000) > 0,
+            "Happy customers should tip on wins and losses.");
+        Check(Sum(1f, true, true, 0) == 0, "Customers with no money cannot tip.");
+        Check(policy.CalculateTipPence(1f, true, true, 600, 0f, .99f) == 500,
+            "A tip must never exceed the customer's bankroll.");
+        for (int a = 0; a < 20; a++)
+        {
+            int tip = policy.CalculateTipPence(1f, a % 2 == 0, true, 100000, a / 20f, a / 20f);
+            Check(tip == 0 || tip == 250 || tip == 500 || tip == 2500, $"Tip {tip} must be a real chip value in pence.");
+        }
+
+        CasinoTipJar.ResetShift();
+        CasinoTipRecord record = new CasinoTipRecord("bj:test:1:0", 500, false, false, null);
+        Check(CasinoTipJar.TryRecord(record) && !CasinoTipJar.TryRecord(record) &&
+              CasinoTipJar.TotalPence == 500 && CasinoTipJar.TipCount == 1, "A service event must only tip once.");
+        Check(CasinoTipJar.TryRecord(new CasinoTipRecord("rl:test:1:0", 2500, true, true, null)) &&
+              CasinoTipJar.TotalPence == 3000 && CasinoTipJar.VipTipCount == 1 && CasinoTipJar.PitBossPence == 2500,
+            "VIP and pit-boss tips must be tracked separately in the jar.");
+        Check(!CasinoTipJar.TryRecord(new CasinoTipRecord("bad", 0, false, false, null)), "Empty tips must be rejected.");
+        CasinoTipJar.ResetShift();
+        Check(CasinoTipJar.TotalPence == 0 && !CasinoTipJar.HasTipped("bj:test:1:0"), "A new shift must start with an empty jar.");
+
+        Check(CasinoDemoProgression.PerformanceStars(80, 1, 0) == 2 &&
+              CasinoDemoProgression.PerformanceStars(80, 1, policy.StarBonusTargetPence / 2) == 3 &&
+              CasinoDemoProgression.PerformanceStars(55, 1, policy.StarBonusTargetPence) == 2 &&
+              CasinoDemoProgression.PerformanceStars(95, 4, 100000) == 2,
+            "Tips must be a bonus component of the star rating without overriding misses.");
+        Check(CasinoTipJar.Format(250) == "£2.50" && CasinoTipJar.Format(2500) == "£25", "Tip amounts must format as pounds.");
     }
 
     private static void CheckCashOutCompositions()

@@ -48,6 +48,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private Vector3 lastTravelPosition;
     private float stationarySeconds;
     private bool vip;
+    private float satisfaction = .8f;
+    private int bankrollPence;
     [SerializeField, Min(1)] private int minimumBetPence = 500;
     [SerializeField, Min(1)] private int maximumBetPence = 5000;
 
@@ -62,6 +64,31 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public CasinoSeat Seat => reservedSeat;
     public float PatienceNormalized => patience != null ? patience.Normalized : 1f;
     public int RoundsRemaining => roundsRemaining;
+    /// <summary>0..1 mood for this visit: waiting, table stoppages and results all move it.</summary>
+    public float Satisfaction => satisfaction;
+    public int BankrollPence => bankrollPence;
+
+    public bool TrySpendTip(int pence)
+    {
+        if (pence <= 0 || pence > bankrollPence) return false;
+        bankrollPence -= pence;
+        return true;
+    }
+
+    public void RefundTip(int pence) => bankrollPence = checked(bankrollPence + Mathf.Max(0, pence));
+
+    /// <summary>Records a settled hand or bet: net winnings change the bankroll and the mood.</summary>
+    public void RecordGamingResult(int netPence)
+    {
+        bankrollPence = Mathf.Max(0, bankrollPence + netPence);
+        satisfaction = Mathf.Clamp01(satisfaction + (netPence > 0 ? .08f : netPence < 0 ? -.04f : 0));
+    }
+
+    public void SetSatisfactionForTesting(float value, int bankroll)
+    {
+        satisfaction = Mathf.Clamp01(value);
+        bankrollPence = Mathf.Max(0, bankroll);
+    }
 
     private void Awake()
     {
@@ -103,6 +130,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             customerSpawner.MaximumRoundsPerVisit + 1);
         customerHitThreshold = UnityEngine.Random.Range(16f, 18f);
         colorBlock = new MaterialPropertyBlock();
+        bankrollPence = UnityEngine.Random.Range(40, 201) * 100;
+        satisfaction = UnityEngine.Random.Range(.72f, .9f);
         patience.PatienceExpired += OnPatienceExpired;
         SetBodyColor(bodyRenderer is SpriteRenderer ? Color.white : color);
         state = CustomerState.Wandering;
@@ -112,16 +141,18 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     private void Update()
     {
         if (Time.timeScale == 0) return;
-        if (state == CustomerState.Seated && serviceActive && reservedSeat != null)
+        if (state == CustomerState.Seated && reservedSeat != null)
         {
-            AIDealer dealer = reservedSeat.DealerStation != null ? reservedSeat.DealerStation.AssignedDealer : null;
-            BlackjackTableInteraction blackjack = reservedSeat.DealerStation?.BlackjackTable;
-            RouletteRoundController roulette = reservedSeat.DealerStation?.GetComponent<RouletteRoundController>();
-            bool available = blackjack != null ? blackjack.IsServiceAvailable && !blackjack.IsShuffleReady :
-                roulette != null ? roulette.IsServiceAvailable && !roulette.HasPendingAssistance :
-                dealer != null && dealer.CanServe;
+            // Every seated customer (served, or waiting for the next round) only loses patience while their
+            // table is actually stalled, so HURRY meters clear the moment the blocking task is fixed.
+            bool available = IsTableWorking(reservedSeat.DealerStation);
             if (available) patience.Pause();
-            else patience.Resume();
+            else if (patience.Remaining > 0)
+            {
+                patience.Resume();
+                // A stalled table (no dealer, shuffle or COVER waiting) sours the experience.
+                satisfaction = Mathf.Max(0, satisfaction - Time.deltaTime * .012f);
+            }
         }
         UpdateImpatienceColor();
         if ((state == CustomerState.TravellingToSeat || state == CustomerState.VisitingCashier && !cashierArrivalReported) &&
@@ -213,6 +244,19 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
     }
 
+    private static bool IsTableWorking(CasinoDealerStation station)
+    {
+        if (station == null) return false;
+        BlackjackTableInteraction blackjack = station.BlackjackTable;
+        RouletteRoundController roulette = station.GetComponent<RouletteRoundController>();
+        CasinoFloatRefillDestination tableFloat = blackjack != null ? blackjack.GetComponent<CasinoFloatRefillDestination>() :
+            station.GetComponent<CasinoFloatRefillDestination>();
+        if (tableFloat != null && tableFloat.HasBlockedPayout) return false;
+        if (blackjack != null) return blackjack.IsServiceAvailable && !blackjack.IsShuffleReady;
+        if (roulette != null) return roulette.IsServiceAvailable && !roulette.HasPendingAssistance;
+        return station.AssignedDealer != null && station.AssignedDealer.CanServe;
+    }
+
     public bool BeginService()
     {
         if (state != CustomerState.Seated || serviceActive)
@@ -221,6 +265,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
 
         serviceActive = true;
+        // A long wait before being served lowers the mood; quick service lifts it.
+        satisfaction = Mathf.Clamp01(Mathf.Lerp(satisfaction, .35f + .65f * patience.Normalized, .4f));
         if (roundsRemaining == 0)
             roundsRemaining = UnityEngine.Random.Range(spawner.MinimumRoundsPerVisit, spawner.MaximumRoundsPerVisit + 1);
         patience.Pause();
@@ -286,9 +332,13 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         vip = true;
         minimumBetPence = 2500;
         maximumBetPence = 10000;
+        bankrollPence = Mathf.Max(bankrollPence, UnityEngine.Random.Range(300, 1001) * 100);
+        satisfaction = Mathf.Min(satisfaction, .8f);
         PixelCharacterVisual sprite = GetComponentInChildren<PixelCharacterVisual>();
         sprite?.SetVip(true);
         sprite?.PlayAction(CasinoAnimationPose.Celebrate, transform.position + transform.forward, 1.1f);
+        // Grand entrance: a burst of gold so the whole floor notices the high roller arrive.
+        CasinoPerformanceDirector.Sparkles(transform.position + Vector3.up * 1.4f, 12, .8f);
         CasinoSoundscape.Play(CasinoSoundCue.Celebrate, transform.position);
     }
 

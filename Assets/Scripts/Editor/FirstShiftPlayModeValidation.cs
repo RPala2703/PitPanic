@@ -128,7 +128,15 @@ public static class FirstShiftPlayModeValidation
                 bool next;
                 try
                 {
-                    Check(Time.realtimeSinceStartup < deadline, "Shift test timed out.");
+                    if (Time.realtimeSinceStartup >= deadline)
+                    {
+                        BlackjackTableInteraction stalled = FindFirstObjectByType<BlackjackTableInteraction>();
+                        string seats = "";
+                        foreach (CasinoCustomerAI c in FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None))
+                            seats += $" [{c.name} seated={c.IsSeated} service={c.IsInService} patience={c.PatienceNormalized:0.00}]";
+                        throw new Exception($"Shift test timed out. lesson={shift?.IsLessonOpen} stage={shift?.TutorialStage} " +
+                            $"bj={stalled?.State} shuffleReady={stalled?.IsShuffleReady} staffed={stalled?.IsDealerStaffed}{seats}");
+                    }
                     if (lessonFailure != null) throw lessonFailure;
                     next = test.MoveNext();
                 }
@@ -164,6 +172,49 @@ public static class FirstShiftPlayModeValidation
         private static void RestoreKey(string key, int value)
         {
             if (value < 0) PlayerPrefs.DeleteKey(key); else PlayerPrefs.SetInt(key, value);
+        }
+
+        private IEnumerator ValidateTipping(BlackjackTableInteraction blackjack)
+        {
+            Check(FindFirstObjectByType<CasinoTipJarProp>() != null, "The Pit Desk tip jar is missing");
+            CasinoFloatRefillDestination tableFloat = blackjack.GetComponent<CasinoFloatRefillDestination>();
+            yield return null;
+            if (blackjack.IsServiceAvailable && !blackjack.IsShuffleReady && !tableFloat.HasBlockedPayout)
+                foreach (CasinoCustomerAI seated in FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None))
+                    if (seated.IsSeated && seated.Seat != null && seated.Seat.DealerStation != null &&
+                        seated.Seat.DealerStation.BlackjackTable == blackjack)
+                        Check(!seated.GetComponent<CustomerPatience>().IsWaiting &&
+                              !(seated.TryGetComponent(out CustomerPatienceMeter meter) && meter.ShowsVipWarning),
+                            "A seated customer kept a HURRY/patience timer at a working table");
+            CasinoCustomerSpawner tipSpawner = FindFirstObjectByType<CasinoCustomerSpawner>();
+            CasinoCustomerAI tipper = (CasinoCustomerAI)Call(tipSpawner, "SpawnCustomer", 0);
+            Check(tipper != null, "Could not create a tipping customer");
+            tipper.SetSatisfactionForTesting(1f, 100000);
+            long floatBefore = tableFloat.InventoryValuePence;
+            int jarBefore = CasinoTipJar.TotalPence;
+            CasinoTipRecord tip = default;
+            string key = null;
+            for (int attempt = 0; attempt < 60 && key == null; attempt++)
+                if (CasinoTipping.TryTip(tipper, "playmode:tip:" + attempt, true, false, out tip)) key = tip.ServiceKey;
+            Check(key != null && tip.AmountPence > 0, "A delighted customer never tipped");
+            Check(tipper.BankrollPence == 100000 - tip.AmountPence, "The tip was not deducted from the customer's bankroll");
+            Check(!CasinoTipping.TryTip(tipper, key, true, false, out _) && CasinoTipJar.TotalPence == jarBefore + tip.AmountPence,
+                "A service event tipped twice");
+            Check(tableFloat.InventoryValuePence == floatBefore, "Tips leaked into the table float");
+            bool delivered = false;
+            Action<CasinoTipRecord> onDelivered = record => delivered |= record.ServiceKey == key;
+            CasinoPerformanceDirector.TipDelivered += onDelivered;
+            CasinoPerformanceDirector.PlayTip(tip, blackjack.AssignedDealer != null ? blackjack.AssignedDealer : (Component)blackjack, () => true);
+            yield return new WaitForSeconds(.5f);
+            Destroy(tipper.gameObject);
+            float deadline = Time.realtimeSinceStartup + 6f;
+            while (!delivered && Time.realtimeSinceStartup < deadline) yield return null;
+            yield return new WaitForSeconds(2.5f);
+            CasinoPerformanceDirector.TipDelivered -= onDelivered;
+            Check(delivered, "Interrupted tip performance was not delivered");
+            Check(CasinoPerformanceDirector.ActivePropCount < 40 && CasinoPerformanceDirector.ActiveBeatCount < 200,
+                "Tip performances leaked flying chips, effects or beats");
+            Check(tableFloat.InventoryValuePence == floatBefore, "Tip performance changed the float");
         }
 
         private IEnumerator Press(Key key)
@@ -784,6 +835,7 @@ public static class FirstShiftPlayModeValidation
             }
             foreach (BlackjackHand hand in manualRound.CustomerHands)
                 Check(hand.PayoutPence == 0 || hand.PayoutPaid, "Manual Blackjack left an unpaid winner");
+            yield return ValidateTipping(blackjack);
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             Check(!blackjack.IsPlayerOperating, "ESC retained manual Blackjack ownership");
             while (shift.IsLessonOpen) yield return null;

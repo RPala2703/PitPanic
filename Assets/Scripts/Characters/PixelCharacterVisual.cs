@@ -8,7 +8,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 {
     public const int AnimationFramesPerDirection = 60;
     public const int DirectionsPerPose = 4;
-    public const int PoseCount = 14;
+    public const int PoseCount = 16;
     [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private Sprite[] frames;
     [SerializeField] private Sprite[] expressions;
@@ -43,6 +43,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public void ConfigureAnimation(Texture2D texture) => animationAtlas = texture;
     private float reactionRemaining;
     private int reaction;
+    private float nextIdleBeat = -1;
+    public int IdleBeatsPlayed { get; private set; }
     public void ConfigureExpressions(Sprite[] sprites) => expressions = sprites;
     public void SetVip(bool value)
     {
@@ -68,6 +70,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     {
         reaction = winning ? 0 : 1;
         reactionRemaining = 2f;
+        actionRemaining = 0;
         poseElapsed = 0;
         CasinoSoundscape.Play(winning ? CasinoSoundCue.Celebrate : CasinoSoundCue.Disappointed, transform.position);
     }
@@ -130,6 +133,12 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         pose == CasinoAnimationPose.Tired || pose == CasinoAnimationPose.Rest ||
         pose == CasinoAnimationPose.Carry || pose == CasinoAnimationPose.Examine ||
         pose == CasinoAnimationPose.SeatedIdle;
+
+    /// <summary>Poses a seated Roulette customer may legitimately show (never the card-reading Examine pose).</summary>
+    public static bool IsSeatedRoulettePose(CasinoAnimationPose pose) =>
+        pose == CasinoAnimationPose.SeatedIdle || pose == CasinoAnimationPose.Anticipate ||
+        pose == CasinoAnimationPose.Present || pose == CasinoAnimationPose.Celebrate ||
+        pose == CasinoAnimationPose.Disappointed || pose == CasinoAnimationPose.Sit;
 
     public static int PlaybackFrame(float elapsed, float duration, bool loop)
     {
@@ -213,6 +222,22 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         vipAura.hideFlags = HideFlags.HideAndDontSave;
     }
 
+    // Seated customers are never frozen: content guests lean in to watch the game, while impatient ones
+    // sigh and fidget more often. Timing is randomised per character so a table never moves in unison.
+    private void UpdateSeatedPersonality(Transform actor)
+    {
+        if (nextIdleBeat < 0) nextIdleBeat = Time.time + Random.Range(3f, 8f);
+        if (Time.time < nextIdleBeat || actionRemaining > 0 || reactionRemaining > 0 || gestureRemaining > 0 ||
+            currentPose == CasinoAnimationPose.Sit) return;
+        bool impatient = !customer.IsInService && customer.PatienceNormalized < .35f;
+        nextIdleBeat = Time.time + (impatient ? Random.Range(2.4f, 4.2f) : Random.Range(6f, 12f));
+        Vector3 ahead = actor.position + actor.forward;
+        if (impatient) PlayAction(CasinoAnimationPose.Disappointed, ahead, Random.Range(.8f, 1.1f));
+        else if (Random.value < .55f) PlayAction(CasinoAnimationPose.Anticipate, ahead, Random.Range(.8f, 1.4f));
+        else return;
+        IdleBeatsPlayed++;
+    }
+
     private void LateUpdate()
     {
         if (Time.timeScale == 0) return;
@@ -243,6 +268,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             dealer != null && dealer.IsResting ? CasinoAnimationPose.Rest :
             dealer != null && dealer.NeedsBreak ? CasinoAnimationPose.Tired :
             seated ? seatedPose : CasinoAnimationPose.Idle;
+        if (seated && customer != null) UpdateSeatedPersonality(actor);
         if (seated != wasSeated)
         {
             standing = !seated;

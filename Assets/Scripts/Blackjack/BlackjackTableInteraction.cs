@@ -37,6 +37,7 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
     private bool forceShuffleNextRound;
     private float nextShuffleTaskTime;
     private int roundsSinceShuffle;
+    private int settledRoundSerial;
     private AIDealer assignedDealer;
     [SerializeField] private CasinoMinigameStation shuffleStation;
     [SerializeField] private CasinoFloatRefillDestination floatDestination;
@@ -778,13 +779,40 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             if (!floatDestination.TryAddChips(wagerCounts))
                 throw new System.InvalidOperationException($"Could not collect a losing stake at {TableDisplayName}.");
         }
-        foreach (BlackjackHand hand in round.CustomerHands)
-            if (hand.Customer != null)
-                hand.Customer.GetComponentInChildren<PixelCharacterVisual>()?.React(hand.PayoutPence >= hand.BetPence);
+        PerformSettlement();
         RoundSettled?.Invoke(round);
         payoutHandIndex = -1;
         selectedPayoutChips.Clear();
         SelectNextPayout();
+    }
+
+    // Results land as a staggered crowd reaction; satisfied customers may then tip the dealer (or the pit
+    // boss during a takeover). The tip is committed here once per hand; the animation only mirrors it.
+    private void PerformSettlement()
+    {
+        int serial = ++settledRoundSerial;
+        BlackjackTableRound settled = round;
+        Component recipient = IsPlayerOperating ? playerController : (Component)AssignedDealer;
+        for (int i = 0; i < settled.CustomerHands.Count; i++)
+        {
+            BlackjackHand hand = settled.CustomerHands[i];
+            CasinoCustomerAI customer = hand.Customer;
+            if (customer == null) continue;
+            bool won = hand.Outcome == BlackjackOutcome.Win || hand.Outcome == BlackjackOutcome.Blackjack;
+            customer.RecordGamingResult(hand.Outcome == BlackjackOutcome.Lose ? -hand.BetPence : hand.WinningsPence);
+            CasinoPerformanceDirector.ReactLater(customer, hand.PayoutPence >= hand.BetPence, .12f + i * .3f);
+            if (hand.Outcome == BlackjackOutcome.Blackjack)
+            {
+                CasinoPerformanceDirector.ActLater(recipient, CasinoAnimationPose.Present, customer.transform.position, .9f, .5f);
+                CasinoPerformanceDirector.CrowdNotices(customer);
+            }
+            if (recipient == null ||
+                !CasinoTipping.TryTip(customer, $"bj:{GetInstanceID()}:{serial}:{i}", won, IsPlayerOperating, out CasinoTipRecord tip))
+                continue;
+            float start = Time.time + 1.1f + i * .45f;
+            CasinoPerformanceDirector.PlayTip(tip, recipient,
+                () => Time.time >= start && (hand.PayoutPence == 0 || hand.PayoutPaid || round != settled), 7f);
+        }
     }
 
     private void SelectNextPayout()

@@ -230,7 +230,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
                     ? seat.Occupant.GetComponentInChildren<PixelCharacterVisual>() : null;
                 if (visual == null || !seat.Occupant.IsSeated ||
                     Vector3.Distance(visual.transform.position, seat.SittingPosition) > .04f ||
-                    seat.GameType == CasinoCustomerGame.Roulette && visual.CurrentPose != CasinoAnimationPose.SeatedIdle)
+                    seat.GameType == CasinoCustomerGame.Roulette && !PixelCharacterVisual.IsSeatedRoulettePose(visual.CurrentPose))
                 {
                     foreach (CasinoSeat diagnostic in seats)
                     {

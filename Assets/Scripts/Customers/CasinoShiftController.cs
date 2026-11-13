@@ -110,6 +110,8 @@ public sealed class CasinoShiftController : MonoBehaviour
     private bool passed;
     private Text objectiveText;
     private Text timerText;
+    private Text tipsText;
+    private float tipPulse;
     private Text resultText;
     private Text arrow;
     private Button skipButton;
@@ -278,6 +280,10 @@ public sealed class CasinoShiftController : MonoBehaviour
             if (!tutorial && !ending)
                 objectiveText.text = $"TASKS COMPLETED {completedTasks}  •  MISSED {failedAttempts}";
         }
+        tipsText.text = $"TIPS {CasinoTipJar.Format(CasinoTipJar.TotalPence)}";
+        tipPulse = Mathf.Max(0, tipPulse - Time.deltaTime * 2.5f);
+        tipsText.rectTransform.localScale = Vector3.one * (1 + .25f * tipPulse);
+        tipsText.color = Color.Lerp(new Color(.55f, 1f, .55f), new Color(1f, .86f, .25f), tipPulse);
         int seconds = Mathf.CeilToInt(remaining);
         timerText.text = $"SHIFT {shift}  •  {seconds / 60:00}:{seconds % 60:00}";
         if (ending)
@@ -320,6 +326,9 @@ public sealed class CasinoShiftController : MonoBehaviour
                 pack.PackingBonusSeconds = 0;
         remaining = shiftSeconds;
         penaltyStart = CustomerSatisfaction.PenaltyCount;
+        CasinoTipJar.ResetShift();
+        CasinoPerformanceDirector.ResetForShift();
+        if (pitDesk.GetComponent<CasinoTipJarProp>() == null) pitDesk.gameObject.AddComponent<CasinoTipJarProp>();
         movementStart = player.transform.position;
         menu.SetActive(false);
         levelSelect.SetActive(false);
@@ -613,8 +622,9 @@ public sealed class CasinoShiftController : MonoBehaviour
         int satisfaction = customers > 0
             ? Mathf.Clamp(Mathf.RoundToInt(100f * (customers - penalties) / customers), 0, 100)
             : 100;
-        int performanceStars = satisfaction >= 85 && failedAttempts + pending <= 2 ? 3 :
-            satisfaction >= 60 && failedAttempts + pending <= 5 ? 2 : 1;
+        int tips = CasinoTipJar.TotalPence;
+        int tipBonus = CasinoTipPolicy.Default.StarBonus(tips);
+        int performanceStars = CasinoDemoProgression.PerformanceStars(satisfaction, failedAttempts + pending, tips);
         passed = CasinoDemoProgression.Passed(completedTasks, satisfaction, failedAttempts + pending);
         int rating = passed ? performanceStars : 0;
         if (passed) CasinoDemoProgression.AwardShift(shift, rating);
@@ -632,6 +642,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             $"SATISFACTION  {(customers > 0 ? satisfaction + "%" : "NO CUSTOMERS")}\n" +
             $"TASKS COMPLETED  {completedTasks}\n" +
             $"TASKS MISSED  {pending}  •  FAILED ATTEMPTS  {failedAttempts}\n" +
+            $"TIPS  {CasinoTipJar.Format(tips)}  ({CasinoTipJar.TipCount}){(tipBonus > 0 ? $"  ★ BONUS +{tipBonus}" : "")}\n" +
             "\n" + progressionMessage;
         hud.SetActive(false);
         results.SetActive(true);
@@ -649,6 +660,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         accounting.RecordRoulette(bet);
         if (roulette.IsPlayerOperating && preparedManualRoulette) manualRouletteDone = true;
     }
+    private void OnTipDelivered(CasinoTipRecord tip) => tipPulse = 1;
     private void OnTaskSucceeded(CasinoMinigameResult result) { if (running) completedTasks++; }
     private void OnMinigameCompleted(CasinoMinigameResult result)
     {
@@ -696,6 +708,7 @@ public sealed class CasinoShiftController : MonoBehaviour
     private void OnDestroy()
     {
         if (Active == this) Active = null;
+        CasinoPerformanceDirector.TipDelivered -= OnTipDelivered;
         Time.timeScale = 1f;
         AudioListener.pause = false;
         foreach (BlackjackTableInteraction table in FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
@@ -863,6 +876,8 @@ public sealed class CasinoShiftController : MonoBehaviour
         backing.raycastTarget = false;
         objectiveText = Label(hud.transform, "Objective", "KEEP THE CASINO HAPPY!", new Vector2(0f, 15f), new Vector2(680f, 35f), 21);
         timerText = Label(hud.transform, "Shift timer", "", new Vector2(-210f, -20f), new Vector2(260f, 30f), 17);
+        tipsText = Label(hud.transform, "Tip jar total", "TIPS £0", new Vector2(40f, -20f), new Vector2(170f, 30f), 17);
+        CasinoPerformanceDirector.TipDelivered += OnTipDelivered;
         skipButton = MakeButton(hud.transform, "Skip tutorial", "SKIP", new Vector2(275f, -20f), CompleteTutorial, new Vector2(110f, 32f));
         arrow = Label(canvas.transform, "Objective arrow", "▼", Vector2.zero, new Vector2(50f, 50f), 34);
         arrow.font = CasinoPixelFont.Symbols;

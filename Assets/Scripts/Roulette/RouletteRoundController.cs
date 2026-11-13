@@ -643,7 +643,17 @@ public sealed class RouletteRoundController : MonoBehaviour
         spinElapsed = 0f;
         wheelStartAngle = physicalWheel.localEulerAngles.y;
         wheelExtraRotation = UnityEngine.Random.Range(900f, 1500f);
+        // Everyone leans in to follow the ball, each at their own moment.
+        Vector3 wheel = physicalWheel != null ? physicalWheel.position : transform.position;
+        int watcher = 0;
+        foreach (CasinoCustomerAI customer in activeCustomers)
+            CasinoPerformanceDirector.ActLater(customer, CasinoAnimationPose.Anticipate, wheel,
+                Mathf.Max(.8f, spinSeconds * .85f), .15f + watcher++ * .18f);
     }
+
+    private Component OperatorCharacter => IsPlayerOperating
+        ? FindFirstObjectByType<CasinoPlayerController>()
+        : (Component)AssignedDealer;
 
     private void AnimateSettlement(RouletteCustomerBet bet, bool paid)
     {
@@ -730,6 +740,11 @@ public sealed class RouletteRoundController : MonoBehaviour
             recentResults.Dequeue();
         }
 
+        // Dramatic beat: the dealer points out the winning number before the table erupts.
+        Component croupier = OperatorCharacter;
+        Vector3 wheelPosition = physicalWheel != null ? physicalWheel.position : transform.position;
+        croupier?.GetComponentInChildren<PixelCharacterVisual>()?.PlayAction(CasinoAnimationPose.Present, wheelPosition, .9f);
+        int reactionOrder = 0;
         foreach (RouletteCustomerBet customerBet in currentBets)
         {
             if (!EuropeanRouletteRules.TryGetWinningsPence(customerBet.Bet, winningNumber, out long winnings))
@@ -744,7 +759,24 @@ public sealed class RouletteRoundController : MonoBehaviour
             if (!customerBet.IsWinning && !TryAddWagerToFloat(customerBet.Bet.StakePence))
                 throw new InvalidOperationException("Could not collect a losing Roulette wager.");
             if (customerBet.Customer != null)
-                customerBet.Customer.GetComponentInChildren<PixelCharacterVisual>()?.React(customerBet.IsWinning);
+            {
+                CasinoCustomerAI customer = customerBet.Customer;
+                customer.RecordGamingResult(customerBet.IsWinning
+                    ? (int)customerBet.WinningsPence : -customerBet.Bet.StakePence);
+                CasinoPerformanceDirector.ReactLater(customer, customerBet.IsWinning, .6f + reactionOrder * .28f);
+                if (customerBet.IsWinning && customerBet.Bet.Type == RouletteBetType.StraightUp)
+                    CasinoPerformanceDirector.CrowdNotices(customer);
+                if (croupier != null && CasinoTipping.TryTip(customer,
+                        $"rl:{GetInstanceID()}:{customerBet.RoundId}:{customerBet.BetId}", customerBet.IsWinning,
+                        IsPlayerOperating, out CasinoTipRecord tip))
+                {
+                    RouletteCustomerBet tipped = customerBet;
+                    float start = Time.time + 1.6f + reactionOrder * .45f;
+                    CasinoPerformanceDirector.PlayTip(tip, croupier,
+                        () => Time.time >= start && (!tipped.IsWinning || tipped.IsPaid), 7f);
+                }
+                reactionOrder++;
+            }
             OperatorVisual?.PlayGesture(
                 customerBet.IsWinning ? CasinoGesture.Pay : CasinoGesture.Collect,
                 customerBet.Customer != null ? customerBet.Customer.transform.position : transform.position);
