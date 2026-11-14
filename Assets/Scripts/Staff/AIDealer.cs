@@ -42,6 +42,7 @@ public sealed class AIDealer : MonoBehaviour
 
     public string DealerId => string.IsNullOrWhiteSpace(dealerId) ? name : dealerId;
     public float Energy => energy;
+    public event System.Action EnergyDepleted;
     public bool CanServe => IsAtStation && energy > 0f;
     public bool TrainingProtected { get; set; }
     public float TiredThreshold => tiredThreshold;
@@ -446,8 +447,14 @@ public sealed class AIDealer : MonoBehaviour
             bool busy = AssignedStation.BlackjackTable != null
                 ? AssignedStation.BlackjackTable.IsActivelyServing
                 : roulette != null && roulette.HasActiveCustomersAndDealer;
+            float previousEnergy = energy;
             if (!TrainingProtected)
                 energy = CalculateEnergyAfterWork(energy, energyDrainPerSecond, Time.deltaTime * (busy ? 1f : 0.5f));
+            if (previousEnergy > 0 && energy <= 0)
+            {
+                EnergyDepleted?.Invoke();
+                CasinoSoundscape.Play(CasinoSoundCue.TaskFailed, transform.position);
+            }
 
             if (state == DealerDutyState.Working && energy <= tiredThreshold)
             {

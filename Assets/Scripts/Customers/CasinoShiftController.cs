@@ -208,6 +208,9 @@ public sealed class CasinoShiftController : MonoBehaviour
         roulette.BetSettled += OnRouletteSettled;
         foreach (CasinoMinigameStation station in stations)
             station.TaskSucceeded += OnTaskSucceeded;
+        CasinoCustomerAI.ServiceTimedOut += OnServiceTimedOut;
+        foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
+            dealer.EnergyDepleted += OnServiceTimedOut;
         foreach (CasinoMinigame game in minigames)
         {
             game.Completed += OnMinigameCompleted;
@@ -641,7 +644,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             $"{(passed ? new string('★', rating) : "NO STARS")}\nBEST  {new string('★', CasinoDemoProgression.BestStars(shift))}\n\n" +
             $"SATISFACTION  {(customers > 0 ? satisfaction + "%" : "NO CUSTOMERS")}\n" +
             $"TASKS COMPLETED  {completedTasks}\n" +
-            $"TASKS MISSED  {pending}  •  FAILED ATTEMPTS  {failedAttempts}\n" +
+            $"TASKS MISSED  {failedAttempts + pending}  •  UNFINISHED  {pending}\n" +
             $"TIPS  {CasinoTipJar.Format(tips)}  ({CasinoTipJar.TipCount}){(tipBonus > 0 ? $"  ★ BONUS +{tipBonus}" : "")}\n" +
             "\n" + progressionMessage;
         hud.SetActive(false);
@@ -672,6 +675,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         if (running && result.Success && cashDesk.GetComponent<CashDeskPackMinigame>().IsCashOutMode) cashOutDone = true;
     }
     private void OnMinigameAbandoned() { if (running) failedAttempts++; }
+    private void OnServiceTimedOut() { if (running) failedAttempts++; }
     private void OnShuffleCompleted(CasinoMinigameResult result) { if (running && result.Success) shuffleDone = true; }
     private void OnRouletteCompleted(CasinoMinigameResult result)
     {
@@ -709,6 +713,9 @@ public sealed class CasinoShiftController : MonoBehaviour
     {
         if (Active == this) Active = null;
         CasinoPerformanceDirector.TipDelivered -= OnTipDelivered;
+        CasinoCustomerAI.ServiceTimedOut -= OnServiceTimedOut;
+        foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
+            dealer.EnergyDepleted -= OnServiceTimedOut;
         Time.timeScale = 1f;
         AudioListener.pause = false;
         foreach (BlackjackTableInteraction table in FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
