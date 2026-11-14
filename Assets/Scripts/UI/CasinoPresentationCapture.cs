@@ -15,6 +15,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
     private bool demoCheck;
     private bool coverCheck;
     private bool seatingCheck;
+    private bool securityCheck;
     private readonly Dictionary<string, int> savedProgress = new Dictionary<string, int>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -31,6 +32,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         capture.demoCheck = Array.IndexOf(args, "--pit-demo-check") >= 0;
         capture.coverCheck = Array.IndexOf(args, "--pit-cover-check") >= 0;
         capture.seatingCheck = Array.IndexOf(args, "--pit-seating-check") >= 0;
+        capture.securityCheck = Array.IndexOf(args, "--pit-security-check") >= 0;
         capture.oldTutorial = PlayerPrefs.GetInt("PitPanic.TutorialComplete", -1);
         foreach (string key in new[] { "PitPanic.TutorialComplete", "PitPanic.UnlockedShift",
             CasinoDemoProgression.CreditsKey, CasinoDemoProgression.UpgradeKeys[0],
@@ -58,10 +60,10 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         yield return new WaitForSecondsRealtime(1);
         GameObject introduction = (GameObject)typeof(CasinoShiftController)
             .GetField("intro", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(menuShift);
-        string introAction = watch || demoCheck || coverCheck || seatingCheck ? "Skip" : "Begin";
+        string introAction = watch || demoCheck || coverCheck || seatingCheck || securityCheck ? "Skip" : "Begin";
         introduction.transform.Find(introAction).GetComponent<Button>().onClick.Invoke();
         yield return new WaitForSecondsRealtime(3);
-        if (!watch && !demoCheck && !coverCheck && !seatingCheck)
+        if (!watch && !demoCheck && !coverCheck && !seatingCheck && !securityCheck)
         {
             CasinoShiftController guidedShift = FindFirstObjectByType<CasinoShiftController>();
             ScreenCapture.CaptureScreenshot(Path.Combine(directory, "tutorial.png"));
@@ -72,6 +74,11 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         }
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "casino.png"));
         yield return new WaitForSecondsRealtime(1);
+        if (securityCheck)
+        {
+            yield return CaptureSecurity();
+            yield break;
+        }
         if (seatingCheck)
         {
             yield return CaptureSeating();
@@ -329,6 +336,42 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             Debug.Log($"SEATING CHECK level {level}: all ten customers reached and aligned with their chairs.");
         }
         Debug.Log("STANDALONE SEATING CHECK PASSED");
+        Application.Quit();
+    }
+
+    private IEnumerator CaptureSecurity()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        PitDeskInteraction desk = FindFirstObjectByType<PitDeskInteraction>();
+        CasinoCustomerAI customer = FindFirstObjectByType<CasinoCustomerAI>();
+        var bet = new RouletteCustomerBet(6, 0, customer, new RouletteBet(RouletteBetType.Black, -1, 500));
+        if (!CasinoSecurityEvidence.TryCreate(6, 1, new[] { bet }, out CasinoSecurityEvidence evidence))
+            throw new InvalidOperationException("Cannot prepare CCTV capture.");
+        var queue = (Queue<CasinoSecurityEvidence>)typeof(PitDeskInteraction).GetField("securityQueue", flags).GetValue(desk);
+        queue.Enqueue(evidence);
+        typeof(PitDeskInteraction).GetMethod("Open", flags).Invoke(desk, null);
+        typeof(PitDeskInteraction).GetMethod("OpenReview", flags).Invoke(desk, null);
+        yield return new WaitForSecondsRealtime(1.5f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cctv-bet.png"));
+        yield return new WaitForSecondsRealtime(2.5f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cctv-result.png"));
+        yield return new WaitForSecondsRealtime(1.7f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cctv-slide.png"));
+        yield return new WaitForSecondsRealtime(1.1f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cctv-moved.png"));
+        yield return new WaitForSecondsRealtime(.5f);
+        typeof(PitDeskInteraction).GetMethod("ResolveReview", flags).Invoke(desk, new object[] { false });
+        yield return new WaitForSecondsRealtime(.5f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cctv-wrong.png"));
+        yield return new WaitForSecondsRealtime(.5f);
+        typeof(PitDeskInteraction).GetMethod("CloseReview", flags).Invoke(desk, null);
+        queue.Enqueue(evidence);
+        typeof(PitDeskInteraction).GetMethod("OpenReview", flags).Invoke(desk, null);
+        typeof(PitDeskInteraction).GetMethod("ResolveReview", flags).Invoke(desk, new object[] { true });
+        yield return new WaitForSecondsRealtime(.5f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "cctv-correct.png"));
+        yield return new WaitForSecondsRealtime(.5f);
+        Debug.Log("STANDALONE CCTV CAPTURE PASSED");
         Application.Quit();
     }
 

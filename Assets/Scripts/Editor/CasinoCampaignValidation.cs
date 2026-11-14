@@ -95,6 +95,11 @@ public static class CasinoCampaignValidation
 
         if (CasinoSecurityEvidence.TryCreate(4, 1, new[] { zeroBet }, out _))
             throw new InvalidOperationException("Security evidence was accepted from an unscheduled or mismatched round.");
+        if (CasinoSecurityReplay.ChipPosition(cheatingEvidence, 5) != CasinoSecurityReplay.BetPosition(losingBlack.Bet) ||
+            CasinoSecurityReplay.ChipPosition(cheatingEvidence, CasinoSecurityReplay.Duration) != CasinoSecurityReplay.NumberPosition(1) ||
+            CasinoSecurityReplay.ChipPosition(cleanEvidence, CasinoSecurityReplay.Duration) != CasinoSecurityReplay.BetPosition(winningRed.Bet) ||
+            CasinoSecurityReplay.ChipPosition(zeroEvidence, CasinoSecurityReplay.Duration) != CasinoSecurityReplay.NumberPosition(0))
+            throw new InvalidOperationException("CCTV must show only a cheating wager moving, after the real wheel result.");
     }
 
     private static void Restore(string key, int value)

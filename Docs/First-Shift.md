@@ -68,7 +68,10 @@ The three campaign levels have distinct floor layouts and lighting. **Opening
 Night** introduces the casino. **High Rollers** brings VIP guests who wear gold,
 place larger bets, and have less patience. **Shady Business** adds scheduled
 security alerts drawn from actual Roulette bets and results; review the animated
-Pit Desk footage before accusing or clearing a customer. A false accusation
+Pit Desk close-up replay before accusing or clearing a customer. The replay shows
+the wager landing, the wheel result, and a 60-frame reaching hand; only a cheating
+chip moves after the result. Decisions display a persistent CORRECT/WRONG verdict
+until **Okay** is pressed. A false accusation
 affects customer satisfaction. New Game and level replay do not remove the casino's existing upgrades
 or change settings.
 Training retains at least three minutes on the clock until lessons are complete,

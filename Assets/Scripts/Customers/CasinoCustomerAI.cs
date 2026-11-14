@@ -8,6 +8,7 @@ using UnityEngine.AI;
 [DisallowMultipleComponent]
 public sealed class CasinoCustomerAI : MonoBehaviour
 {
+    public static event System.Action ServiceTimedOut;
     private enum CustomerState
     {
         Wandering,
@@ -557,6 +558,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     {
         if (state == CustomerState.Seated || state == CustomerState.VisitingCashier && cashierArrivalReported)
         {
+            ServiceTimedOut?.Invoke();
             StartLeaving(true);
         }
     }

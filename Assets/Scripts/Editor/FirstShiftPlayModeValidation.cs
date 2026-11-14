@@ -820,12 +820,29 @@ public static class FirstShiftPlayModeValidation
                 yield return new WaitForSeconds(.31f);
                 Check(blackjack.State == BlackjackTableState.Settlement && !owed.PayoutPaid,
                     "Space skipped a manual Blackjack payout");
-                Call(blackjack, "AddPayoutChip", 500);
+                Call(blackjack, "AddPayoutChip", owed.WinningsPence == 500 ? 2500 : 500);
                 Call(blackjack, "ConfirmPayout");
-                Check(owed.WinningsPence == 500 || !owed.PayoutPaid && blackjack.State == BlackjackTableState.Settlement,
+                Check(!owed.PayoutPaid && blackjack.State == BlackjackTableState.Settlement,
                     "An incorrect Blackjack payout skipped the winner");
                 if (!owed.PayoutPaid)
                 {
+                    blackjack.GetComponent<CasinoFloatRefillDestination>().TryAddChips(new[] { 20, 0, 10, 5 });
+                    int penaltiesBeforeOverpay = (int)Get(blackjack, "payoutPenaltyCount");
+                    int[] overpayValues = { 500, 250, 2500, 10000 };
+                    var overpayArgs = new object[] { owed.WinningsPence, null };
+                    Check((bool)Call(blackjack, "TryGetAvailablePayout", overpayArgs), "No chips for overpay test");
+                    int[] exactCounts = (int[])overpayArgs[1];
+                    for (int i = 0; i < exactCounts.Length; i++)
+                        for (int n = 0; n < exactCounts[i]; n++) Call(blackjack, "AddPayoutChip", overpayValues[i]);
+                    Call(blackjack, "AddPayoutChip", 500);
+                    Check((int)Call(blackjack, "GetSelectedPayoutTotal") > owed.WinningsPence,
+                        "Blackjack silently rejected an overpayment chip");
+                    long floatBeforeOverpay = blackjack.GetComponent<CasinoFloatRefillDestination>().InventoryValuePence;
+                    Call(blackjack, "ConfirmPayout");
+                    Check(!owed.PayoutPaid && blackjack.State == BlackjackTableState.Settlement &&
+                          (int)Get(blackjack, "payoutPenaltyCount") == penaltiesBeforeOverpay + 1 &&
+                          blackjack.GetComponent<CasinoFloatRefillDestination>().InventoryValuePence == floatBeforeOverpay,
+                        "An overpayment was accepted or consumed float chips");
                     var payoutArgs = new object[] { owed.WinningsPence, null };
                     if (!(bool)Call(blackjack, "TryGetAvailablePayout", payoutArgs))
                     {
@@ -1033,7 +1050,8 @@ public static class FirstShiftPlayModeValidation
             ((Button)Get(pit, "reviewButton")).onClick.Invoke();
             GameObject reviewPanel = (GameObject)Get(pit, "reviewPanel");
             Check(reviewPanel.activeSelf && Time.timeScale == 0 &&
-                ((Text)Get(pit, "footageStatus")).text.Contains("ACTUAL RESULT: 1"),
+                reviewPanel.GetComponentInChildren<CasinoSecurityReplay>() != null &&
+                ((Text)Get(pit, "footageStatus")).text == "DID THE BET MOVE AFTER THE RESULT?",
                 "CCTV review did not pause play and show the actual round result");
             ValidatePopup(reviewPanel.transform);
             yield return Press(UnityEngine.InputSystem.Key.Escape);
@@ -1042,9 +1060,39 @@ public static class FirstShiftPlayModeValidation
             int tasksBeforeReview = (int)Get(shift, "completedTasks");
             ((Button)Get(pit, "reviewButton")).onClick.Invoke();
             reviewPanel.transform.Find("CCTV Review Card/Clear Customer").GetComponent<Button>().onClick.Invoke();
-            Check(!reviewPanel.activeSelf && pit.PendingSecurityCases == 0 &&
+            Check(reviewPanel.activeSelf && pit.PendingSecurityCases == 0 &&
+                ((Text)Get(pit, "footageStatus")).text.StartsWith("CORRECT!") &&
                 (int)Get(shift, "completedTasks") == tasksBeforeReview + 1,
                 "A correct CCTV decision did not resolve and count the security case");
+            reviewPanel.transform.Find("CCTV Review Card/Continue CCTV").GetComponent<Button>().onClick.Invoke();
+            Check(!reviewPanel.activeSelf && Time.timeScale > 0, "CCTV verdict did not restore play after Okay");
+            var cheatingBet = new RouletteCustomerBet(6, 0, null,
+                new RouletteBet(RouletteBetType.Black, -1, 500));
+            Check(CasinoSecurityEvidence.TryCreate(6, 1, new[] { cheatingBet }, out CasinoSecurityEvidence cheatingCase),
+                "Cannot create cheating CCTV regression case");
+            Call(pit, "OnSecurityEvidenceRecorded", cheatingCase);
+            Call(pit, "OpenReview");
+            Set(pit, "reviewElapsed", 5.7f);
+            Call(pit, "ToggleReviewPlayback");
+            Call(pit, "RenderReviewFrame");
+            Transform monitor = reviewPanel.transform.Find("CCTV Review Card/Recorded Roulette Footage");
+            Vector2 pausedChip = monitor.Find("Recorded wager").GetComponent<RectTransform>().anchoredPosition;
+            yield return new WaitForSecondsRealtime(.2f);
+            Check(monitor.Find("Recorded wager").GetComponent<RectTransform>().anchoredPosition == pausedChip &&
+                  monitor.Find("Wheel result").GetComponent<Text>().text == "1",
+                "Pausing CCTV did not freeze the recorded action and actual result");
+            Call(pit, "ReplayReview");
+            Call(pit, "RenderReviewFrame");
+            Check(monitor.Find("Recorded wager").GetComponent<RectTransform>().anchoredPosition ==
+                  CasinoSecurityReplay.BetPosition(cheatingBet.Bet),
+                "Replaying CCTV did not reset the chip to its original wager");
+            int missesBeforeDecision = (int)Get(shift, "failedAttempts");
+            Call(pit, "ResolveReview", false);
+            Call(pit, "ResolveReview", false);
+            Check(((Text)Get(pit, "footageStatus")).text.StartsWith("WRONG!") && reviewPanel.activeSelf &&
+                  (int)Get(shift, "failedAttempts") == missesBeforeDecision + 1,
+                "Wrong CCTV verdict was hidden or counted more than once");
+            reviewPanel.transform.Find("CCTV Review Card/Continue CCTV").GetComponent<Button>().onClick.Invoke();
             yield return Press(UnityEngine.InputSystem.Key.Escape);
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             yield return null;
@@ -1113,6 +1161,7 @@ public static class FirstShiftPlayModeValidation
             CustomerPatience patience = servedCustomer.GetComponent<CustomerPatience>();
             Check(patience.IsWaiting, "Exhausted dealer did not restart customer patience");
             int penalties = CustomerSatisfaction.PenaltyCount;
+            int missesBeforeTimeout = (int)Get(shift, "failedAttempts");
             patience.Begin(1);
             Check(CasinoTaskFeedback.TryGetDeadline(exhaustedTable.GetComponent<CasinoTableAttention>(),
                 out float realDeadline, out _) && realDeadline <= 1 &&
@@ -1122,6 +1171,8 @@ public static class FirstShiftPlayModeValidation
             yield return new WaitForSecondsRealtime(1.2f);
             Check(CustomerSatisfaction.PenaltyCount > penalties && !servedCustomer.IsSeated,
                 "Neglected exhausted table did not lose its customer and satisfaction");
+            Check((int)Get(shift, "failedAttempts") > missesBeforeTimeout,
+                "Customer patience expiry did not immediately increment MISSED");
             Check(servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
                 "Customer did not resume navigation after leaving their chair");
             Check(CasinoTaskFeedback.Message(exhaustedTable.GetComponent<CasinoTableAttention>()) == "Dealer needs break",

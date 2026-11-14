@@ -23,10 +23,12 @@ public sealed class PitDeskInteraction : MonoBehaviour
     private readonly Queue<CasinoSecurityEvidence> securityQueue = new Queue<CasinoSecurityEvidence>();
     private Button reviewButton;
     private GameObject reviewPanel;
-    private Image footageCustomer;
-    private Image footageChip;
+    private CasinoSecurityReplay footage;
     private Text footageStatus;
     private Text footageClock;
+    private Button continueReview;
+    private readonly List<Button> reviewControls = new List<Button>();
+    private bool reviewResolved;
     private CasinoSecurityEvidence activeEvidence;
     private RouletteRoundController rouletteRounds;
     private float reviewElapsed;
@@ -183,24 +185,18 @@ public sealed class PitDeskInteraction : MonoBehaviour
         GameObject monitor = CreateRect("Recorded Roulette Footage", reviewCard.transform,
             new Vector2(.5f, .5f), new Vector2(0, 0), new Vector2(1160, 430));
         CasinoHudStyle.Panel(monitor.AddComponent<Image>(), new Color(.035f, .15f, .13f, .98f));
+        monitor.AddComponent<RectMask2D>();
         CreateText("CCTV Header", reviewCard.transform, new Vector2(0, 280), new Vector2(1100, 45), 30)
             .text = "PIT DESK CCTV  •  ROULETTE CAMERA";
         footageClock = CreateText("CCTV Playback Clock", reviewCard.transform,
             new Vector2(0, 238), new Vector2(920, 30), 16);
         footageClock.color = CasinoHudStyle.Mint;
-        footageCustomer = CreateRect("Recorded Customer", monitor.transform,
-            new Vector2(.5f, .5f), new Vector2(-390, 35), new Vector2(190, 250)).AddComponent<Image>();
-        footageCustomer.preserveAspect = true;
-        footageChip = CreateRect("Recorded Chip", monitor.transform,
-            new Vector2(.5f, .5f), new Vector2(-185, 5), new Vector2(52, 52)).AddComponent<Image>();
-        CasinoPixelArt.SetSprite(footageChip, CasinoPixelArt.Chip, CasinoHudStyle.Gold);
+        footage = monitor.AddComponent<CasinoSecurityReplay>();
+        footage.Build();
         footageStatus = CreateText("CCTV Evidence", monitor.transform,
-            new Vector2(155, 40), new Vector2(650, 200), 24);
+            new Vector2(0, -177), new Vector2(1100, 44), 23);
         footageStatus.horizontalOverflow = HorizontalWrapMode.Wrap;
         footageStatus.color = Color.white;
-        CreateText("CCTV Fairness", monitor.transform,
-            new Vector2(0, -185), new Vector2(940, 35), 16).text =
-            "REVIEW THE RECORDED BET, RESULT AND CUSTOMER ACTION. PAUSE OR REPLAY ANY TIME.";
         CreateButton("Pause CCTV", reviewCard.transform, "PAUSE / PLAY", new Vector2(-380, -275),
             new Vector2(230, 48), ToggleReviewPlayback);
         CreateButton("Replay CCTV", reviewCard.transform, "REPLAY", new Vector2(-140, -275),
@@ -209,6 +205,10 @@ public sealed class PitDeskInteraction : MonoBehaviour
             new Vector2(220, 48), () => ResolveReview(true));
         CreateButton("Clear Customer", reviewCard.transform, "CLEAR", new Vector2(380, -275),
             new Vector2(190, 48), () => ResolveReview(false));
+        reviewControls.AddRange(reviewCard.GetComponentsInChildren<Button>());
+        continueReview = CreateButton("Continue CCTV", reviewCard.transform, "OKAY", new Vector2(0, -275),
+            new Vector2(240, 48), () => { CloseReview(); RenderDealerRows(); });
+        continueReview.gameObject.SetActive(false);
         reviewPanel.SetActive(false);
     }
 
@@ -233,6 +233,12 @@ public sealed class PitDeskInteraction : MonoBehaviour
         Time.timeScale = 0f;
         AudioListener.pause = true;
         reviewPanel.SetActive(true);
+        reviewResolved = false;
+        foreach (Button control in reviewControls) control.gameObject.SetActive(true);
+        continueReview.gameObject.SetActive(false);
+        footageStatus.text = "DID THE BET MOVE AFTER THE RESULT?";
+        footageStatus.color = Color.white;
+        footage.Load(activeEvidence);
         reviewElapsed = 0f;
         reviewPlaying = true;
         RenderReviewFrame();
@@ -247,48 +253,21 @@ public sealed class PitDeskInteraction : MonoBehaviour
                 CloseReview();
                 return;
             }
-            if (Keyboard.current.spaceKey.wasPressedThisFrame) ToggleReviewPlayback();
-            if (Keyboard.current.rKey.wasPressedThisFrame) ReplayReview();
+            if (!reviewResolved && Keyboard.current.spaceKey.wasPressedThisFrame) ToggleReviewPlayback();
+            if (!reviewResolved && Keyboard.current.rKey.wasPressedThisFrame) ReplayReview();
         }
-        if (reviewPlaying) reviewElapsed = Mathf.Min(5.5f, reviewElapsed + Time.unscaledDeltaTime);
+        if (reviewResolved) return;
+        if (reviewPlaying) reviewElapsed = Mathf.Min(CasinoSecurityReplay.Duration, reviewElapsed + Time.unscaledDeltaTime);
         RenderReviewFrame();
     }
 
     private void RenderReviewFrame()
     {
         if (activeEvidence == null) return;
-        float progress = Mathf.Clamp01(reviewElapsed / 5.5f);
-        int frame = Mathf.Min(3, Mathf.FloorToInt(progress * 4));
-        RouletteCustomerBet bet = activeEvidence.Bet;
-        string betLabel = RouletteRoundController.GetBetLabel(bet.Bet);
-        string[] innocent =
-        {
-            $"{activeEvidence.CustomerName} places a {RouletteRoundController.FormatPounds(bet.Bet.StakePence)} {betLabel} bet.",
-            $"The real wheel stops on {activeEvidence.WinningNumber}.",
-            "The customer glances around and reaches toward the felt.",
-            $"Their chip stays on {betLabel}. No wager changes after the result."
-        };
-        string[] cheating =
-        {
-            $"{activeEvidence.CustomerName} places a {RouletteRoundController.FormatPounds(bet.Bet.StakePence)} {betLabel} bet.",
-            $"The real wheel stops on {activeEvidence.WinningNumber}.",
-            "After the result, the customer slides a chip across the table.",
-            $"The chip moves toward {activeEvidence.AttemptedNumber}; the recorded wager remains {betLabel}."
-        };
-        footageStatus.text = (activeEvidence.IsCheating ? cheating : innocent)[frame] +
-            $"\n\nORIGINAL BET: {betLabel}  •  {RouletteRoundController.FormatPounds(bet.Bet.StakePence)}" +
-            $"\nACTUAL RESULT: {activeEvidence.WinningNumber}";
-        footageClock.text = $"ROUND {activeEvidence.RoundId:000}  •  REC {Mathf.Min(reviewElapsed, 5.5f):0.0}s / 5.5s" +
-            (reviewPlaying ? "  •  PLAYING" : "  •  PAUSED");
-        if (bet.Customer != null)
-        {
-            PixelCharacterVisual sprite = bet.Customer.GetComponentInChildren<PixelCharacterVisual>();
-            if (sprite != null) footageCustomer.sprite = sprite.TitleFrame(Time.unscaledTime);
-        }
-        float movement = activeEvidence.IsCheating && frame >= 2
-            ? Mathf.SmoothStep(0f, 260f, Mathf.Clamp01((progress * 4f - 2f) / 2f)) : 0f;
-        footageChip.rectTransform.anchoredPosition = new Vector2(-185 + movement, 5);
-        footageChip.color = frame >= 2 && activeEvidence.IsCheating ? CasinoHudStyle.Coral : CasinoHudStyle.Gold;
+        footage.Render(reviewElapsed);
+        footageClock.text = $"CAM 03  •  ROUND {activeEvidence.RoundId:000}  •  {reviewElapsed:0.0}s" +
+            (reviewElapsed >= CasinoSecurityReplay.Duration ? "  •  END" : !reviewPlaying ? "  •  PAUSED" :
+                reviewElapsed < 2 ? "  •  BETTING" : reviewElapsed < 3.6f ? "  •  NO MORE BETS" : "  •  AFTER RESULT");
     }
 
     private void ToggleReviewPlayback() => reviewPlaying = !reviewPlaying;
@@ -301,22 +280,29 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void ResolveReview(bool accuse)
     {
-        if (activeEvidence == null) return;
+        if (activeEvidence == null || reviewResolved) return;
         CasinoSecurityEvidence evidence = activeEvidence;
         bool correct = accuse == evidence.IsCheating;
         if (correct && evidence.IsCheating) evidence.Bet.Customer?.EscortBySecurity();
         else if (!correct && !evidence.IsCheating) evidence.Bet.Customer?.ReactToFalseAccusation();
-        else if (!correct && evidence.IsCheating)
-            CustomerSatisfaction.RecordPenalty(evidence.Bet.Customer, evidence.Bet.Customer != null &&
-                evidence.Bet.Customer.IsVip ? 2 : 1);
+        else if (!correct && evidence.IsCheating && evidence.Bet.Customer != null)
+            CustomerSatisfaction.RecordPenalty(evidence.Bet.Customer, evidence.Bet.Customer.IsVip ? 2 : 1);
         SecurityCaseResolved?.Invoke(correct);
         activeEvidence = null;
         if (securityQueue.Count == 0)
             attention.ResolveAttention(TableAttentionReason.SecurityReviewRequired);
+        reviewResolved = true;
+        reviewPlaying = false;
+        footage.Render(CasinoSecurityReplay.Duration);
+        footageStatus.text = (correct ? "CORRECT!  " : "WRONG!  ") +
+            (evidence.IsCheating ? "BET MOVED AFTER RESULT" : "BET NEVER MOVED");
+        footageStatus.color = correct ? CasinoHudStyle.Mint : CasinoHudStyle.Coral;
+        footageClock.text = "CASE CLOSED";
+        foreach (Button control in reviewControls) control.gameObject.SetActive(false);
+        continueReview.gameObject.SetActive(true);
+        AudioListener.pause = false;
         CasinoSoundscape.Play(correct ? CasinoSoundCue.Success : CasinoSoundCue.Mistake,
             transform.position, transform);
-        CloseReview();
-        RenderDealerRows();
     }
 
     private void CloseReview()

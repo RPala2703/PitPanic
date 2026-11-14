@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 public sealed class CasinoSecurityEvidence
 {
@@ -8,7 +9,8 @@ public sealed class CasinoSecurityEvidence
     public RouletteCustomerBet Bet { get; }
     public bool IsCheating { get; }
     public int AttemptedNumber { get; }
-    public string CustomerName => Bet.Customer != null ? Bet.Customer.name : "UNKNOWN CUSTOMER";
+    public string CustomerName { get; }
+    public Sprite[] CustomerFrames { get; }
 
     private CasinoSecurityEvidence(long roundId, int winningNumber, RouletteCustomerBet bet,
         bool cheating, int attemptedNumber)
@@ -18,6 +20,16 @@ public sealed class CasinoSecurityEvidence
         Bet = bet;
         IsCheating = cheating;
         AttemptedNumber = attemptedNumber;
+        CustomerName = bet.Customer != null ? bet.Customer.name : "CUSTOMER";
+        CustomerFrames = new Sprite[180];
+        PixelCharacterVisual visual = bet.Customer != null ? bet.Customer.GetComponentInChildren<PixelCharacterVisual>() : null;
+        if (visual != null)
+            for (int i = 0; i < 60; i++)
+            {
+                CustomerFrames[i] = visual.ReplayFrame(CasinoAnimationPose.SeatedIdle, i);
+                CustomerFrames[60 + i] = visual.ReplayFrame(CasinoAnimationPose.Anticipate, i);
+                CustomerFrames[120 + i] = visual.ReplayFrame(CasinoAnimationPose.Present, i);
+            }
     }
 
     public static bool TryCreate(long roundId, int winningNumber,

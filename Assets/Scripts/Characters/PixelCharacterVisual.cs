@@ -66,6 +66,10 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         if (expressions != null && expressions.Length == 4 && elapsed % 4 > 3) return expressions[0];
         return frames != null && frames.Length == 8 ? frames[Mathf.FloorToInt(elapsed * 6) % 2] : null;
     }
+    public Sprite ReplayFrame(CasinoAnimationPose pose, int frame) =>
+        animationFrames != null
+            ? AnimationSprite(pose, 0, Mathf.Clamp(frame, 0, AnimationFramesPerDirection - 1))
+            : TitleFrame(frame / 60f);
     public void React(bool winning)
     {
         reaction = winning ? 0 : 1;

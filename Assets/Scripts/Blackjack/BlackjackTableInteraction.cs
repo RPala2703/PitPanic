@@ -849,7 +849,6 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             return;
         }
 
-        int selected = GetSelectedPayoutTotal();
         int required = round.CustomerHands[payoutHandIndex].WinningsPence;
         if (!HasChipAvailable(denomination))
         {
@@ -858,13 +857,13 @@ public sealed class BlackjackTableInteraction : MonoBehaviour
             RefreshView();
             return;
         }
-        if (selected + denomination > required)
+        selectedPayoutChips.Add(denomination);
+        if (GetSelectedPayoutTotal() > required)
         {
-            message = "That chip exceeds the remaining payout. Remove a chip or choose a smaller value.";
+            message = $"Selected {FormatPounds(GetSelectedPayoutTotal())}: exceeds {FormatPounds(required)}. Remove a chip or recount.";
         }
         else
         {
-            selectedPayoutChips.Add(denomination);
             message = $"Selected {FormatPounds(GetSelectedPayoutTotal())} of {FormatPounds(required)}.";
         }
 
