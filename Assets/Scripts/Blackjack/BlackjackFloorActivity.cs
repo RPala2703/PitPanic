@@ -8,7 +8,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class BlackjackFloorActivity : MonoBehaviour
 {
-    private const float FeltHeight = 1.36f;
+    private const float FeltHeight = 1.43f;
     private static readonly Vector3 ShoeLocal = new Vector3(-1.52f, 1.78f, 1.0f);
     private static readonly Vector3 TrayLocal = new Vector3(1.70f, 1.62f, 0.88f);
     private static readonly Vector3 DiscardLocal = new Vector3(1.15f, FeltHeight, 0.95f);

@@ -63,6 +63,12 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         string introAction = watch || demoCheck || coverCheck || seatingCheck || securityCheck ? "Skip" : "Begin";
         introduction.transform.Find(introAction).GetComponent<Button>().onClick.Invoke();
         yield return new WaitForSecondsRealtime(3);
+        if (watch || demoCheck || coverCheck || seatingCheck || securityCheck)
+        {
+            CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
+            if (shift.IsLessonOpen) shift.DismissLesson();
+            yield return null;
+        }
         if (!watch && !demoCheck && !coverCheck && !seatingCheck && !securityCheck)
         {
             CasinoShiftController guidedShift = FindFirstObjectByType<CasinoShiftController>();

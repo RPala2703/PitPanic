@@ -599,7 +599,7 @@ public sealed class RouletteRoundController : MonoBehaviour
             return;
         }
 
-        Vector3 localPosition = transform.InverseTransformPoint(seat.BettingPosition.position);
+        Vector3 localPosition = CasinoFloorLayout.RouletteBet(customerBet.Bet, 1.355f);
         List<BlackjackChipDenomination> composition = BlackjackChipDenomination.GetExactComposition(
             customerBet.Bet.StakePence, BlackjackChipDenomination.CreateDefaults());
         int chipCount = composition.Count;
@@ -609,9 +609,9 @@ public sealed class RouletteRoundController : MonoBehaviour
         {
             GameObject chip = new GameObject($"Roulette Bet Chip {customerBet.Customer.name} {i + 1}");
             chip.transform.SetParent(chipContainer, false);
-            chip.transform.localPosition = localPosition + new Vector3((i % 3 - 1) * 0.12f, 0.055f + (i / 3) * 0.05f, (i / 3) * 0.1f);
+            chip.transform.localPosition = localPosition + new Vector3(0f, i * 0.015f, 0f);
             SpriteRenderer renderer = PixelWorldProps.CreateSurface(chip.transform, "Pixel Roulette Chip",
-                CasinoPixelArt.ChipForValue(composition[i].ValuePence), new Vector2(0.18f, 0.18f), -7);
+                CasinoPixelArt.ChipForValue(composition[i].ValuePence), new Vector2(0.09f, 0.09f), -7);
             renderer.color = Color.white;
             chip.AddComponent<CasinoPropFlight>().Configure(
                 transform.InverseTransformPoint(customerBet.Customer.transform.position) + Vector3.up,
