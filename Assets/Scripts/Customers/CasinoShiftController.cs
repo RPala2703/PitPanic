@@ -53,31 +53,6 @@ public sealed class CasinoShiftController : MonoBehaviour
     private static int requestedShift;
     private static bool skipMenu;
     private static bool requestedTutorial;
-    private static readonly string[] LessonTitles =
-    {
-        "LET'S GET MOVING", "MEET BLACKJACK 1", "HELP THE DEALER SHUFFLE",
-        "MEET ROULETTE", "HELP RUN THE TABLE", "HELP A CUSTOMER",
-        "KEEP THE CHIPS FLOWING", "DEALERS NEED BREAKS", "SEND A DEALER TO REST",
-        "TAKE OVER BLACKJACK", "TAKE OVER ROULETTE", "WELCOME YOUR TEAM BACK",
-        "YOU'VE GOT THIS"
-    };
-    private static readonly string[] LessonInstructions =
-    {
-        "Hey, boss! Move with WASD or the arrow keys.",
-        "This is Blackjack 1! Walk over and press E to see what's happening.",
-        "Let's help the dealer shuffle! At BJ1, press E, then SHUFFLE!",
-        "Here's Roulette! Walk over and press E to see the bets.",
-        "The wheel has stopped! Click every bet that matches the winning number.",
-        "A customer needs cash! Click the chips to make their change.",
-        "Tables can run out of chips. Pack BJ1's refill and carry it over.",
-        "Tired dealers slow down. Assign a ready teammate to keep the table going.",
-        "Send a tired dealer on break so they can rest and return ready.",
-        "No teammate ready? Take over BJ1 and deal the hand yourself.",
-        "You can run Roulette yourself when its dealer needs a break.",
-        "A rested teammate can take your place at the table.",
-        "Watch the task timers and shift goals. You've got this, boss!"
-    };
-
     [SerializeField, Min(60f)] private float shiftSeconds = 540f;
     private CasinoPlayerController player;
     private CasinoPlayerInteractionRouter router;
@@ -143,8 +118,12 @@ public sealed class CasinoShiftController : MonoBehaviour
     private GameObject lessonPanel;
     private Text lessonTitle;
     private Text lessonText;
-    private Image guidePortrait;
-    private PixelCharacterVisual guideVisual;
+    private CasinoDialogue dialogue;
+    private CasinoFlavorRemark flavor;
+    private bool vipRemark, floatRemark, exhaustedRemark, securityRemark, payoutRemark, tipRemark;
+    private bool payoutRemarkPending, tipRemarkPending;
+    private Text dialogueSkipLabel;
+    private float nextFlavorCheck;
     private bool lessonOpen;
     private bool campaignBriefing;
     private int shownLesson;
@@ -247,9 +226,10 @@ public sealed class CasinoShiftController : MonoBehaviour
             return;
         if (lessonOpen)
         {
-            guidePortrait.rectTransform.localScale = Vector3.one * (1f + .025f * Mathf.Sin(Time.unscaledTime * 4));
-            if (guideVisual != null) guidePortrait.sprite = guideVisual.TitleFrame(Time.unscaledTime);
-            if (Keyboard.current != null && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.escapeKey.wasPressedThisFrame))
+            if (Keyboard.current != null && (Keyboard.current.enterKey.wasPressedThisFrame ||
+                Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.eKey.wasPressedThisFrame))
+                dialogue.Advance();
+            else if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
                 DismissLesson();
             return;
         }
@@ -259,6 +239,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             SetPaused(!paused);
         if (paused)
             return;
+        UpdateFlavorRemarks();
         hud.SetActive(!AnyInteractionOpen());
 
         if (tutorial)
@@ -345,7 +326,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         spawner.SetAcceptingArrivals(!tutorial);
         running = true;
         if (guided) ShowLesson(0);
-        else if (shift > 1) ShowCampaignBriefing();
+        else ShowCampaignBriefing();
     }
 
     private void SetPaused(bool value)
@@ -646,6 +627,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             $"TASKS COMPLETED  {completedTasks}\n" +
             $"TASKS MISSED  {failedAttempts + pending}  •  UNFINISHED  {pending}\n" +
             $"TIPS  {CasinoTipJar.Format(tips)}  ({CasinoTipJar.TipCount}){(tipBonus > 0 ? $"  ★ BONUS +{tipBonus}" : "")}\n" +
+            (passed ? "\nPIG: A successful shift. The money agrees.\n" : "") +
             "\n" + progressionMessage;
         hud.SetActive(false);
         results.SetActive(true);
@@ -655,15 +637,51 @@ public sealed class CasinoShiftController : MonoBehaviour
     {
         if (!running) return;
         accounting.RecordBlackjack(round);
+        if (!payoutRemark)
+            foreach (BlackjackHand hand in round.CustomerHands)
+                if (hand.WinningsPence >= 10000) { payoutRemarkPending = true; break; }
         if (blackjack.IsPlayerOperating && preparedManualBlackjack && blackjack.ActiveRound == round) manualBlackjackDone = true;
     }
     private void OnRouletteSettled(RouletteCustomerBet bet)
     {
         if (!running) return;
         accounting.RecordRoulette(bet);
+        if (!payoutRemark && bet.WinningsPence >= 10000) payoutRemarkPending = true;
         if (roulette.IsPlayerOperating && preparedManualRoulette) manualRouletteDone = true;
     }
-    private void OnTipDelivered(CasinoTipRecord tip) => tipPulse = 1;
+    private void OnTipDelivered(CasinoTipRecord tip)
+    {
+        tipPulse = 1;
+        if (running && !tipRemark) tipRemarkPending = true;
+    }
+
+    private void UpdateFlavorRemarks()
+    {
+        if (tutorial || ending || AnyInteractionOpen() || Time.unscaledTime < nextFlavorCheck) return;
+        nextFlavorCheck = Time.unscaledTime + 2f;
+        if (!vipRemark)
+            foreach (CasinoCustomerAI customer in FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None))
+                if (customer.IsVip && flavor.TryShow(DialogueSpeaker.Fox, DialogueExpression.Smug, "A VIP has arrived. Please remain affordable."))
+                { vipRemark = true; return; }
+        if (!floatRemark)
+            foreach (CasinoFloatRefillDestination destination in FindObjectsByType<CasinoFloatRefillDestination>(FindObjectsSortMode.None))
+                if (destination.NeedsRefill() && flavor.TryShow(DialogueSpeaker.Pig, DialogueExpression.Shocked, "The chips are becoming theoretical."))
+                { floatRemark = true; return; }
+        if (!exhaustedRemark)
+            foreach (AIDealer dealer in dealers.Dealers)
+                if (dealer != null && dealer.IsAtStation && dealer.Energy <= 0 &&
+                    flavor.TryShow(DialogueSpeaker.Bear, DialogueExpression.Neutral, "The dealer has stopped. This is a clue."))
+                { exhaustedRemark = true; return; }
+        if (!securityRemark && pitDesk.PendingSecurityCases > 0 &&
+            flavor.TryShow(DialogueSpeaker.Tiger, DialogueExpression.Determined, "Security has noticed something. How observant."))
+        { securityRemark = true; return; }
+        if (payoutRemarkPending &&
+            flavor.TryShow(DialogueSpeaker.Pig, DialogueExpression.Shocked, "That is a substantial amount of money."))
+        { payoutRemark = true; payoutRemarkPending = false; return; }
+        if (tipRemarkPending &&
+            flavor.TryShow(DialogueSpeaker.Pig, DialogueExpression.Happy, "The jar has received a compliment."))
+        { tipRemark = true; tipRemarkPending = false; }
+    }
     private void OnTaskSucceeded(CasinoMinigameResult result) { if (running) completedTasks++; }
     private void OnMinigameCompleted(CasinoMinigameResult result)
     {
@@ -750,6 +768,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         shownLesson = Mathf.Clamp(lesson, 0, 12);
         reviewLesson = reviewing;
         campaignBriefing = false;
+        dialogueSkipLabel.text = reviewing ? "SKIP" : "SKIP TRAINING";
         lessonOpen = true;
         timeScaleBeforePause = Time.timeScale;
         Time.timeScale = 0f;
@@ -760,8 +779,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         lessonPanel.SetActive(true);
         hud.SetActive(false);
         arrow.gameObject.SetActive(false);
-        lessonTitle.text = $"TIGER'S TRAINING  {shownLesson + 1}/13\n{LessonTitles[shownLesson]}";
-        lessonText.text = LessonInstructions[shownLesson];
+        dialogue.Begin(LessonConversation(shownLesson), DismissLesson);
     }
 
     private float timeScaleBeforePause = 1f;
@@ -769,6 +787,7 @@ public sealed class CasinoShiftController : MonoBehaviour
     private void ShowCampaignBriefing()
     {
         campaignBriefing = true;
+        dialogueSkipLabel.text = "SKIP";
         lessonOpen = true;
         timeScaleBeforePause = Time.timeScale;
         Time.timeScale = 0f;
@@ -779,11 +798,7 @@ public sealed class CasinoShiftController : MonoBehaviour
         lessonPanel.SetActive(true);
         hud.SetActive(false);
         arrow.gameObject.SetActive(false);
-        lessonTitle.text = shift == 2 ? "TIGER'S TRAINING  •  LEVEL 2\nHIGH ROLLERS" :
-            "TIGER'S TRAINING  •  LEVEL 3\nSHADY BUSINESS";
-        lessonText.text = shift == 2
-            ? "VIPs wear gold, bet bigger and won't wait long. Keep their table supplied and serve them quickly."
-            : "Keep an eye on the Pit Desk. Review the real table footage when a security alert appears.";
+        dialogue.Begin(CampaignConversation(shift), DismissLesson);
     }
 
     public void DismissLesson()
@@ -798,15 +813,82 @@ public sealed class CasinoShiftController : MonoBehaviour
             }
         }
         campaignBriefing = false;
+        dialogue.Stop();
         lessonOpen = false;
         lessonPanel.SetActive(false);
         Time.timeScale = Mathf.Max(.01f, timeScaleBeforePause);
         AudioListener.pause = paused;
         dealers.SetPaused(paused);
-        router.enabled = !paused;
-        player.SetMovementEnabled(!paused && !AnyInteractionOpen());
+        StartCoroutine(ResumeAfterDialogue());
         hud.SetActive(!paused && !AnyInteractionOpen());
     }
+
+    private System.Collections.IEnumerator ResumeAfterDialogue()
+    {
+        yield return null;
+        while (Keyboard.current != null && (Keyboard.current.enterKey.isPressed || Keyboard.current.spaceKey.isPressed ||
+               Keyboard.current.eKey.isPressed || Keyboard.current.escapeKey.isPressed) ||
+               Mouse.current != null && Mouse.current.leftButton.isPressed)
+            yield return null;
+        if (!running || lessonOpen || paused) yield break;
+        router.enabled = true;
+        player.SetMovementEnabled(!AnyInteractionOpen());
+    }
+
+    private static DialogueLine Line(DialogueSpeaker speaker, DialogueExpression expression, string text) =>
+        new DialogueLine(speaker, expression, text);
+
+    private static DialogueLine[] LessonConversation(int stage)
+    {
+        DialogueLine guidance = stage switch
+        {
+            0 => Line(DialogueSpeaker.Tiger, DialogueExpression.Happy, "Welcome, boss. Move with WASD or the arrow keys."),
+            1 => Line(DialogueSpeaker.Tiger, DialogueExpression.Determined, "Walk to Blackjack 1 and press E to inspect the table."),
+            2 => Line(DialogueSpeaker.Tiger, DialogueExpression.Determined, "At BJ1, press E, then SHUFFLE! Follow the card sequence."),
+            3 => Line(DialogueSpeaker.Fox, DialogueExpression.Smug, "Walk to Roulette and press E to inspect the bets."),
+            4 => Line(DialogueSpeaker.Fox, DialogueExpression.Determined, "For COVER!, mark every winning bet after the wheel stops."),
+            5 => Line(DialogueSpeaker.Pig, DialogueExpression.Happy, "A customer needs cash. Click chips to make the exact change."),
+            6 => Line(DialogueSpeaker.Pig, DialogueExpression.Shocked, "Tables run low on chips. Pack BJ1's refill and carry it over."),
+            7 => Line(DialogueSpeaker.Bear, DialogueExpression.Neutral, "Tired dealers slow down. Assign a ready dealer at the Pit Desk."),
+            8 => Line(DialogueSpeaker.Bear, DialogueExpression.Determined, "Send the tired dealer on break. They will return when rested."),
+            9 => Line(DialogueSpeaker.Tiger, DialogueExpression.Shocked, "No replacement? Take over BJ1 and deal the hand yourself."),
+            10 => Line(DialogueSpeaker.Fox, DialogueExpression.Determined, "Take over Roulette when its dealer needs a break."),
+            11 => Line(DialogueSpeaker.Bear, DialogueExpression.Happy, "A rested teammate can take your place at the table."),
+            _ => Line(DialogueSpeaker.Pig, DialogueExpression.Determined, "Watch task timers and keep customers satisfied until the shift ends.")
+        };
+        DialogueLine aside = stage switch
+        {
+            0 => Line(DialogueSpeaker.Penguin, DialogueExpression.Smug, "A promising amount of floor."),
+            1 => Line(DialogueSpeaker.Penguin, DialogueExpression.Neutral, "The table appears to be doing its best."),
+            2 => Line(DialogueSpeaker.Penguin, DialogueExpression.Shocked, "I assumed the cards came shuffled."),
+            3 => Line(DialogueSpeaker.Fox, DialogueExpression.Neutral, "The wheel is entirely authorised."),
+            4 => Line(DialogueSpeaker.Penguin, DialogueExpression.Determined, "I will count carefully."),
+            5 => Line(DialogueSpeaker.Pig, DialogueExpression.Smug, "Customers appreciate receiving their money."),
+            6 => Line(DialogueSpeaker.Penguin, DialogueExpression.Angry, "We should probably keep some."),
+            7 => Line(DialogueSpeaker.Bear, DialogueExpression.Smug, "This is what breaks are for."),
+            8 => Line(DialogueSpeaker.Penguin, DialogueExpression.Neutral, "A radical scheduling strategy."),
+            9 => Line(DialogueSpeaker.Tiger, DialogueExpression.Smug, "The cards will respect your authority."),
+            10 => Line(DialogueSpeaker.Penguin, DialogueExpression.Shocked, "I was not told about the wheel."),
+            11 => Line(DialogueSpeaker.Bear, DialogueExpression.Neutral, "They have returned. That is useful."),
+            _ => Line(DialogueSpeaker.Tiger, DialogueExpression.Happy, "If everyone is happy, we have done a shift.")
+        };
+        return new[] { guidance, aside };
+    }
+
+    private static DialogueLine[] CampaignConversation(int level) => level switch
+    {
+        1 => new[] {
+            Line(DialogueSpeaker.Tiger, DialogueExpression.Happy, "Welcome back. Keep the tables running and the customers happy."),
+            Line(DialogueSpeaker.Penguin, DialogueExpression.Smug, "I see the floor is still here.") },
+        2 => new[] {
+            Line(DialogueSpeaker.Fox, DialogueExpression.Smug, "Our VIPs wear gold and have a subtle glow."),
+            Line(DialogueSpeaker.Pig, DialogueExpression.Happy, "They bet more and expect quick service. Keep their tables stocked."),
+            Line(DialogueSpeaker.Penguin, DialogueExpression.Shocked, "Their patience is also expensive, I assume.") },
+        _ => new[] {
+            Line(DialogueSpeaker.Bear, DialogueExpression.Neutral, "Someone may be moving chips after the wheel stops."),
+            Line(DialogueSpeaker.Tiger, DialogueExpression.Determined, "Review CCTV alerts at the Pit Desk before deciding."),
+            Line(DialogueSpeaker.Penguin, DialogueExpression.Angry, "I had hoped the cameras were decorative.") }
+    };
 
     private void BuildInterface()
     {
@@ -918,23 +1000,31 @@ public sealed class CasinoShiftController : MonoBehaviour
         RectTransform lessonShade = (RectTransform)lessonPanel.transform;
         lessonShade.anchorMin = Vector2.zero; lessonShade.anchorMax = Vector2.one;
         lessonShade.offsetMin = lessonShade.offsetMax = Vector2.zero;
-        GameObject lessonCard = Panel("Tiger's lesson", new Vector2(1000, 560));
+        GameObject lessonCard = Panel("Tiger's lesson", new Vector2(1000, 340));
         lessonCard.transform.SetParent(lessonPanel.transform, false);
-        lessonTitle = Label(lessonCard.transform, "Lesson title", "", new Vector2(80, 190), new Vector2(760, 82), 27);
+        lessonTitle = Label(lessonCard.transform, "Lesson title", "", new Vector2(-60, 116), new Vector2(600, 42), 26);
         lessonTitle.color = CasinoHudStyle.Gold;
-        lessonText = Label(lessonCard.transform, "Lesson instructions", "", new Vector2(65, 20), new Vector2(700, 160), 24);
+        lessonText = Label(lessonCard.transform, "Lesson instructions", "", new Vector2(90, 28), new Vector2(620, 130), 24);
         lessonText.horizontalOverflow = HorizontalWrapMode.Wrap;
         lessonText.verticalOverflow = VerticalWrapMode.Truncate;
-        GameObject guide = CasinoMinigamePresentation.CreateImage("Tiger guide portrait", lessonCard.transform,
-            new Vector2(-365, 42), new Vector2(145, 210), Color.white);
-        guidePortrait = guide.GetComponent<Image>();
-        guidePortrait.preserveAspect = true;
-        foreach (AIDealer dealer in dealers.Dealers)
-            if (dealer != null && dealer.DealerId == "Tiger") guideVisual = dealer.GetComponentInChildren<PixelCharacterVisual>();
-        Label(lessonCard.transform, "Guide name", "TIGER\nYOUR PIT PAL", new Vector2(-365, -90), new Vector2(180, 62), 18);
-        MakeButton(lessonCard.transform, "Practise", "Okay", new Vector2(-65, -205), DismissLesson, new Vector2(300, 54));
-        MakeButton(lessonCard.transform, "Skip training", "SKIP TRAINING", new Vector2(265, -205), CompleteTutorial, new Vector2(300, 54));
+        GameObject guide = CasinoMinigamePresentation.CreateImage("Speaker portrait", lessonCard.transform,
+            new Vector2(-360, 12), new Vector2(235, 220), Color.white);
+        Image speakerPortrait = guide.GetComponent<Image>();
+        speakerPortrait.preserveAspect = true;
+        Text nextIndicator = Label(lessonCard.transform, "Continue indicator", "▼", new Vector2(380, -38), new Vector2(36, 30), 20);
+        nextIndicator.font = CasinoPixelFont.Symbols;
+        dialogue = lessonCard.AddComponent<CasinoDialogue>();
+        dialogue.Configure((RectTransform)lessonCard.transform, speakerPortrait, lessonTitle, lessonText, nextIndicator);
+        MakeButton(lessonCard.transform, "Practise", "NEXT", new Vector2(-40, -125), () => dialogue.Advance(), new Vector2(240, 48));
+        Button dialogueSkip = MakeButton(lessonCard.transform, "Skip training", "SKIP", new Vector2(235, -125),
+            () => { if (campaignBriefing || reviewLesson) DismissLesson(); else CompleteTutorial(); }, new Vector2(240, 48));
+        dialogueSkipLabel = dialogueSkip.GetComponentInChildren<Text>();
+        Button backdrop = lessonPanel.AddComponent<Button>();
+        backdrop.transition = Selectable.Transition.None;
+        backdrop.onClick.AddListener(() => dialogue.Advance());
         lessonPanel.SetActive(false);
+        flavor = hud.AddComponent<CasinoFlavorRemark>();
+        flavor.Configure(hud.transform);
         MakeButton(hud.transform, "Review training", "HELP", new Vector2(140, -20),
             () => ShowLesson(Mathf.Min(TutorialStage, 12), true), new Vector2(100, 32));
     }
@@ -983,9 +1073,9 @@ public sealed class CasinoShiftController : MonoBehaviour
         introTitle.text = CasinoCampaignPresentation.LevelName(level);
         introText.text = level switch
         {
-            1 => "Opening night is yours! Help your crew and keep guests happy until closing time. Tiger will show you the ropes.",
-            2 => "The VIP room is open. Gold-clad high rollers bring larger bets and shorter patience. Keep their tables stocked and the service moving.",
-            _ => "The late shift brings suspicious activity. Watch the Pit Desk for CCTV alerts and review the real table footage."
+            1 => "Opening Night. The staff are ready, in a manner of speaking.",
+            2 => "High Rollers. The guests have arrived with expectations.",
+            _ => "Shady Business. The cameras have started paying attention."
         };
         introText.color = Color.white;
         intro.transform.Find("Begin").GetComponentInChildren<Text>().text =

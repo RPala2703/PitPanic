@@ -13,6 +13,28 @@ using UnityEngine.UI;
 public static class PitPanicPrototypeGenerator
 {
     private const string ScenePath = "Assets/Scenes/PitPanicPrototype.unity";
+
+    public static void ApplyFloorLayoutToSavedScene()
+    {
+        Scene current = SceneManager.GetActiveScene();
+        if (current.isDirty)
+            throw new System.InvalidOperationException("Save the current scene before applying the table layout.");
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        foreach (string tableName in new[] { "Blackjack Table 1", "Blackjack Table 2" })
+        {
+            GameObject table = GameObject.Find(tableName);
+            if (table == null) throw new System.InvalidOperationException($"Missing {tableName}.");
+            for (int i = 0; i < 3; i++)
+            {
+                Transform position = table.transform.Find($"Betting Position {i + 1}");
+                if (position == null) throw new System.InvalidOperationException($"Missing {tableName} betting position {i + 1}.");
+                position.localPosition = CasinoFloorLayout.BlackjackBet(i, 1.47f);
+            }
+        }
+        if (!EditorSceneManager.SaveScene(scene))
+            throw new IOException($"Could not save table positions in {ScenePath}.");
+        Debug.Log("Updated blackjack betting anchors in the saved prototype scene.");
+    }
     private const string MaterialsPath = "Assets/Materials/PitPanic";
     private const string NavigationPath = "Assets/Navigation";
     private const string NavigationDataPath = NavigationPath + "/CasinoNavMesh.asset";
@@ -1375,6 +1397,12 @@ public static class PitPanicPrototypeGenerator
 
         foreach (BlackjackTableInteraction table in tables)
         {
+            for (int i = 0; i < 3; i++)
+            {
+                Transform position = table.transform.Find($"Betting Position {i + 1}");
+                if (position == null || Vector3.Distance(position.localPosition, CasinoFloorLayout.BlackjackBet(i, 1.47f)) > .001f)
+                    throw new System.InvalidOperationException($"{table.name} betting position {i + 1} does not match the pixel box.");
+            }
             BoxCollider tabletop = table.GetComponentInChildren<BoxCollider>();
             if (tabletop == null)
             {
@@ -1435,7 +1463,9 @@ public static class PitPanicPrototypeGenerator
             Vector3 seatedToBet = seat.SittingPosition - seat.BettingPosition.position;
             approachToBet.y = 0f;
             seatedToBet.y = 0f;
-            if (approachToBet.magnitude > 2.6f || seatedToBet.magnitude > 2f)
+            float maxApproachToBet = isRoulettePosition ? 2.6f : 3.1f;
+            float maxSeatedToBet = isRoulettePosition ? 2f : 2.1f;
+            if (approachToBet.magnitude > maxApproachToBet || seatedToBet.magnitude > maxSeatedToBet)
             {
                 throw new System.InvalidOperationException($"{seat.name} seated pose is not aligned with its matching betting spot.");
             }
@@ -2446,10 +2476,9 @@ public static class PitPanicPrototypeGenerator
         float[] seatOffsets = { -1.7f, 0f, 1.7f };
         for (int i = 0; i < seats.Length; i++)
         {
-            Vector3 betSpotWorld = center + new Vector3(seatOffsets[i], 1.43f, -0.65f);
             GameObject bettingPosition = new GameObject($"Betting Position {i + 1}");
             bettingPosition.transform.SetParent(table.transform, false);
-            bettingPosition.transform.localPosition = new Vector3(seatOffsets[i], 1.47f, -0.65f);
+            bettingPosition.transform.localPosition = CasinoFloorLayout.BlackjackBet(i, 1.47f);
 
             GameObject seatObject = new GameObject($"Customer Seat {i + 1}");
             seatObject.transform.SetParent(table.transform, false);

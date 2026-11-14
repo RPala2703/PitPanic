@@ -27,7 +27,66 @@ public static class CasinoGameplayValidation
         CheckLargePayoutRefills();
         CheckCashOutCompositions();
         CheckTipping();
+        CheckFloorLayout();
         Debug.Log("Casino gameplay validation passed: COVER rules, zero, duplicates, finite payout recovery and Blackjack all-bust.");
+    }
+
+    private static void CheckFloorLayout()
+    {
+        var numbers = new HashSet<Vector3>();
+        for (int n = 0; n <= 36; n++)
+        {
+            Vector3 position = CasinoFloorLayout.RouletteNumber(n, 1.355f);
+            Check(numbers.Add(position), $"Roulette pocket {n} overlaps another pocket.");
+            Check(CasinoFloorLayout.RouletteBet(new RouletteBet(RouletteBetType.StraightUp, n, 500), 1.355f) == position,
+                $"Roulette straight-up chip does not match pocket {n}.");
+        }
+        Vector3 split = CasinoFloorLayout.RouletteBet(new RouletteBet(RouletteBetType.Split, new[] { 1, 2 }, 500), 1.355f);
+        Check(Vector3.Distance(split, (CasinoFloorLayout.RouletteNumber(1, 1.355f) +
+            CasinoFloorLayout.RouletteNumber(2, 1.355f)) * .5f) < .0001f, "Split chip is not between its numbers.");
+        var outside = new HashSet<Vector3>();
+        foreach (RouletteBetType type in new[] { RouletteBetType.Red, RouletteBetType.Black, RouletteBetType.Odd, RouletteBetType.Even })
+            Check(outside.Add(CasinoFloorLayout.RouletteBet(new RouletteBet(type, -1, 500), 1.355f)),
+                "Outside bet chips overlap.");
+
+        // The layout must fit inside the actual pixel felt ellipse, including its outer borders.
+        foreach (int x in new[] { CasinoFloorLayout.RouletteGridX - 6,
+                                  CasinoFloorLayout.RouletteGridX + 12 * CasinoFloorLayout.RouletteCellWidth })
+        foreach (int y in new[] { CasinoFloorLayout.RouletteOutsideY,
+                                  CasinoFloorLayout.RouletteGridY + 3 * CasinoFloorLayout.RouletteCellHeight })
+            Check(Mathf.Pow((x - 96f) / 80f, 2) + Mathf.Pow((y - 57f) / 26f, 2) < 1,
+                "Roulette betting layout extends past the felt.");
+
+        Texture2D blackjack = new Texture2D(2, 2);
+        Texture2D roulette = new Texture2D(2, 2);
+        try
+        {
+            Check(blackjack.LoadImage(System.IO.File.ReadAllBytes("Assets/Art/Pixel/Station_BlackjackV2.png")) &&
+                  roulette.LoadImage(System.IO.File.ReadAllBytes("Assets/Art/Pixel/Station_Roulette.png")),
+                "Could not load generated table sprites.");
+            Color32 gold = new Color32(239, 178, 64, 255);
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 spot = CasinoFloorLayout.BlackjackBet(i, 1.43f);
+                int x = Mathf.RoundToInt(spot.x * 32 + 96);
+                Check(((Color32)blackjack.GetPixel(x, CasinoFloorLayout.BlackjackBoxBottom)).Equals(gold) &&
+                      ((Color32)blackjack.GetPixel(x, CasinoFloorLayout.BlackjackBoxTop)).Equals(gold),
+                    $"Blackjack box {i + 1} is not centred on its prop anchor.");
+            }
+            for (int n = 1; n <= 36; n++)
+            {
+                Vector3 spot = CasinoFloorLayout.RouletteNumber(n, 1.355f);
+                int x = Mathf.FloorToInt(spot.x * 32 + 96);
+                int y = Mathf.FloorToInt(spot.z * 32 + 48);
+                Color32 expected = EuropeanRouletteRules.IsRed(n) ? new Color32(181, 52, 78, 255) : new Color32(35, 20, 43, 255);
+                Check(((Color32)roulette.GetPixel(x, y)).Equals(expected), $"Roulette pocket {n} has the wrong sprite location or colour.");
+            }
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(blackjack);
+            UnityEngine.Object.DestroyImmediate(roulette);
+        }
     }
 
     private static void CheckTipping()

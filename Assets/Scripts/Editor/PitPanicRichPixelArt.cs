@@ -30,7 +30,42 @@ public static class PitPanicRichPixelArt
     [MenuItem("Pit Panic/Upgrade Pixel Art")]
     public static void Generate()
     {
-        foreach (CasinoAnimalSpecies species in Enum.GetValues(typeof(CasinoAnimalSpecies)))
+        GenerateCharacters((CasinoAnimalSpecies[])Enum.GetValues(typeof(CasinoAnimalSpecies)));
+        foreach (string kind in new[] { "Blackjack", "BlackjackV2", "Roulette", "CashDesk", "PitDesk", "BreakRoom" })
+            GenerateStation(kind);
+        Texture2D floor = New(512, 352);
+        Floor(floor);
+        Save(floor, "CasinoFloor", new Vector2(.5f, .5f), 16);
+        Texture2D rug = New(192, 96);
+        E(rug, 96, 48, 94, 44, new Color32(141, 74, 101, 255));
+        E(rug, 96, 48, 91, 41, new Color32(84, 39, 73, 255));
+        E(rug, 96, 48, 84, 35, new Color32(119, 50, 87, 255));
+        for (int x = 36; x <= 156; x += 24) R(rug, x, 20, 3, 3, Gold);
+        Save(rug, "TableRug", new Vector2(.5f, .5f), 24);
+        foreach (string kind in new[] { "Plant", "Lamp", "Sofa", "Chair", "Window", "Curtain", "Column", "Arch" })
+        {
+            Texture2D t = New(kind == "Arch" ? 128 : 64, 96);
+            Prop(t, kind);
+            Save(t, "Structure_" + kind, new Vector2(.5f, 0), kind == "Arch" ? 40 : 30);
+        }
+        Texture2D wheel = New(64, 64);
+        Wheel(wheel, 32, 32, 30);
+        Save(wheel, "RouletteWheel", new Vector2(.5f, .5f), 40);
+        Debug.Log("Rich pixel artwork rebuilt with original GUIDs and point filtering.");
+    }
+
+    public static void GeneratePenguinAndTables()
+    {
+        GenerateCharacters(new[] { CasinoAnimalSpecies.Penguin });
+        GenerateStation("Blackjack");
+        GenerateStation("BlackjackV2");
+        GenerateStation("Roulette");
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void GenerateCharacters(CasinoAnimalSpecies[] speciesToGenerate)
+    {
+        foreach (CasinoAnimalSpecies species in speciesToGenerate)
         {
             for (int direction = 0; direction < 4; direction++)
                 for (int frame = 0; frame < 2; frame++)
@@ -155,27 +190,6 @@ public static class PitPanicRichPixelArt
                 finally { PrefabUtility.UnloadPrefabContents(root); }
             }
         }
-        foreach (string kind in new[] { "Blackjack", "BlackjackV2", "Roulette", "CashDesk", "PitDesk", "BreakRoom" })
-            GenerateStation(kind);
-        Texture2D floor = New(512, 352);
-        Floor(floor);
-        Save(floor, "CasinoFloor", new Vector2(.5f, .5f), 16);
-        Texture2D rug = New(192, 96);
-        E(rug, 96, 48, 94, 44, new Color32(141, 74, 101, 255));
-        E(rug, 96, 48, 91, 41, new Color32(84, 39, 73, 255));
-        E(rug, 96, 48, 84, 35, new Color32(119, 50, 87, 255));
-        for (int x = 36; x <= 156; x += 24) R(rug, x, 20, 3, 3, Gold);
-        Save(rug, "TableRug", new Vector2(.5f, .5f), 24);
-        foreach (string kind in new[] { "Plant", "Lamp", "Sofa", "Chair", "Window", "Curtain", "Column", "Arch" })
-        {
-            Texture2D t = New(kind == "Arch" ? 128 : 64, 96);
-            Prop(t, kind);
-            Save(t, "Structure_" + kind, new Vector2(.5f, 0), kind == "Arch" ? 40 : 30);
-        }
-        Texture2D wheel = New(64, 64);
-        Wheel(wheel, 32, 32, 30);
-        Save(wheel, "RouletteWheel", new Vector2(.5f, .5f), 40);
-        Debug.Log("Rich pixel artwork rebuilt with original GUIDs and point filtering.");
     }
 
     private static Color32 CustomerShirt(CasinoAnimalSpecies species) => ((int)species % 4) switch
@@ -569,7 +583,6 @@ public static class PitPanicRichPixelArt
             R(t, 0, 35, 48, 29, new Color32(0, 0, 0, 0));
             E(t, 24, 46, 17, 15, Ink);
             E(t, 24, 47, 14, 12, new Color32(56, 70, 98, 255));
-            R(t, 13, 55, 19, 2, new Color32(94, 111, 141, 255));
             if (dir == 0)
             {
                 E(t, 18, 45, 7, 9, Cream); E(t, 30, 45, 7, 9, Cream);
@@ -650,11 +663,14 @@ public static class PitPanicRichPixelArt
         R(t, 40, 31, 112, 2, Shade(Felt, .7f));
         if (kind.StartsWith("Blackjack"))
         {
-            for (int x = 46; x <= 134; x += 44)
+            foreach (int x in new[] { CasinoFloorLayout.BlackjackLeftBoxX,
+                         CasinoFloorLayout.BlackjackMiddleBoxX, CasinoFloorLayout.BlackjackRightBoxX })
             {
                 // Betting boxes only: cards are dealt live on top of the table, never baked into its art.
-                R(t, x - 9, 42, 18, 1, Gold); R(t, x - 9, 43, 1, 9, Gold); R(t, x + 8, 43, 1, 9, Gold);
-                R(t, x - 9, 52, 18, 1, Gold);
+                int bottom = CasinoFloorLayout.BlackjackBoxBottom, top = CasinoFloorLayout.BlackjackBoxTop;
+                R(t, x - 9, bottom, 18, 1, Gold); R(t, x - 9, bottom + 1, 1, top - bottom - 1, Gold);
+                R(t, x + 8, bottom + 1, 1, top - bottom - 1, Gold);
+                R(t, x - 9, top, 18, 1, Gold);
             }
             ChipStack(t, 25, 65, new Color32(200, 58, 79, 255), 3);
             ChipStack(t, 39, 67, new Color32(55, 141, 199, 255), 3);
@@ -666,13 +682,25 @@ public static class PitPanicRichPixelArt
         else
         {
             Wheel(t, 51, 58, 24);
-            for (int x = 96; x <= 159; x += 8)
-                for (int y = 47; y <= 71; y += 8)
-                {
-                    R(t, x, y, 8, 8, Gold);
-                    R(t, x + 1, y + 1, 6, 6, ((x + y) / 8) % 2 == 0 ? Ink : new Color32(181, 52, 78, 255));
-                    R(t, x + 3, y + 3, 2, 2, Cream);
-                }
+            int gridX = CasinoFloorLayout.RouletteGridX, gridY = CasinoFloorLayout.RouletteGridY;
+            R(t, gridX - 6, gridY, 6, CasinoFloorLayout.RouletteCellHeight * 3, Gold);
+            R(t, gridX - 5, gridY + 1, 4, CasinoFloorLayout.RouletteCellHeight * 3 - 2, Shade(Felt, 1.3f));
+            for (int number = 1; number <= 36; number++)
+            {
+                int x = gridX + (number - 1) / 3 * CasinoFloorLayout.RouletteCellWidth;
+                int y = gridY + (number - 1) % 3 * CasinoFloorLayout.RouletteCellHeight;
+                R(t, x, y, CasinoFloorLayout.RouletteCellWidth, CasinoFloorLayout.RouletteCellHeight, Gold);
+                R(t, x + 1, y + 1, CasinoFloorLayout.RouletteCellWidth - 1,
+                    CasinoFloorLayout.RouletteCellHeight - 1,
+                    EuropeanRouletteRules.IsRed(number) ? new Color32(181, 52, 78, 255) : Ink);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                int x = gridX + i * CasinoFloorLayout.RouletteOutsideWidth;
+                R(t, x, CasinoFloorLayout.RouletteOutsideY, CasinoFloorLayout.RouletteOutsideWidth, 6, Gold);
+                R(t, x + 1, CasinoFloorLayout.RouletteOutsideY + 1, CasinoFloorLayout.RouletteOutsideWidth - 1, 4,
+                    i == 0 ? new Color32(181, 52, 78, 255) : i == 1 ? Ink : Shade(Felt, .8f));
+            }
             ChipStack(t, 83, 44, new Color32(213, 59, 73, 255), 4);
             ChipStack(t, 167, 51, new Color32(75, 145, 207, 255), 4);
         }

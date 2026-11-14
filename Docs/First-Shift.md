@@ -1,13 +1,18 @@
 # First shift
 
 Open `Assets/Scenes/PitPanicPrototype.unity` in Unity and press Play. Choose
-**New Game** for the introduction and Tiger's guided shift, or **Skip Training** on the introduction to start without
-the lessons. Tiger's large lesson cards pause the casino and audio. **Okay**
-or Enter dismisses the explanation and resumes practice; Escape dismisses a lesson
-rather than opening another menu. **HELP** revisits all 13 explanations without
-changing progress. The lesson card uses a short prompt and points to the relevant station. Use WASD or the
+**New Game** for the introduction and guided shift, or **Skip Training** on the introduction to start without
+the lessons. Staff conversations pause the casino and other audio while their
+quiet voice bleeps follow the effects volume. Click the dialogue, **NEXT**, or
+press Enter, Space or E to reveal a line and then advance. Escape dismisses a
+conversation; **SKIP TRAINING** ends training, while **SKIP** closes a briefing
+or review without changing tutorial progress.
+**HELP** revisits the current explanation without changing progress. The lesson
+points to the relevant station. Use WASD or the
 arrow keys to move, E to open a table and play its available task, and P to pause, including
 during a minigame. The tutorial can also be skipped using the HUD button.
+Each level starts with a staff introduction. Occasional brief, non-blocking staff
+remarks highlight events such as VIP arrivals and low floats.
 Q remains a compatibility shortcut to the same table interface. When carrying
 a float tray, E delivers the tray before opening a table. Escape closes an
 interface or cancels a minigame without trapping movement.
@@ -167,6 +172,9 @@ floor decorations behind. Popup controls have inset
 footer rows; their canvases expand the reference area on narrower/wider screens
 instead of cropping it. Blackjack reuses its physical dealing/payout
 animation; roulette adds customer/dealer gestures and an orbiting ball.
+The floor table art and live props share `CasinoFloorLayout`: Blackjack chips
+land on the matching seat's box and cards just behind it; Roulette chips land
+on their wager's number, outside area, or shared-number boundary.
 The cashier's chip movement follows actual customer/float service activity.
 The playable pit boss is a penguin. Staff use their animal names, and customers
 use the ten-species character pool with separate civilian-shirt animation atlases,
