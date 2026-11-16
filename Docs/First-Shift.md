@@ -1,12 +1,38 @@
 # First shift
 
+The title uses the supplied casino exterior unchanged, aspect-fitted with
+letterboxing when needed. The original playable Penguin starts in the middle,
+idling near the entrance above the four menu buttons. Subtle marquee/window lighting
+and occasional quiet staff dialogue run without pausing or blocking the menu.
+NEW GAME and CONTINUE open the doors before following the existing level
+selection flow; title music stops immediately on selection so the door,
+footsteps and entrance sounds play alone. Casino music starts when the shift
+opens, including during its introductory dialogue. SETTINGS and QUIT remain immediately available.
+Keyboard/controller navigation uses the same Unity UI input system.
+
+Artwork and overlays are under `Assets/Resources/TitleScreen`; the 30 supplied
+dialogue portraits are under `Assets/Resources/Portraits/Staff`. Do not regenerate
+these images. The retained asset-pack README and manifest describe the door
+bounds, which are used in native 1672x941 image coordinates.
+
 Open `Assets/Scenes/PitPanicPrototype.unity` in Unity and press Play. Choose
-**New Game** for the introduction and guided shift, or **Skip Training** on the introduction to start without
-the lessons. Staff conversations pause the casino and other audio while their
+**New Game** and select a level to begin its guided shift. Choose **SKIP TRAINING**
+in the first conversation to start without the lessons. Training opens with the
+Tiger/Penguin/Bear welcome exchange, then flows straight into movement practice.
+Staff conversations pause the casino and gameplay effects, but keep casino music playing while their
 quiet voice bleeps follow the effects volume. Click the dialogue, **NEXT**, or
 press Enter, Space or E to reveal a line and then advance. Escape dismisses a
 conversation; **SKIP TRAINING** ends training, while **SKIP** closes a briefing
 or review without changing tutorial progress.
+Tutorial conversations wait for their task or staff member to be ready. If a
+dealer needs recovery first, use the Pit Desk; the cash-out and BJ1 refill
+lessons prioritise the correct Cash Desk task.
+The cash desk has no dedicated staff character; customers and the player's
+cash-out/refill interactions still use the same counter.
+SHUFFLE and COVER are prepared before the player is sent to their table.
+Opening Blackjack 1 or Roulette immediately shows the next task conversation
+over the inspection; dismissing it leaves that same table open with its task ready.
+There is no close/reopen step or waiting for the dealer between those instructions.
 **HELP** revisits the current explanation without changing progress. The lesson
 points to the relevant station. Use WASD or the
 arrow keys to move, E to open a table and play its available task, and P to pause, including
@@ -70,7 +96,11 @@ unlocks, and tutorial completion when a level is selected, while leaving sound
 settings and legacy save data intact.
 
 The three campaign levels have distinct floor layouts and lighting. **Opening
-Night** introduces the casino. **High Rollers** brings VIP guests who wear gold,
+Night** introduces the casino. **High Rollers** opens with four featured VIPs:
+a Rabbit and Deer at Blackjack 1, and a Cat and Raccoon at Blackjack 2. Rabbit
+wears a cream dinner jacket, Deer a burgundy gown, Cat an emerald gown, and
+Raccoon a dark gold-trimmed tuxedo; all keep the golden aura. The level also
+brings other VIP guests who wear gold,
 place larger bets, and have less patience. **Shady Business** adds scheduled
 security alerts drawn from actual Roulette bets and results; review the animated
 Pit Desk close-up replay before accusing or clearing a customer. The replay shows
@@ -156,6 +186,16 @@ station, furniture and carpet PNGs while preserving existing texture GUIDs.
 `Pit Panic/Generate Prototype Scene` also runs the art upgrade and wires
 animated lamps and a cashier into the generated floor. Sprites use point
 filtering without mipmaps or compression.
+
+The original campaign floor-art pass is generated separately with
+`Pit Panic/Art/Generate Original Casino Floors`; the three designs are saved
+under `Assets/Resources/Art/Original/World` as 608×352 sprites, framing the
+fixed camera at 16:9 without moving the walkable casino bounds. They are selected
+by campaign level at shift start. `Pit Panic/Art/Validate Original Casino Floors`
+checks their dimensions, unique artwork, pixel filtering and import settings
+without regenerating the scene. Their level-specific rosette carpets and
+restrained scenery palettes distinguish Opening Night, High Rollers and Shady
+Business without changing gameplay navigation or the existing station sprites.
 
 Every character action/direction has a baked 60-frame pixel-sprite sequence,
 including directional walk cycles, service poses, happy/sad reactions and
@@ -248,7 +288,7 @@ PIT_PANIC_BUILD_PATH="/absolute/output/PitPanic.app" \
   -screen-width 1600 -screen-height 900 -screen-fullscreen 0
 ```
 
-Capture mode records the title, introduction, paused tutorial, casino and table interfaces, then exits. It only
+Capture mode records the title, level selection, paused tutorial, casino and table interfaces, then exits. It only
 exists in Editor/development builds and is inactive without the explicit flag.
 It keeps rendering when unfocused, and does not complete or save tutorial progress.
 The screenshots are rendered frames, not evidence of human playtesting.

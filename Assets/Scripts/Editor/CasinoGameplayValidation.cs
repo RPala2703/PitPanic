@@ -28,7 +28,177 @@ public static class CasinoGameplayValidation
         CheckCashOutCompositions();
         CheckTipping();
         CheckFloorLayout();
+        CheckBearUniform();
+        CheckTitleAssets();
+        CheckDialogueScripts();
+        CheckDoorSound();
         Debug.Log("Casino gameplay validation passed: COVER rules, zero, duplicates, finite payout recovery and Blackjack all-bust.");
+    }
+
+    private static void CheckDoorSound()
+    {
+        AudioClip clip = (AudioClip)typeof(CasinoSoundscape).GetMethod("ComposeCue", Flags | BindingFlags.Static)
+            .Invoke(null, new object[] { CasinoSoundCue.Door });
+        try
+        {
+            float[] samples = new float[clip.samples];
+            Check(clip.GetData(samples, 0), "Door sound samples are unreadable.");
+            float peak = 0, energy = 0;
+            foreach (float sample in samples)
+            {
+                Check(!float.IsNaN(sample) && !float.IsInfinity(sample), "Door sound has invalid samples.");
+                peak = Mathf.Max(peak, Mathf.Abs(sample));
+                energy += sample * sample;
+            }
+            Check(clip.length >= 1.1f && peak >= .89f && peak <= .91f &&
+                  Mathf.Sqrt(energy / samples.Length) >= .12f,
+                "The dramatic door opening is too short, quiet or clipped.");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(clip); }
+    }
+
+    private static void CheckTitleAssets()
+    {
+        CasinoPortraitExtraction.Validate();
+        foreach (Vector2 resolution in new[] { new Vector2(1600, 900), new Vector2(1200, 900),
+                     new Vector2(2560, 1080), new Vector2(1280, 720) })
+        {
+            Vector2 fitted = CasinoTitleScreen.ArtworkSize * CasinoTitleScreen.FitScale(resolution);
+            Check(fitted.x <= resolution.x + .01f && fitted.y <= resolution.y + .01f &&
+                  Mathf.Abs(fitted.x / fitted.y - 1672f / 941) < .0001f,
+                "The title artwork is stretched or cropped.");
+        }
+        foreach (DialogueSpeaker speaker in Enum.GetValues(typeof(DialogueSpeaker)))
+        foreach (DialogueExpression expression in Enum.GetValues(typeof(DialogueExpression)))
+        {
+            Sprite portrait = CasinoDialogue.Portrait(speaker, expression);
+            Check(portrait != null && portrait.name == $"{speaker}_{expression}" &&
+                  portrait.rect.width == 256 && portrait.rect.height == 256 &&
+                  portrait.texture.filterMode == FilterMode.Point &&
+                  portrait.texture.wrapMode == TextureWrapMode.Clamp && portrait.vertices.Length == 4,
+                $"Incorrect supplied portrait for {speaker}/{expression}.");
+        }
+        Sprite background = Resources.Load<Sprite>("TitleScreen/Background/Title_Casino_Exterior_1672x941");
+        Check(background != null && background.rect.size == CasinoTitleScreen.ArtworkSize &&
+              background.texture.filterMode == FilterMode.Point && background.texture.mipmapCount == 1,
+            "The supplied exterior was rescaled or imported incorrectly.");
+        DialogueLine[][] remarks = CasinoTitleScreen.IdleConversations();
+        Check(remarks.Length == 4 && remarks[0][0].Text == "The building is insured. Allegedly." &&
+              remarks[1][0].Expression == DialogueExpression.Shocked &&
+              remarks[2][0].Expression == DialogueExpression.Smug && remarks[3].Length == 3 &&
+              remarks[3][1].Speaker == DialogueSpeaker.Penguin &&
+              remarks[3][1].Expression == DialogueExpression.Angry && remarks[3][1].Text == "Almost?",
+            "The deadpan menu dialogue changed.");
+    }
+
+    private static void CheckBearUniform()
+    {
+        Color32 uniform = new Color32(137, 42, 81, 255);
+        for (int direction = 0; direction < 4; direction++)
+        for (int step = 0; step < 2; step++)
+            CheckBearSprite($"Character_Bear_{direction}_{step}", uniform);
+        for (int expression = 0; expression < 4; expression++)
+            CheckBearSprite($"Character_Bear_Expression_{expression}", uniform);
+
+        Texture2D atlas = new Texture2D(2, 2);
+        try
+        {
+            Check(atlas.LoadImage(System.IO.File.ReadAllBytes("Assets/Art/Pixel/Animation_Bear.png")),
+                "Could not load Bear's animation atlas.");
+            Check(atlas.width == 48 * PixelCharacterVisual.AnimationFramesPerDirection &&
+                  atlas.height == 64 * PixelCharacterVisual.DirectionsPerPose * PixelCharacterVisual.PoseCount,
+                "Bear's animation atlas has incorrect dimensions.");
+            Color32[] pixels = atlas.GetPixels32();
+            for (int row = 0; row < atlas.height / 64; row++)
+            for (int frame = 0; frame < atlas.width / 48; frame++)
+            {
+                bool found = false;
+                for (int y = 0; y < 64 && !found; y++)
+                for (int x = 0; x < 48 && !found; x++)
+                    found = pixels[(row * 64 + y) * atlas.width + frame * 48 + x].Equals(uniform);
+                Check(found, $"Bear's uniform is missing from animation row {row}, frame {frame}.");
+            }
+        }
+        finally { UnityEngine.Object.DestroyImmediate(atlas); }
+    }
+
+    private static void CheckBearSprite(string name, Color32 uniform)
+    {
+        Texture2D sprite = new Texture2D(2, 2);
+        try
+        {
+            Check(sprite.LoadImage(System.IO.File.ReadAllBytes($"Assets/Art/Pixel/{name}.png")) &&
+                  ((Color32)sprite.GetPixel(18, 24)).Equals(uniform),
+                $"{name} does not use the staff uniform.");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(sprite); }
+    }
+
+    private static void CheckDialogueScripts()
+    {
+        string[][] tutorials =
+        {
+            new[] {
+                "Tiger|Happy|Ah. There you are. Welcome to the casino.",
+                "Penguin|Neutral|Hello. I'm here for the interview.",
+                "Tiger|Smug|Excellent news. You've got the job.",
+                "Penguin|Shocked|We haven't had the interview.",
+                "Tiger|Neutral|No. We've saved quite a bit of time.",
+                "Penguin|Determined|Right. And what exactly is the job?",
+                "Tiger|Happy|You're our new pit boss.",
+                "Penguin|Neutral|What happened to the old one?",
+                "Tiger|Shocked|Oh.",
+                "Tiger|Smug|We don't use that word anymore.",
+                "Penguin|Shocked|What word?",
+                "Tiger|Neutral|Old.",
+                "Bear|Neutral|We've been advised not to discuss the incident.",
+                "Penguin|Angry|What incident?",
+                "Bear|Happy|Exactly.",
+                "Tiger|Determined|Anyway. Shall we begin your training?",
+                "Penguin|Smug|Is it comprehensive?",
+                "Tiger|Happy|You can walk, can't you?",
+                "Tiger|Determined|Good. Use WASD or the arrow keys to move." },
+            new[] { "Tiger|Happy|Walk to Blackjack 1 and press E to inspect the table.", "Penguin|Neutral|What's wrong with it?", "Tiger|Smug|We'll know when you get there." },
+            new[] { "Tiger|Determined|Choose SHUFFLE!, then follow the card sequence.", "Penguin|Shocked|You hired a dealer who can't shuffle?", "Tiger|Neutral|He's very good at the other bits." },
+            new[] { "Fox|Smug|Go to Roulette and press E to inspect the bets.", "Penguin|Determined|Anything I should look for?", "Fox|Neutral|Money, ideally." },
+            new[] { "Fox|Happy|The wheel's stopped. In COVER!, click every winning bet.", "Penguin|Neutral|What if I miss one?", "Fox|Smug|The customer will certainly notice." },
+            new[] { "Pig|Determined|A customer needs cash. Click chips until the total matches exactly.", "Penguin|Smug|Is approximate change allowed?", "Pig|Angry|No." },
+            new[] { "Pig|Neutral|BJ1 needs more chips. Pack its refill, then carry the tray over.", "Penguin|Shocked|We're running out of money?", "Pig|Smug|Only the conveniently shaped money." },
+            new[] { "Bear|Neutral|That dealer's tired. Go to the Pit Desk and assign a replacement.", "Penguin|Shocked|Are they still dealing?", "Bear|Smug|In the broadest sense." },
+            new[] { "Bear|Determined|The relieved dealer's back at the Pit Desk. Send them on break.", "Penguin|Neutral|And if I don't?", "Bear|Angry|They'll continue being tired." },
+            new[] { "Tiger|Happy|No replacement available. Choose TAKE OVER at BJ1 and deal the round.", "Penguin|Shocked|Am I qualified?", "Tiger|Smug|You're wearing the badge." },
+            new[] { "Fox|Determined|Roulette has no dealer. Choose TAKE OVER to run the table.", "Penguin|Angry|Do I know how to run it?", "Fox|Happy|We'll find out together." },
+            new[] { "Bear|Happy|A dealer's rested. Assign them to relieve you at the table.", "Penguin|Smug|Do I get a break?", "Bear|Neutral|You're management." },
+            new[] { "Pig|Determined|Watch task timers and keep customers happy until the shift ends.", "Penguin|Neutral|And then?", "Pig|Happy|We count the tips. Carefully." }
+        };
+        string[][] campaigns =
+        {
+            new[] { "Tiger|Happy|Welcome back. Keep the tables running and the customers happy.", "Penguin|Smug|Any changes since last time?", "Tiger|Shocked|Several. None authorised." },
+            new[] { "Fox|Smug|Our VIPs are arriving. Very important people.", "Penguin|Neutral|How will I recognise them?", "Pig|Happy|They're wearing gold.", "Penguin|Smug|Subtle.", "Pig|Determined|We suggested more gold.", "Fox|Neutral|They bet more, wait less, and expect excellent service." },
+            new[] { "Bear|Neutral|Someone's been moving chips after the result.", "Penguin|Shocked|Isn't that cheating?", "Bear|Neutral|Potentially.", "Penguin|Angry|What else could it be?", "Bear|Smug|An unusually profitable misunderstanding.", "Tiger|Determined|Review the footage at the Pit Desk. Then choose CHEATING or CLEAR.", "Penguin|Neutral|Glad we've narrowed it down." }
+        };
+        MethodInfo lesson = typeof(CasinoShiftController).GetMethod("LessonConversation", Flags | BindingFlags.Static);
+        MethodInfo campaign = typeof(CasinoShiftController).GetMethod("CampaignConversation", Flags | BindingFlags.Static);
+        for (int i = 0; i < tutorials.Length; i++)
+            CheckDialogue((DialogueLine[])lesson.Invoke(null, new object[] { i }), tutorials[i], "Tutorial " + (i + 1),
+                i == 0 ? .8f : .35f);
+        DialogueLine[] welcome = (DialogueLine[])lesson.Invoke(null, new object[] { 0 });
+        foreach (int index in new[] { 5, 9, 12, 15 })
+            Check(welcome[index].PauseBefore >= .5f, "Welcome dialogue lost its requested pause.");
+        for (int i = 0; i < campaigns.Length; i++)
+            CheckDialogue((DialogueLine[])campaign.Invoke(null, new object[] { i + 1 }), campaigns[i], "Level " + (i + 1));
+    }
+
+    private static void CheckDialogue(DialogueLine[] actual, string[] expected, string context, float maxPause = .35f)
+    {
+        Check(actual.Length == expected.Length, context + " has missing or duplicated lines.");
+        for (int i = 0; i < expected.Length; i++)
+        {
+            string value = actual[i].Speaker + "|" + actual[i].Expression + "|" + actual[i].Text;
+            Check(value == expected[i], context + " line " + (i + 1) + " is incorrect: " + value);
+            Check(actual[i].PauseBefore >= 0f && actual[i].PauseBefore <= maxPause,
+                context + " contains an excessive dialogue pause.");
+        }
     }
 
     private static void CheckFloorLayout()

@@ -16,6 +16,9 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
     private bool coverCheck;
     private bool seatingCheck;
     private bool securityCheck;
+    private bool titleCheck;
+    private bool vipCheck;
+    private bool resultsPreview;
     private readonly Dictionary<string, int> savedProgress = new Dictionary<string, int>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -33,42 +36,77 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         capture.coverCheck = Array.IndexOf(args, "--pit-cover-check") >= 0;
         capture.seatingCheck = Array.IndexOf(args, "--pit-seating-check") >= 0;
         capture.securityCheck = Array.IndexOf(args, "--pit-security-check") >= 0;
+        capture.titleCheck = Array.IndexOf(args, "--pit-title-check") >= 0;
+        capture.vipCheck = Array.IndexOf(args, "--pit-vip-check") >= 0;
+        capture.resultsPreview = Array.IndexOf(args, "--pit-results-preview") >= 0;
+        if (capture.titleCheck) Application.logMessageReceived += capture.OnTitleLog;
         capture.oldTutorial = PlayerPrefs.GetInt("PitPanic.TutorialComplete", -1);
         foreach (string key in new[] { "PitPanic.TutorialComplete", "PitPanic.UnlockedShift",
             CasinoDemoProgression.CreditsKey, CasinoDemoProgression.UpgradeKeys[0],
             CasinoDemoProgression.UpgradeKeys[1], CasinoDemoProgression.UpgradeKeys[2] })
             capture.savedProgress[key] = PlayerPrefs.GetInt(key, -1);
+        if (capture.demoCheck)
+            PlayerPrefs.SetInt("PitPanic.TutorialComplete", 1);
         Directory.CreateDirectory(capture.directory);
     }
 
     private IEnumerator Start()
     {
+        if (resultsPreview)
+        {
+            yield return new WaitForSecondsRealtime(2.2f);
+            string[] args = Environment.GetCommandLineArgs();
+            int outcomeIndex = Array.IndexOf(args, "--pit-results-preview-outcome");
+            bool passed = outcomeIndex >= 0 && outcomeIndex + 1 < args.Length &&
+                args[outcomeIndex + 1].Equals("pass", StringComparison.OrdinalIgnoreCase);
+            CasinoMusicTrack expectedTrack = passed ? CasinoMusicTrack.ResultsPassed : CasinoMusicTrack.ResultsFailed;
+            CasinoSoundscape soundscape = FindFirstObjectByType<CasinoSoundscape>();
+            AudioSource resultsMusic = soundscape != null
+                ? (AudioSource)typeof(CasinoSoundscape).GetField("music", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(soundscape)
+                : null;
+            if (soundscape == null || resultsMusic == null || CasinoSoundscape.CurrentMusicTrack != expectedTrack ||
+                !resultsMusic.isPlaying || resultsMusic.loop)
+                throw new InvalidOperationException($"Results preview did not start its one-shot {expectedTrack} track.");
+            Debug.Log($"Verified results preview music: {resultsMusic.clip.name}.");
+            ScreenCapture.CaptureScreenshot(Path.Combine(directory, "results-preview.png"));
+            Debug.Log("Captured the full-screen results preview.");
+            yield return new WaitForSecondsRealtime(.5f);
+            Application.Quit();
+            yield break;
+        }
+        if (titleCheck)
+        {
+            yield return CaptureTitle();
+            yield break;
+        }
+        if (vipCheck)
+        {
+            yield return CaptureHighRollerVips();
+            yield break;
+        }
         yield return new WaitForSecondsRealtime(2);
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title.png"));
         yield return new WaitForSecondsRealtime(1);
         CasinoTitleScreen title = FindFirstObjectByType<CasinoTitleScreen>();
         title.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
-        yield return new WaitForSecondsRealtime(1);
+        yield return new WaitForSecondsRealtime(CasinoTitleScreen.TransitionSeconds + .2f);
         CasinoShiftController menuShift = FindFirstObjectByType<CasinoShiftController>();
         GameObject levelSelect = (GameObject)typeof(CasinoShiftController)
             .GetField("levelSelect", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(menuShift);
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "level-select.png"));
         yield return new WaitForEndOfFrame();
         levelSelect.transform.Find("Level 1").GetComponent<Button>().onClick.Invoke();
-        yield return new WaitForSecondsRealtime(1);
-        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "intro.png"));
-        yield return new WaitForSecondsRealtime(1);
-        GameObject introduction = (GameObject)typeof(CasinoShiftController)
-            .GetField("intro", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(menuShift);
-        string introAction = watch || demoCheck || coverCheck || seatingCheck || securityCheck ? "Skip" : "Begin";
-        introduction.transform.Find(introAction).GetComponent<Button>().onClick.Invoke();
         yield return new WaitForSecondsRealtime(3);
         if (watch || demoCheck || coverCheck || seatingCheck || securityCheck)
         {
             CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
-            if (shift.IsLessonOpen) shift.DismissLesson();
+            if (shift.IsLessonOpen)
+                typeof(CasinoShiftController).GetMethod("CompleteTutorial", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(shift, null);
             yield return null;
         }
+
         if (!watch && !demoCheck && !coverCheck && !seatingCheck && !securityCheck)
         {
             CasinoShiftController guidedShift = FindFirstObjectByType<CasinoShiftController>();
@@ -115,13 +153,17 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             yield return new WaitForSecondsRealtime(1);
             GameObject resultPanel = (GameObject)typeof(CasinoShiftController).GetField("results",
                 BindingFlags.Instance | BindingFlags.NonPublic).GetValue(shift);
-            resultPanel.transform.Find("Retry").GetComponent<Button>().onClick.Invoke();
+            resultPanel.transform.Find("Full-screen shift results/Results information panel/Retry Shift")
+                .GetComponent<Button>().onClick.Invoke();
             yield return null;
             yield return new WaitForSecondsRealtime(2);
             shift = FindFirstObjectByType<CasinoShiftController>();
+            if (shift != null && shift.IsLessonOpen)
+                shift.DismissLesson();
             if (shift == null || !shift.IsRunning || Time.timeScale <= 0 || AudioListener.pause)
             {
-                Debug.LogError("Standalone retry did not resume a fresh shift.");
+                Debug.LogError($"Standalone retry did not resume a fresh shift: controller={shift != null}, " +
+                    $"running={shift != null && shift.IsRunning}, timeScale={Time.timeScale:0.##}, paused={AudioListener.pause}.");
                 Application.Quit(1);
                 yield break;
             }
@@ -197,6 +239,71 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         Application.Quit();
     }
 
+    private IEnumerator CaptureHighRollerVips()
+    {
+        yield return null;
+        CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
+        if (shift == null)
+        {
+            Debug.LogError("High Rollers preview has no shift controller.");
+            Application.Quit(1);
+            yield break;
+        }
+        typeof(CasinoShiftController).GetMethod("BeginShift", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(shift, new object[] { 2, false });
+        if (shift.IsLessonOpen) shift.DismissLesson();
+        Time.timeScale = 1f;
+        AudioListener.pause = false;
+        yield return null;
+
+        CasinoCustomerAI[] featuredVips = new CasinoCustomerAI[4];
+        CasinoAnimalSpecies[] speciesOrder =
+        {
+            CasinoAnimalSpecies.Rabbit, CasinoAnimalSpecies.Deer,
+            CasinoAnimalSpecies.Cat, CasinoAnimalSpecies.Raccoon
+        };
+        CasinoCustomerGame[] tableOrder =
+        {
+            CasinoCustomerGame.Blackjack1, CasinoCustomerGame.Blackjack1,
+            CasinoCustomerGame.Blackjack2, CasinoCustomerGame.Blackjack2
+        };
+        float deadline = Time.realtimeSinceStartup + 40f;
+        while (Array.Exists(featuredVips, vip => vip == null) && Time.realtimeSinceStartup < deadline)
+        {
+            foreach (CasinoCustomerAI customer in FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None))
+            {
+                if (!customer.IsVip || customer.Seat == null || !customer.IsSeated) continue;
+                CasinoCharacterVisual character = customer.GetComponentInChildren<CasinoCharacterVisual>();
+                if (character == null) continue;
+                for (int i = 0; i < featuredVips.Length; i++)
+                    if (character.Species == speciesOrder[i] && customer.Seat.GameType == tableOrder[i])
+                        featuredVips[i] = customer;
+            }
+            yield return null;
+        }
+        if (Array.Exists(featuredVips, vip => vip == null))
+        {
+            Debug.LogError("The Rabbit, Deer, Cat and Raccoon VIPs did not reach their side tables.");
+            Application.Quit(1);
+            yield break;
+        }
+        foreach (CasinoCustomerAI vip in featuredVips)
+        {
+            SpriteRenderer aura = Array.Find(vip.GetComponentsInChildren<SpriteRenderer>(true),
+                renderer => renderer.name == "VIP Golden Aura");
+            PixelCharacterVisual character = vip.GetComponentInChildren<PixelCharacterVisual>();
+            if (aura == null || !aura.enabled || character == null || !character.IsVip || !character.UsesVipAnimation)
+            {
+                Debug.LogError($"{vip.name} is missing VIP formalwear or the golden glow.");
+                Application.Quit(1);
+                yield break;
+            }
+        }
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "high-rollers-vip-guests.png"));
+        Debug.Log("HIGH ROLLERS VIP CHECK PASSED: Rabbit, Deer, Cat and Raccoon seated in their pictured outfits with golden auras.");
+        Application.Quit();
+    }
+
     private IEnumerator CaptureSeating()
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -208,6 +315,34 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
             typeof(CasinoShiftController).GetMethod("BeginShift", flags).Invoke(shift, new object[] { level, false });
             if (shift.IsLessonOpen) shift.DismissLesson();
+            string[] floorNames = { "OpeningNightFloor", "HighRollersFloor", "ShadyBusinessFloor" };
+            SpriteRenderer floor = GameObject.Find("Pixel Carpet")?.GetComponent<SpriteRenderer>();
+            if (floor == null || floor.sprite == null || floor.sprite.name != floorNames[level - 1])
+            {
+                Debug.LogError($"Level {level} did not select its original campaign floor art.");
+                Application.Quit(1);
+                yield break;
+            }
+            Color[] sceneryTints =
+            {
+                Color.white,
+                new Color(1f, .91f, .74f),
+                new Color(.78f, .84f, 1f)
+            };
+            Color[] rugTints =
+            {
+                Color.white,
+                new Color(.80f, .96f, .83f),
+                new Color(.84f, .81f, 1f)
+            };
+            SpriteRenderer[] campaignArt = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None);
+            SpriteRenderer themedWindow = Array.Find(campaignArt,
+                renderer => renderer.gameObject.name == "Pixel Window");
+            SpriteRenderer themedRug = Array.Find(campaignArt,
+                renderer => renderer.gameObject.name == "Table Rug");
+            if (themedWindow == null || themedWindow.color != sceneryTints[level - 1] ||
+                themedRug == null || themedRug.color != rugTints[level - 1])
+                throw new InvalidOperationException($"Level {level} did not apply its original scenery palette.");
             CasinoCustomerSpawner spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
             spawner.SetAcceptingArrivals(false);
             spawner.SetGuidedPractice(true);
@@ -439,6 +574,81 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
         Application.Quit();
     }
 
+    private IEnumerator CaptureTitle()
+    {
+        yield return new WaitForSecondsRealtime(.25f);
+        CasinoTitleScreen title = FindFirstObjectByType<CasinoTitleScreen>();
+        if (title == null) throw new InvalidOperationException("Title screen was not created.");
+        RectTransform penguin = title.transform.Find("Casino exterior/Title Penguin").GetComponent<RectTransform>();
+        Vector2 centredPosition = new Vector2(-2, -329.5f);
+        if (Vector2.Distance(penguin.anchoredPosition, centredPosition) > .01f)
+            throw new InvalidOperationException("Penguin did not start centred at the entrance.");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-arrival.png"));
+        yield return new WaitForSecondsRealtime(3);
+        if (Vector2.Distance(penguin.anchoredPosition, centredPosition) > .01f)
+            throw new InvalidOperationException("Penguin still walks sideways on the title screen.");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-walking.png"));
+        yield return new WaitForSecondsRealtime(3.3f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-looking-up.png"));
+        yield return new WaitForSecondsRealtime(2);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-idle.png"));
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(CasinoTitleScreen).GetMethod("StopRemark", flags).Invoke(title, null);
+        typeof(CasinoTitleScreen).GetField("elapsed", flags).SetValue(title, 30f);
+        typeof(CasinoTitleScreen).GetField("idleSeconds", flags).SetValue(title, 20f);
+        typeof(CasinoTitleScreen).GetField("nextRemark", flags).SetValue(title, 0f);
+        typeof(CasinoTitleScreen).GetMethod("UpdateRemarks", flags).Invoke(title, new object[] { false });
+        yield return new WaitForSecondsRealtime(2);
+        CanvasGroup remarkGroup = (CanvasGroup)typeof(CasinoTitleScreen).GetField("remarkGroup", flags).GetValue(title);
+        if (remarkGroup.alpha <= 0 || remarkGroup.blocksRaycasts)
+            throw new InvalidOperationException("The idle dialogue is missing or blocks menu controls.");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-remark.png"));
+        yield return new WaitForEndOfFrame();
+        yield return null;
+        title.transform.Find("Settings").GetComponent<Button>().onClick.Invoke();
+        yield return new WaitForSecondsRealtime(.2f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-settings.png"));
+        yield return new WaitForEndOfFrame();
+        yield return null;
+        title.transform.Find("Settings panel/Back").GetComponent<Button>().onClick.Invoke();
+        CasinoSoundscape soundscape = FindFirstObjectByType<CasinoSoundscape>();
+        float[] cueTimes = (float[])typeof(CasinoSoundscape).GetField("lastPlayed", flags).GetValue(soundscape);
+        float previousDoorCue = cueTimes[(int)CasinoSoundCue.Door];
+        title.transform.Find("Start").GetComponent<Button>().onClick.Invoke();
+        AudioSource menuMusic = (AudioSource)typeof(CasinoSoundscape).GetField("music", flags)
+            .GetValue(FindFirstObjectByType<CasinoSoundscape>());
+        if (menuMusic.isPlaying)
+            throw new InvalidOperationException("NEW GAME did not immediately stop title music.");
+        yield return new WaitForSecondsRealtime(.72f);
+        if (AudioListener.pause || cueTimes[(int)CasinoSoundCue.Door] <= previousDoorCue || menuMusic.isPlaying)
+            throw new InvalidOperationException("The entrance did not play its door cue with title music stopped.");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-opening.png"));
+        yield return new WaitForSecondsRealtime(.6f);
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-entering.png"));
+        yield return new WaitForSecondsRealtime(1.3f);
+        CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
+        GameObject levels = (GameObject)typeof(CasinoShiftController).GetField("levelSelect", flags).GetValue(shift);
+        if (!levels.activeSelf || title.gameObject.activeSelf || shift.IsRunning)
+            throw new InvalidOperationException("NEW GAME did not finish at level selection.");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-level-select.png"));
+        yield return new WaitForEndOfFrame();
+        yield return null;
+        levels.transform.Find("Level Select Back").GetComponent<Button>().onClick.Invoke();
+        yield return new WaitForSecondsRealtime(.3f);
+        if (!title.gameObject.activeSelf || title.IsTransitioning ||
+            title.GetComponentsInChildren<Image>().Length == 0 || CasinoSoundscape.CurrentMusicTrack != CasinoMusicTrack.Title)
+            throw new InvalidOperationException("Returning to the title did not reset presentation.");
+        ScreenCapture.CaptureScreenshot(Path.Combine(directory, "title-return.png"));
+        yield return new WaitForSecondsRealtime(.3f);
+        Debug.Log("STANDALONE TITLE CHECK PASSED");
+        title.transform.Find("Quit").GetComponent<Button>().onClick.Invoke();
+    }
+
+    private void OnTitleLog(string message, string stack, LogType type)
+    {
+        if (type == LogType.Error || type == LogType.Exception) Application.Quit(1);
+    }
+
     private static void MoveToTable(CasinoPlayerController player, Transform table)
     {
         CharacterController controller = player.GetComponent<CharacterController>();
@@ -449,6 +659,7 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (titleCheck) Application.logMessageReceived -= OnTitleLog;
         foreach (var entry in savedProgress)
             if (entry.Value < 0) PlayerPrefs.DeleteKey(entry.Key);
             else PlayerPrefs.SetInt(entry.Key, entry.Value);

@@ -303,6 +303,12 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
         }
     }
 
+    public void PrepareTutorialTask()
+    {
+        RefreshFloatRequests();
+        BeginNextPackIfReady();
+    }
+
     private void OnDestroy()
     {
         if (minigameStation != null)
@@ -390,7 +396,8 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
             }
         }
 
-        if (activeCustomer != null)
+        CasinoShiftController shift = CasinoShiftController.Active;
+        if (activeCustomer != null && (shift == null || !shift.IsTrainingFloatRefill))
         {
             List<int> payableAmounts = new List<int>();
             List<int[]> payableCompositions = new List<int[]>();
@@ -417,7 +424,20 @@ public sealed class CasinoCashDeskInteraction : MonoBehaviour
             }
         }
 
+        if (shift != null && shift.IsTrainingCashOut)
+        {
+            if (minigameStation.IsTaskPending)
+                minigameStation.ResolveTaskAfterFatalFailure();
+            return;
+        }
         IReadOnlyList<CasinoFloatRefillOrder> requestedOrders = GetRequestedOrders();
+        if (shift != null && shift.IsTrainingFloatRefill)
+        {
+            var tutorialOrders = new List<CasinoFloatRefillOrder>();
+            foreach (CasinoFloatRefillOrder order in requestedOrders)
+                if (order.DestinationId == "BJ1") tutorialOrders.Add(order);
+            requestedOrders = tutorialOrders;
+        }
         if (requestedOrders.Count > 0)
         {
             packMinigame.SetAvailableFloatOrders(requestedOrders);

@@ -170,12 +170,21 @@ public sealed class RouletteRoundController : MonoBehaviour
         if (!IsPlayerOperating || Time.timeScale == 0) return false;
         if (Phase == RouletteRoundPhase.WaitingForPlayers) TryBeginRound();
         if (Phase != RouletteRoundPhase.AcceptingBets && Phase != RouletteRoundPhase.AwaitingAssistance) return false;
+        if (currentBets.Count == 0) return false;
         if (HasPendingAssistance && assistanceStation.MinigameType == CasinoMinigameType.Cover)
             assistanceStation.ResolveTaskAfterFatalFailure();
-        if (!HasPendingAssistance)
-            assistanceStation.RequestMinigame(CasinoMinigameType.Spin, TableAttentionReason.RouletteSpinRequired);
-        if (Phase == RouletteRoundPhase.AcceptingBets && !TryPauseForAssistance()) return false;
-        return HasPendingAssistance;
+        if (!HasPendingAssistance &&
+            !assistanceStation.RequestMinigame(CasinoMinigameType.Spin, TableAttentionReason.RouletteSpinRequired))
+            return false;
+        if (Phase == RouletteRoundPhase.AcceptingBets)
+            return TryPauseForAssistance();
+        if (assistanceBets.Count == 0 || assistanceRoundId != activeRoundId)
+        {
+            assistanceRoundId = activeRoundId;
+            assistanceBets.Clear();
+            assistanceBets.AddRange(currentBets);
+        }
+        return HasPendingAssistance && assistanceBets.Count > 0;
     }
     public bool HasActiveCustomersAndDealer => IsServiceAvailable && ParticipantCount > 0 &&
                                                Phase != RouletteRoundPhase.WaitingForPlayers;

@@ -520,7 +520,8 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             }
 
             CasinoMinigamePresentation.CreateText(pocket.transform, "Betting Number",
-                number.ToString(), Vector2.zero, size, compact ? 15 : 17, Color.white);
+                number.ToString(), new Vector2(-size.x * 0.16f, 0f),
+                new Vector2(size.x * 0.68f, size.y), compact ? 15 : 17, Color.white);
         }
         Vector2 outsideStart = new Vector2(compact ? -135f : -165f, -height * 0.5f + 25f);
         float outsideSpacing = compact ? 90f : 110f;
@@ -545,7 +546,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             outsideOutline.effectDistance = new Vector2(1f, -1f);
             outsideCells[outsideTypes[i]] = outside.GetComponent<RectTransform>();
             CasinoMinigamePresentation.CreateText(outside.transform, "Outside Bet Label",
-                outsideLabels[i], Vector2.zero, new Vector2(outsideSpacing - 6f, 30f),
+                outsideLabels[i], new Vector2(-20f, 0f), new Vector2(outsideSpacing - 38f, 30f),
                 compact ? 14 : 16, Color.white);
         }
     }
@@ -1154,7 +1155,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             stackCounts.TryGetValue(region, out int stackIndex);
             stackCounts[region] = stackIndex + 1;
             Vector2 home = GetBetBoardPosition(customerBet.Bet, sweepNumberCells, sweepOutsideCells) + new Vector2(
-                ((stackIndex % 3) - 1) * 13f, (stackIndex / 3) * 14f);
+                ((stackIndex % 3) - 1) * 7f, (stackIndex / 3) * 14f);
             bool protectedChip = customerBet.IsWinning;
             if (protectedChip)
             {
@@ -1169,7 +1170,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             Color chipColor = Color.white;
             GameObject chipObject = CasinoMinigamePresentation.CreateImage(
                 $"{(protectedChip ? "Winning" : "Losing")} Roulette Bet {customerBet.BetId}",
-                sweepStageRoot, home, new Vector2(40f, 38f), chipColor);
+                sweepStageRoot, home, new Vector2(30f, 30f), chipColor);
             CasinoPixelArt.SetSprite(chipObject.GetComponent<Image>(), CasinoPixelArt.ChipForAmount(customerBet.Bet.StakePence), chipColor);
             Outline chipOutline = chipObject.AddComponent<Outline>();
             chipOutline.effectColor = protectedChip
@@ -1179,7 +1180,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             string betName = customerBet.Customer != null ? GetCustomerLabel(customerBet.Customer.name) : "BET";
             CasinoMinigamePresentation.CreateText(chipObject.transform, "Bet Chip Label",
                 $"{betName}\n{RouletteRoundController.FormatPounds(customerBet.Bet.StakePence)}",
-                Vector2.zero, new Vector2(40f, 36f), 8, Color.white);
+                Vector2.zero, new Vector2(30f, 28f), 7, Color.white);
             sweepChips.Add(new SweepChip
             {
                 Rect = chipObject.GetComponent<RectTransform>(),
@@ -1265,10 +1266,10 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             stackCounts.TryGetValue(region, out int stackIndex);
             stackCounts[region] = stackIndex + 1;
             Vector2 home = GetBetBoardPosition(customerBet.Bet, payoutNumberCells, payoutOutsideCells) + new Vector2(
-                ((stackIndex % 3) - 1) * 13f, (stackIndex / 3) * 14f + 7f);
+                ((stackIndex % 3) - 1) * 7f, (stackIndex / 3) * 14f + 7f);
             GameObject chipObject = CasinoMinigamePresentation.CreateImage(
                 $"Winning Roulette Bet {customerBet.BetId}", payoutStageRoot,
-                home, new Vector2(40f, 38f), new Color(0.73f, 0.57f, 0.19f));
+                home, new Vector2(30f, 30f), new Color(0.73f, 0.57f, 0.19f));
             CasinoPixelArt.SetSprite(chipObject.GetComponent<Image>(), CasinoPixelArt.Chip,
                 new Color(0.73f, 0.57f, 0.19f));
             Outline outline = chipObject.AddComponent<Outline>();
@@ -1277,7 +1278,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             string betName = customerBet.Customer != null ? GetCustomerLabel(customerBet.Customer.name) : "BET";
             CasinoMinigamePresentation.CreateText(chipObject.transform, "Winning Bet Label",
                 $"{betName}\n{RouletteRoundController.FormatPounds(customerBet.Bet.StakePence)}",
-                Vector2.zero, new Vector2(40f, 36f), 8, Color.white);
+                Vector2.zero, new Vector2(30f, 28f), 7, Color.white);
         }
     }
 

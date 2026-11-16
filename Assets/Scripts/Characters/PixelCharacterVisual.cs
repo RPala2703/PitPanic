@@ -18,6 +18,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public void ConfigureVipAnimation(Texture2D texture) => vipAnimationAtlas = texture;
     public void ConfigureCustomerAnimation(Texture2D texture) => customerAnimationAtlas = texture;
     public bool UsesCustomerAnimation => customer != null && (animationAtlas == customerAnimationAtlas || animationAtlas == vipAnimationAtlas);
+    public bool UsesVipAnimation => vip && vipAnimationAtlas != null && animationAtlas == vipAnimationAtlas;
     private static readonly Dictionary<Texture2D, Sprite[]> AnimationCache = new Dictionary<Texture2D, Sprite[]>();
     private static Sprite vipAura;
     private SpriteRenderer auraRenderer;
@@ -70,6 +71,11 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         animationFrames != null
             ? AnimationSprite(pose, 0, Mathf.Clamp(frame, 0, AnimationFramesPerDirection - 1))
             : TitleFrame(frame / 60f);
+    public Sprite TitlePoseFrame(CasinoAnimationPose pose, int direction, float elapsed) =>
+        animationFrames != null
+            ? AnimationSprite(pose, Mathf.Clamp(direction, 0, 3),
+                PlaybackFrame(elapsed, pose == CasinoAnimationPose.Walk ? .9f : 3.2f, true))
+            : TitleFrame(elapsed);
     public void React(bool winning)
     {
         reaction = winning ? 0 : 1;

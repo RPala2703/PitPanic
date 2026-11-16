@@ -3,6 +3,13 @@ using UnityEngine;
 public static class CustomerSatisfaction
 {
     public static int PenaltyCount { get; private set; }
+    public static int ServiceStartCount { get; private set; }
+
+    public static void RecordServiceStart(CasinoCustomerAI customer)
+    {
+        if (customer == null) throw new System.ArgumentNullException(nameof(customer));
+        ServiceStartCount = checked(ServiceStartCount + 1);
+    }
 
     public static void RecordPenalty(CasinoCustomerAI customer) => RecordPenalty(customer, 1);
 

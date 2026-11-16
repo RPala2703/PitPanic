@@ -973,7 +973,6 @@ GameObject:
   - component: {fileID: 88215940}
   - component: {fileID: 88215943}
   - component: {fileID: 88215937}
-  - component: {fileID: 88215942}
   m_Layer: 0
   m_Name: Cashier Station
   m_TagString: Untagged
@@ -1046,7 +1045,6 @@ Transform:
   - {fileID: 2129898859}
   - {fileID: 2035764103}
   - {fileID: 1113867414}
-  - {fileID: 309429776}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &88215940
@@ -1082,19 +1080,6 @@ MonoBehaviour:
   footprint: {fileID: 2129898860}
   interactionDistance: 1.5
   sightHeight: 0.9
---- !u!114 &88215942
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 88215935}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d3fb61e5f9b4549d0b6669190a0ba12d, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::CashierFloorActivity
-  cashier: {fileID: 309429777}
 --- !u!114 &88215943
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2528,95 +2513,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.InputActionReference
   m_Asset: {fileID: 1794684028}
   m_ActionId: 24908448-c609-4bc3-a128-ea258674378a
---- !u!1001 &309429775
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 88215939}
-    m_Modifications:
-    - target: {fileID: 1794086046593709648, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_Name
-      value: Cashier Visual
-      objectReference: {fileID: 0}
-    - target: {fileID: 2088198203727843091, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.8659453
-      objectReference: {fileID: 0}
-    - target: {fileID: 2088198203727843091, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0.5001387
-      objectReference: {fileID: 0}
-    - target: {fileID: 2088198203727843091, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2088198203727843091, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0.8
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
---- !u!4 &309429776 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 7514921763354238840, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-  m_PrefabInstance: {fileID: 309429775}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &309429777 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 5171441741490212418, guid: b191bc0b6a88740a9954a24d48c11744, type: 3}
-  m_PrefabInstance: {fileID: 309429775}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2d5a321bc2fb4ff4a9ef50a43a0b6701, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::CasinoCharacterVisual
 --- !u!1 &323339264
 GameObject:
   m_ObjectHideFlags: 0
@@ -15567,6 +15463,7 @@ MonoBehaviour:
   - {fileID: 691037062400605547, guid: a996173b4ff374eb3aa843e3b8d1a235, type: 3}
   - {fileID: 5755298601398747175, guid: f0341a64a66f24af3acbeeb760ad7788, type: 3}
   - {fileID: 4251968495409298324, guid: 3e0717547aba0412ead162c31998a9ce, type: 3}
+  - {fileID: 6130213900809317832, guid: 1b95b69f8c966479cbfe4236a65980cf, type: 3}
   cashDesk: {fileID: 88215937}
 --- !u!4 &1878715195
 Transform:

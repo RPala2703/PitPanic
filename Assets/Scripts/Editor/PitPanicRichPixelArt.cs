@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public static class PitPanicRichPixelArt
 {
@@ -54,12 +56,78 @@ public static class PitPanicRichPixelArt
         Debug.Log("Rich pixel artwork rebuilt with original GUIDs and point filtering.");
     }
 
+    [MenuItem("Pit Panic/Generate High Roller Guest Art")]
+    public static void GenerateHighRollerGuestArt()
+    {
+        PitPanicArtPrefabLibrary.EnsureStarterAssets();
+        GenerateCharacters(new[]
+        {
+            CasinoAnimalSpecies.Rabbit,
+            CasinoAnimalSpecies.Deer,
+            CasinoAnimalSpecies.Cat,
+            CasinoAnimalSpecies.Raccoon
+        });
+        AssetDatabase.SaveAssets();
+        EnsureDeerInPrototypeSpawner();
+    }
+
+    private static void EnsureDeerInPrototypeSpawner()
+    {
+        const string scenePath = "Assets/Scenes/PitPanicPrototype.unity";
+        Scene scene = SceneManager.GetSceneByPath(scenePath);
+        bool openedHere = !scene.IsValid() || !scene.isLoaded;
+        if (openedHere)
+            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+
+        try
+        {
+            CasinoCustomerSpawner spawner = null;
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                spawner = root.GetComponentInChildren<CasinoCustomerSpawner>(true);
+                if (spawner != null) break;
+            }
+            if (spawner == null)
+                throw new InvalidOperationException($"No customer spawner exists in {scenePath}.");
+
+            GameObject deerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Prefabs/Characters/Character_DeerPixel.prefab");
+            if (deerPrefab == null)
+                throw new FileNotFoundException("The generated Deer customer prefab is missing.");
+
+            SerializedObject serializedSpawner = new SerializedObject(spawner);
+            SerializedProperty prefabs = serializedSpawner.FindProperty("customerCharacterPrefabs");
+            if (prefabs == null || !prefabs.isArray)
+                throw new InvalidOperationException("The customer spawner has no character prefab list.");
+            for (int i = 0; i < prefabs.arraySize; i++)
+                if (prefabs.GetArrayElementAtIndex(i).objectReferenceValue == deerPrefab)
+                    return;
+
+            prefabs.InsertArrayElementAtIndex(prefabs.arraySize);
+            prefabs.GetArrayElementAtIndex(prefabs.arraySize - 1).objectReferenceValue = deerPrefab;
+            serializedSpawner.ApplyModifiedPropertiesWithoutUndo();
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (!EditorSceneManager.SaveScene(scene))
+                throw new InvalidOperationException($"Could not save the Deer prefab reference in {scenePath}.");
+        }
+        finally
+        {
+            if (openedHere) EditorSceneManager.CloseScene(scene, true);
+        }
+    }
+
     public static void GeneratePenguinAndTables()
     {
         GenerateCharacters(new[] { CasinoAnimalSpecies.Penguin });
         GenerateStation("Blackjack");
         GenerateStation("BlackjackV2");
         GenerateStation("Roulette");
+        AssetDatabase.SaveAssets();
+    }
+
+    public static void GenerateBearUniform()
+    {
+        GenerateCharacters(new[] { CasinoAnimalSpecies.Bear });
         AssetDatabase.SaveAssets();
     }
 
@@ -93,7 +161,7 @@ public static class PitPanicRichPixelArt
                 customerAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
                 drawing.SetPixels32(new Color32[48 * 64]);
                 Character(drawing, species, direction, 0);
-                DressVip(drawing, direction);
+                DressVip(drawing, direction, species);
                 AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame, true, true);
                 vipAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
                 UnityEngine.Object.DestroyImmediate(drawing);
@@ -216,9 +284,76 @@ public static class PitPanicRichPixelArt
         if ((int)species % 2 == 0) R(t, 14, 26, 20, 2, Shade(shirt, .75f));
     }
 
-    private static void DressVip(Texture2D t, int direction)
+    private static void DressVip(Texture2D t, int direction, CasinoAnimalSpecies species)
     {
         Color32 velvet = new Color32(47, 42, 69, 255);
+        if (species == CasinoAnimalSpecies.Rabbit)
+        {
+            R(t, 11, 19, 28, 16, Cream);
+            R(t, 12, 19, 2, 15, new Color32(218, 198, 155, 255));
+            R(t, 35, 19, 3, 14, new Color32(218, 198, 155, 255));
+            if (direction != 1)
+            {
+                R(t, 19, 20, 10, 13, Ink);
+                for (int i = 0; i < 6; i++)
+                {
+                    R(t, 17 + i, 32 - i, 2, 2, Ink);
+                    R(t, 29 - i, 32 - i, 2, 2, Ink);
+                }
+                R(t, 21, 29, 3, 3, Ink); R(t, 26, 29, 3, 3, Ink);
+                R(t, 23, 24, 2, 2, Gold); R(t, 23, 21, 2, 2, Gold);
+            }
+            return;
+        }
+        if (species == CasinoAnimalSpecies.Deer || species == CasinoAnimalSpecies.Cat)
+        {
+            Color32 dress = species == CasinoAnimalSpecies.Deer
+                ? new Color32(105, 34, 67, 255)
+                : new Color32(23, 105, 66, 255);
+            Color32 highlight = species == CasinoAnimalSpecies.Deer
+                ? new Color32(155, 50, 86, 255)
+                : new Color32(38, 147, 91, 255);
+            R(t, 11, 19, 28, 16, dress);
+            R(t, 12, 19, 2, 15, Gold); R(t, 36, 19, 2, 14, Gold);
+            R(t, 15, 19, 18, 2, Gold);
+            if (direction != 1)
+            {
+                R(t, 20, 21, 8, 11, highlight);
+                R(t, 19, 29, 10, 2, Gold);
+                if (species == CasinoAnimalSpecies.Deer)
+                {
+                    E(t, 34, 53, 5, 5, new Color32(196, 49, 88, 255));
+                    E(t, 34, 53, 2, 2, Gold);
+                    R(t, 12, 42, 2, 4, Gold); R(t, 35, 42, 2, 4, Gold);
+                }
+                else
+                {
+                    R(t, 16, 33, 2, 3, Gold); R(t, 32, 33, 2, 3, Gold);
+                    R(t, 22, 30, 5, 2, Gold);
+                    E(t, 24, 20, 4, 4, Gold);
+                }
+            }
+            return;
+        }
+        if (species == CasinoAnimalSpecies.Raccoon)
+        {
+            Color32 charcoal = new Color32(38, 35, 49, 255);
+            R(t, 11, 19, 28, 16, charcoal);
+            R(t, 12, 19, 2, 15, Gold); R(t, 36, 19, 2, 14, Gold);
+            R(t, 14, 19, 20, 2, Gold);
+            if (direction != 1)
+            {
+                R(t, 20, 21, 8, 13, Cream);
+                for (int i = 0; i < 7; i++)
+                {
+                    R(t, 14 + i, 33 - i, 3, 2, Gold);
+                    R(t, 32 - i, 33 - i, 3, 2, Gold);
+                }
+                R(t, 21, 30, 3, 3, Ink); R(t, 26, 30, 3, 3, Ink);
+                R(t, 24, 24, 2, 2, Gold);
+            }
+            return;
+        }
         R(t, 11, 19, 28, 16, velvet);
         R(t, 12, 19, 2, 15, Gold); R(t, 36, 19, 2, 15, Gold);
         R(t, 14, 19, 22, 2, Gold);
@@ -238,6 +373,32 @@ public static class PitPanicRichPixelArt
         R(t, 16, 57, 18, 7, velvet);
         R(t, 15, 57, 20, 2, Gold);
         R(t, 17, 60, 2, 4, Cream);
+    }
+
+    private static void DrawFormalDressSkirt(Texture2D t, CasinoAnimalSpecies species, int bodyY, int lean)
+    {
+        Color32 dress = species == CasinoAnimalSpecies.Deer
+            ? new Color32(105, 34, 67, 255)
+            : new Color32(23, 105, 66, 255);
+        Color32 fold = species == CasinoAnimalSpecies.Deer
+            ? new Color32(155, 50, 86, 255)
+            : new Color32(38, 147, 91, 255);
+        int top = 22 + bodyY;
+        const int hem = 6;
+        for (int y = hem; y <= top; y++)
+        {
+            float flare = Mathf.InverseLerp(top, hem, y);
+            int halfWidth = Mathf.RoundToInt(Mathf.Lerp(7, 16, flare));
+            int x = 24 + lean - halfWidth;
+            int width = halfWidth * 2;
+            R(t, x, y, width, 1, y % 3 == 0 ? fold : dress);
+            R(t, x, y, 2, 1, Gold);
+            R(t, x + width - 2, y, 2, 1, Gold);
+            if (width > 20)
+                R(t, 23 + lean, y, 2, 1, fold);
+        }
+        int hemWidth = 34;
+        R(t, 24 + lean - hemWidth / 2, hem - 1, hemWidth, 2, Gold);
     }
 
     private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false, bool vip = false)
@@ -373,6 +534,8 @@ public static class PitPanicRichPixelArt
         R(t, Mathf.RoundToInt(rightFoot.x) - 4, Mathf.RoundToInt(rightFoot.y) - 2, 9, 4, Ink);
         R(t, Mathf.RoundToInt(leftFoot.x) - 3, Mathf.RoundToInt(leftFoot.y), 7, 2, shoe);
         R(t, Mathf.RoundToInt(rightFoot.x) - 3, Mathf.RoundToInt(rightFoot.y), 7, 2, shoe);
+        if (vip && (species == CasinoAnimalSpecies.Deer || species == CasinoAnimalSpecies.Cat))
+            DrawFormalDressSkirt(t, species, bodyY, lean);
         R(t, 13 + lean, 18 + bodyY, 24, 5, trousers);
         for (int y = 19; y < 35; y++)
         for (int x = 11; x <= 38; x++)
@@ -498,18 +661,19 @@ public static class PitPanicRichPixelArt
             new Color32(241, 163, 179, 255), new Color32(232, 132, 57, 255),
             new Color32(218, 221, 229, 255), new Color32(165, 118, 87, 255),
             new Color32(184, 151, 118, 255), new Color32(221, 173, 106, 255),
-            new Color32(147, 139, 163, 255), new Color32(160, 179, 190, 255)
+            new Color32(147, 139, 163, 255), new Color32(160, 179, 190, 255),
+            new Color32(192, 126, 77, 255)
         };
         Color32 fur = furs[(int)species % furs.Length];
         Color32 shadow = Shade(fur, .7f);
         Color32 coat = species switch
         {
             CasinoAnimalSpecies.Rabbit => new Color32(55, 119, 119, 255),
-            CasinoAnimalSpecies.Bear => new Color32(67, 89, 144, 255),
             CasinoAnimalSpecies.Cat => new Color32(140, 78, 157, 255),
             CasinoAnimalSpecies.Dog => new Color32(159, 95, 44, 255),
             CasinoAnimalSpecies.Raccoon => new Color32(49, 114, 82, 255),
             CasinoAnimalSpecies.Elephant => new Color32(62, 109, 147, 255),
+            CasinoAnimalSpecies.Deer => new Color32(111, 40, 73, 255),
             _ => new Color32(137, 42, 81, 255)
         };
         R(t, 9, 2 + step * 2, 13, 8, Ink); R(t, 28, 4 - step * 2, 12, 8, Ink);
@@ -521,6 +685,19 @@ public static class PitPanicRichPixelArt
         R(t, 5, 18 + step, 7, 15, Ink); R(t, 39, 18 - step, 6, 15, Ink);
         R(t, 7, 20 + step, 4, 5, fur); R(t, 40, 20 - step, 3, 5, fur);
         R(t, 7, 26, 4, 6, Cream); R(t, 40, 25, 3, 7, Cream);
+        if (species == CasinoAnimalSpecies.Deer)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int x = side < 0 ? 11 : 34;
+                R(t, x, 52, 3, 12, Ink);
+                R(t, x + (side < 0 ? -3 : 3), 55, 3, 2, Ink);
+                R(t, x + (side < 0 ? -4 : 4), 59, 3, 2, Ink);
+                R(t, x + (side < 0 ? -2 : 2), 54, 1, 8, new Color32(117, 75, 52, 255));
+                R(t, x + (side < 0 ? -3 : 3), 56, 1, 2, new Color32(117, 75, 52, 255));
+                R(t, x + (side < 0 ? -4 : 4), 60, 1, 2, new Color32(117, 75, 52, 255));
+            }
+        }
         if (dir != 1)
         {
             R(t, 20, 20, 8, 14, Cream);
@@ -609,6 +786,12 @@ public static class PitPanicRichPixelArt
         {
             R(t, 12, 56, 3, 6, new Color32(229, 151, 172, 255));
             R(t, 34, 56, 3, 6, new Color32(229, 151, 172, 255));
+        }
+        if (species == CasinoAnimalSpecies.Deer && dir == 0)
+        {
+            R(t, 16, 44, 5, 6, Cream); R(t, 27, 44, 5, 6, Cream);
+            R(t, 17, 46, 2, 3, Ink); R(t, 29, 46, 2, 3, Ink);
+            R(t, 21, 39, 6, 3, new Color32(117, 75, 52, 255));
         }
         if (species == CasinoAnimalSpecies.Bear)
         {

@@ -10,8 +10,9 @@ public readonly struct DialogueLine
     public readonly DialogueSpeaker Speaker;
     public readonly DialogueExpression Expression;
     public readonly string Text;
-    public DialogueLine(DialogueSpeaker speaker, DialogueExpression expression, string text)
-    { Speaker = speaker; Expression = expression; Text = text; }
+    public readonly float PauseBefore;
+    public DialogueLine(DialogueSpeaker speaker, DialogueExpression expression, string text, float pauseBefore = 0f)
+    { Speaker = speaker; Expression = expression; Text = text; PauseBefore = pauseBefore; }
 }
 
 public sealed class CasinoDialogue : MonoBehaviour
@@ -31,6 +32,8 @@ public sealed class CasinoDialogue : MonoBehaviour
     private AudioClip bleep;
     private RectTransform card;
     private float openedAt;
+    private float lineStartedAt;
+    public float VoiceGain { get; set; } = .32f;
 
     public bool IsComplete => lines != null && visible >= lines[index].Text.Length;
     public int LineIndex => index;
@@ -39,18 +42,14 @@ public sealed class CasinoDialogue : MonoBehaviour
     {
         if (portraits == null)
         {
-            Texture2D sheet = Resources.Load<Texture2D>("Portraits/StaffPortraits");
-            if (sheet == null) throw new InvalidOperationException("Missing staff dialogue portrait sheet.");
             portraits = new Sprite[5, 6];
             for (int row = 0; row < 5; row++)
             for (int col = 0; col < 6; col++)
             {
-                int left = Mathf.RoundToInt(col * sheet.width / 6f);
-                int right = Mathf.RoundToInt((col + 1) * sheet.width / 6f);
-                int top = Mathf.RoundToInt(row * sheet.height / 5f);
-                int bottom = Mathf.RoundToInt((row + 1) * sheet.height / 5f);
-                portraits[row, col] = Sprite.Create(sheet, new Rect(left, sheet.height - bottom,
-                    right - left, bottom - top), new Vector2(.5f, .5f), 100f);
+                string path = $"Portraits/Staff/{(DialogueSpeaker)row}_{(DialogueExpression)col}";
+                portraits[row, col] = Resources.Load<Sprite>(path);
+                if (portraits[row, col] == null)
+                    throw new InvalidOperationException("Missing staff dialogue portrait: " + path);
             }
         }
         return portraits[(int)speaker, (int)expression];
@@ -60,6 +59,9 @@ public sealed class CasinoDialogue : MonoBehaviour
     {
         card = panelCard;
         portrait = portraitImage;
+        portrait.type = Image.Type.Simple;
+        portrait.useSpriteMesh = false;
+        portrait.preserveAspect = true;
         nameLabel = speakerName;
         message = text;
         indicator = nextIndicator;
@@ -89,11 +91,14 @@ public sealed class CasinoDialogue : MonoBehaviour
     {
         DialogueLine line = lines[index];
         portrait.sprite = Portrait(line.Speaker, line.Expression);
+        portrait.overrideSprite = null;
+        portrait.SetAllDirty();
         nameLabel.text = line.Speaker.ToString().ToUpperInvariant();
         message.text = "";
         indicator.enabled = false;
         visible = 0;
         sounded = 0;
+        lineStartedAt = Time.unscaledTime;
     }
 
     private void Update()
@@ -101,6 +106,7 @@ public sealed class CasinoDialogue : MonoBehaviour
         if (lines == null) return;
         float scale = Mathf.SmoothStep(.95f, 1f, Mathf.Clamp01((Time.unscaledTime - openedAt) / .16f));
         card.localScale = Vector3.one * scale;
+        if (Time.unscaledTime - lineStartedAt < lines[index].PauseBefore) return;
         visible = Mathf.Min(lines[index].Text.Length, visible + Time.unscaledDeltaTime * LettersPerSecond);
         int count = Mathf.FloorToInt(visible);
         string text = lines[index].Text;
@@ -109,7 +115,7 @@ public sealed class CasinoDialogue : MonoBehaviour
             if (char.IsLetterOrDigit(text[i]))
             {
                 voice.pitch = 0.84f + (int)lines[index].Speaker * .105f;
-                voice.PlayOneShot(bleep, CasinoSoundscape.EffectsVolume * .32f);
+                voice.PlayOneShot(bleep, CasinoSoundscape.EffectsVolume * VoiceGain);
             }
         sounded = count;
         indicator.enabled = IsComplete;

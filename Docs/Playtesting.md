@@ -6,9 +6,11 @@ do next. Record where they hesitate, not just whether they eventually succeed.
 
 | Check | Expected outcome |
 | --- | --- |
-| Title/settings | New Game, Continue, volume sliders, fullscreen and Quit work. No active casino is visible behind the title. |
+| Title/settings | Original exterior fits 16:9, 4:3 and ultrawide without cropping the logo or controls. Penguin starts centred by the doors and idles without walking in from the side. NEW GAME and CONTINUE briefly open the supplied doors, then show the existing level selector. SETTINGS, volume sliders, fullscreen, keyboard navigation and QUIT work immediately. Idle remarks use the matching portraits, never pause or intercept clicks, and stop on selection. Returning to the title resets one Penguin and keeps one music source. |
 | New player | Staff portrait conversations pause the simulation and other audio; their bleeps respect effects volume. Click, Enter, Space or E reveals a line, then advances it; Escape dismisses it without triggering the world. Check all 13 action-gated lessons, current-station markers and HELP. SKIP TRAINING restores normal task visibility. |
-| Staff dialogue | Check names, all five characters and varied expressions against the supplied grid, typewriter text, voice bleeps and the continue indicator. Play all three level introductions; occasional event remarks must not block gameplay or repeat constantly. |
+| Staff dialogue | Check names and all 30 supplied individual portraits across repeated speaker/expression changes: no stretching, wrapping or displaced image sections. Check typewriter text, voice bleeps and the continue indicator. Play all three level introductions; occasional event remarks must not block gameplay or repeat constantly. |
+| Objective arrow | During training, open and close inspections, task windows, the Pit Desk, HELP and pause. The destination arrow must disappear while any popup is open and return at the current destination only when gameplay resumes. |
+| Entrance audio | NEW GAME and CONTINUE stop title music on the click. A prominent, dramatic latch/creak/thud accompanies the doors opening, followed by footsteps and the entrance cue without music; level selection stays quiet. The door sound respects effects volume. Casino music starts as soon as the shift opens, including during the welcome dialogue. Back to title restores title music. P still pauses all gameplay audio. |
 | Controls | WASD and arrow keys follow the screen axes; diagonal speed is normal. E opens tables or delivers a carried tray first. Q opens the same inspection. Escape exits every interaction. |
 | Blackjack | All-bust hands end without dealer draws. Stakes return automatically on non-losses; pay only 1× winnings on a win, 1.5× on Blackjack, nothing on a push. Check the finite float and accounting separately. SHUFFLE! remains a retryable two-stack sequence. |
 | Roulette COVER! | A working dealer reveals the actual round result before requesting COVER! Click winning bets or numbered chips, not losers. Test every bet type, zero, overlapping/identical customer bets, NO WINNERS and BET GUIDE. Escape/timeout must preserve the same result and unpaid bets. The button says only COVER! |
@@ -35,6 +37,15 @@ do next. Record where they hesitate, not just whether they eventually succeed.
 | Demo ending | Third level is harder but achievable; clearing it shows demo complete and allows replay. No invisible fourth-level requirement. |
 | Performance/readability | Try 1280×720, 1600×900 and 1920×1080, windowed/fullscreen. No clipped controls, blocking labels, stationary agents or sustained stutter at the customer cap. Record average/minimum FPS and hardware. |
 
+Dialogue portraits are cut from the clean original `Assets/Resources/Portraits/StaffPortraits.png`,
+not the title pack's damaged extractions. Use **Pit Panic > Art > Extract Clean Dialogue Portraits**
+to reproduce all 30 PNGs, with transparent padding and a common baseline, without resampling
+or repainting the artwork. Gameplay validation compares every output pixel with its source crop.
+
+The first training conversation opens with Tiger hiring Penguin, includes the four brief
+skippable pauses, and ends with “Good. Use WASD or the arrow keys to move.” Movement
+practice begins immediately after that line; no separate introduction screen is used.
+
 For each bug record build/commit, shift, tutorial stage, exact inputs, expected
 versus actual behaviour, screenshot/video and `Player.log`. Windows logs are at
 `%USERPROFILE%\AppData\LocalLow\DefaultCompany\PitPanic\Player.log`.
@@ -42,6 +53,16 @@ Report save problems before starting another New Game. Stop distribution for
 crashes, unfinishable tasks, lost progression or incorrect money accounting.
 
 ## Automated coverage and limits
+
+Development builds accept `--pit-results-preview` to open the real Level 1
+zero-customer failure results immediately without awarding progress. To inspect
+any illustrated outcome and star count, pass `--pit-results-preview --pit-results-preview-level <1-3> --pit-results-preview-outcome <pass|fail> --pit-results-preview-stars <0-3>`.
+Those outcome fixtures are visibly marked PREVIEW ONLY and never save shift
+data or campaign progress. Add `--pit-capture-dir <folder>` to save a
+`results-preview.png` capture. Retry, Next Level, Level Select and Main Menu
+remain functional; a normal launch still opens the title. Import the supplied
+pixel-art assets with `Pit Panic/Import Results Screen Artwork` before opening
+the results screen.
 
 The generator validates compilation, rules/payout cases, duplicate accounting,
 float reservations, task eligibility, sprite imports, references and NavMesh paths.
@@ -81,3 +102,11 @@ Tips: `CasinoGameplayValidation` checks that tips grow with satisfaction, VIPs t
 Misses and payouts: let a customer's patience expire at a stalled table or the cashier and check that MISSED increases immediately, not on a later unrelated action. Dealer energy reaching zero also counts once. For Blackjack, select the exact winnings and then one extra chip: the extra chip must remain selected, Pay must reject the overpayment, and the hand and float must remain unpaid/unchanged until you recount correctly.
 
 CCTV capture: build a development player, then run it with `--pit-capture-dir <output-directory> --pit-security-check` for before/after replay screenshots and both verdicts. The replay is a reconstruction from recorded round evidence, not a live camera recording. It uses a large detailed roulette layout, captured character pose frames and a 60-frame raster hand sequence; no narrative describes the answer during playback.
+
+Title capture: run the same development build with `--pit-capture-dir <output-directory> --pit-title-check`
+and `-screen-width 1600 -screen-height 900 -screen-fullscreen 0`. Repeat at 1200x900 and
+1600x675 (the same ultrawide aspect as 2560x1080, sized to fit a laptop display).
+This captures arrival, idle, a supplied expressive portrait, settings,
+opening doors, level selection and return, then exercises QUIT. It does not start
+a campaign or award progress. The full-shift validation checks keyboard selection,
+NEW GAME, CONTINUE, saved progression and return paths.

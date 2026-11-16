@@ -17,17 +17,29 @@ public static class CasinoCampaignPresentation
         new Vector3(0f, 0f, 6.4f),
         new Vector3(0f, 0f, -3f)
     };
-    private static readonly Color32[] CarpetTints =
+    private static readonly string[] FloorArtwork =
     {
-        new Color32(255, 255, 255, 255),
-        new Color32(255, 222, 153, 255),
-        new Color32(177, 191, 255, 255)
+        "Art/Original/World/OpeningNightFloor",
+        "Art/Original/World/HighRollersFloor",
+        "Art/Original/World/ShadyBusinessFloor"
     };
     private static readonly Color[] SkyColors =
     {
         new Color(.48f, .55f, .62f),
         new Color(.62f, .42f, .26f),
         new Color(.20f, .25f, .48f)
+    };
+    private static readonly Color[] SceneryTints =
+    {
+        Color.white,
+        new Color(1f, .91f, .74f),
+        new Color(.78f, .84f, 1f)
+    };
+    private static readonly Color[] TableRugTints =
+    {
+        Color.white,
+        new Color(.80f, .96f, .83f),
+        new Color(.84f, .81f, 1f)
     };
 
     public static string LevelName(int level) => level switch
@@ -72,7 +84,15 @@ public static class CasinoCampaignPresentation
                 throw new InvalidOperationException($"Cannot place {agent.name} on the selected casino layout.");
         }
         SpriteRenderer carpet = GameObject.Find("Pixel Carpet")?.GetComponent<SpriteRenderer>();
-        if (carpet != null) carpet.color = CarpetTints[level - 1];
+        if (carpet != null)
+        {
+            Sprite floor = Resources.Load<Sprite>(FloorArtwork[level - 1]);
+            if (floor == null)
+                throw new InvalidOperationException($"Missing original casino floor artwork for level {level}: {FloorArtwork[level - 1]}");
+            carpet.sprite = floor;
+            carpet.color = Color.white;
+        }
+        ApplySceneryPalette(SceneryTints[level - 1], TableRugTints[level - 1]);
         RenderSettings.ambientSkyColor = SkyColors[level - 1];
         RenderSettings.ambientEquatorColor = Color.Lerp(SkyColors[level - 1], new Color(.3f, .34f, .35f), .45f);
         RenderSettings.ambientGroundColor = Color.Lerp(SkyColors[level - 1], Color.black, .78f);
@@ -85,6 +105,19 @@ public static class CasinoCampaignPresentation
                 2 => new Color(1f, .72f, .38f),
                 _ => new Color(.47f, .62f, 1f)
             };
+        }
+    }
+
+    private static void ApplySceneryPalette(Color tint, Color rugTint)
+    {
+        foreach (SpriteRenderer renderer in UnityEngine.Object.FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None))
+        {
+            string name = renderer.gameObject.name;
+            if (name == "Pixel Column" || name == "Pixel Window" || name == "Pixel Lamp" ||
+                name == "Pixel Plant" || name == "Pixel Curtain" || name == "Pixel Sofa")
+                renderer.color = tint;
+            else if (name == "Table Rug")
+                renderer.color = rugTint;
         }
     }
 

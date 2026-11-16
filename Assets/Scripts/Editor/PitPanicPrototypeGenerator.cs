@@ -14,6 +14,24 @@ public static class PitPanicPrototypeGenerator
 {
     private const string ScenePath = "Assets/Scenes/PitPanicPrototype.unity";
 
+    [MenuItem("Pit Panic/Art/Remove Cash Desk Attendant")]
+    public static void RemoveCashDeskAttendantFromSavedScene()
+    {
+        if (Application.isPlaying || SceneManager.GetActiveScene().isDirty)
+            throw new System.InvalidOperationException("Save the current scene and exit Play Mode before updating the cash desk.");
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        CasinoCashDeskInteraction desk = Object.FindFirstObjectByType<CasinoCashDeskInteraction>();
+        if (desk == null)
+            throw new System.InvalidOperationException("The saved scene has no cash desk.");
+        Transform attendant = desk.transform.Find("Cashier Visual");
+        if (attendant != null) Object.DestroyImmediate(attendant.gameObject);
+        CashierFloorActivity activity = desk.GetComponent<CashierFloorActivity>();
+        if (activity != null) Object.DestroyImmediate(activity);
+        if (!EditorSceneManager.SaveScene(scene))
+            throw new IOException("Could not save the cash desk without its attendant.");
+        Debug.Log("Removed only the cash desk attendant and its animation from the saved scene.");
+    }
+
     public static void ApplyFloorLayoutToSavedScene()
     {
         Scene current = SceneManager.GetActiveScene();
@@ -48,6 +66,7 @@ public static class PitPanicPrototypeGenerator
         ValidateRoulettePixelArt();
         ValidateAttentionBadge();
         GeneratePrototypeScene();
+        PitPanicOriginalFloorArt.ValidateGeneratedAssets();
         ValidatePrototypeScene();
     }
 
@@ -148,6 +167,7 @@ public static class PitPanicPrototypeGenerator
     [MenuItem("Pit Panic/Generate Prototype Scene")]
     public static void GeneratePrototypeScene()
     {
+        PitPanicOriginalFloorArt.Generate();
         PitPanicRichPixelArt.Generate();
         PitPanicArtPrefabLibrary.EnsureStarterAssets();
         Material floorMaterial = PitPanicArtPrefabLibrary.GetFloorCarpetMaterial();
@@ -273,12 +293,6 @@ public static class PitPanicPrototypeGenerator
             secondFloatDestination,
             rouletteFloatDestination);
         cashDesk.ConfigureCarriedTrayPrefab(PitPanicArtPrefabLibrary.GetCasinoPrefab("CarriedFloatTrayArt"));
-        GameObject cashierArt = (GameObject)PrefabUtility.InstantiatePrefab(
-            PitPanicArtPrefabLibrary.GetCharacterPrefab(CasinoAnimalSpecies.Pig));
-        cashierArt.name = "Cashier Visual";
-        cashierArt.transform.SetParent(cashDesk.transform, false);
-        cashierArt.transform.localPosition = new Vector3(0, .8f, .5f);
-        cashDesk.gameObject.AddComponent<CashierFloorActivity>().Configure(cashierArt.GetComponent<CasinoCharacterVisual>());
         PitDeskInteraction pitDesk = CreatePitDesk(new Vector3(12f, 0f, -4f), woodMaterial, trimMaterial, playerController);
         Transform[] pitDeskPositions = CreatePitDeskWaitingPositions(new Vector3(12f, 0f, -4f), trimMaterial);
         DealerAssignmentManager dealerManager = CreateDealerManager(
@@ -2027,7 +2041,21 @@ public static class PitPanicPrototypeGenerator
             if (vipAtlas == null || vipAtlas.width != atlas.width || vipAtlas.height != atlas.height ||
                 vipAtlas.GetPixel(16, 22) == customerAtlas.GetPixel(16, 22) ||
                 vipAtlas.GetPixel(24, 61).a < .9f)
-                throw new System.InvalidOperationException($"VIP {species} must have a formal outfit and top hat in its animation frames.");
+                throw new System.InvalidOperationException($"VIP {species} must have its formal outfit in the animation frames.");
+            Color32 outfitSample = (Color32)vipAtlas.GetPixel(
+                species == CasinoAnimalSpecies.Deer || species == CasinoAnimalSpecies.Cat ? 24 : 13,
+                species == CasinoAnimalSpecies.Deer || species == CasinoAnimalSpecies.Cat ? 10 : 26);
+            Color32 expectedOutfit = species switch
+            {
+                CasinoAnimalSpecies.Rabbit => new Color32(218, 198, 155, 255),
+                CasinoAnimalSpecies.Deer => new Color32(105, 34, 67, 255),
+                CasinoAnimalSpecies.Cat => new Color32(23, 105, 66, 255),
+                CasinoAnimalSpecies.Raccoon => new Color32(239, 178, 64, 255),
+                _ => outfitSample
+            };
+            if (!outfitSample.Equals(expectedOutfit))
+                throw new System.InvalidOperationException(
+                    $"VIP {species} is missing the outfit colors from the High Rollers reference.");
             for (int frame = 0; frame < PixelCharacterVisual.AnimationFramesPerDirection; frame++)
             {
                 int cardY = ((int)CasinoAnimationPose.Examine * 4 + 1) * 64 + 42;
