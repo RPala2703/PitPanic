@@ -694,11 +694,11 @@ Tiger, Pig, Bear and Fox each use their 16 supplied PNGs at the same 180 ms cade
 Penguin. They face the direction of travel while walking and return to the
 planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
-Regular Rabbit customers use their supplied 16 transparent 256x256 PNGs with
+Regular Rabbit and Dog customers each use their supplied 16 transparent 256x256 PNGs with
 the same 180 ms cadence, directional walking and front-facing frame `03` idle.
-Seated Rabbits stop walking; customer navigation and seating are unchanged.
-VIP Rabbits retain their existing formalwear and gold outline because this
-pack supplies only the regular outfit.
+Seated customers stop walking; customer navigation and seating are unchanged.
+VIP Rabbits and Dogs retain their existing formalwear and gold outline because
+these packs supply only the regular outfits.
 At staffed tables, the dealer's sprite sits slightly toward the table so the
 table edge occludes their feet; the ground anchor and NavMesh are unchanged.
 The player also sorts behind overlapping blackjack/roulette artwork on the far

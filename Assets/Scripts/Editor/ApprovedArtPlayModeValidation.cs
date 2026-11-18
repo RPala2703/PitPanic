@@ -95,7 +95,8 @@ public static class ApprovedArtPlayModeValidation
         bool directionalPlayer = pixel.UsesPlayerDirectionalArt;
         bool directionalDealer = species is CasinoAnimalSpecies.Tiger or CasinoAnimalSpecies.Pig or CasinoAnimalSpecies.Bear
             or CasinoAnimalSpecies.Fox;
-        bool directionalCustomer = species == CasinoAnimalSpecies.Rabbit && !pixel.IsVip;
+        bool directionalCustomer = !pixel.IsVip &&
+            species is CasinoAnimalSpecies.Rabbit or CasinoAnimalSpecies.Dog;
         Check(pixel.UsesCustomerWalkArt == directionalCustomer, $"Unexpected customer walk bindings for {species}.");
         string dealerWalkPrefix = $"{species.ToString().ToLowerInvariant()}-walk-";
         Check(pixel.UsesDealerWalkArt == directionalDealer, $"Unexpected dealer walk bindings for {species}.");
@@ -109,7 +110,7 @@ public static class ApprovedArtPlayModeValidation
                 ? pixel.UsesPlayerWalkArt && pixel.IsPlayerWalkSprite(sprite)
                 : sprite == pixel.SelectedStandingArt && sprite.name.EndsWith("-03", StringComparison.Ordinal)
             : directionalDealer ? sprite.name.StartsWith(dealerWalkPrefix, StringComparison.Ordinal)
-            : directionalCustomer ? sprite.name.StartsWith("rabbit-walk-", StringComparison.Ordinal)
+            : directionalCustomer ? sprite.name.StartsWith(dealerWalkPrefix, StringComparison.Ordinal)
             : sprite == pixel.SelectedStandingArt && sprite.name == expectedName;
         Check(pixel.UsesApprovedStandingArt && expectedSprite && path.StartsWith(expectedPath),
             $"Wrong live sprite for {species}/VIP={pixel.IsVip}: {path}/{sprite?.name}");
@@ -133,15 +134,15 @@ public static class ApprovedArtPlayModeValidation
         {
             string[] headings = { "south", "east", "north", "west" };
             SerializedProperty cycle = new SerializedObject(pixel).FindProperty("customerWalkFrames");
-            Check(cycle.arraySize == 16, "Rabbit must have four walk frames per heading.");
+            Check(cycle.arraySize == 16, $"{species} must have four walk frames per heading.");
             for (int i = 0; i < cycle.arraySize; i++)
                 Check(cycle.GetArrayElementAtIndex(i).objectReferenceValue is Sprite frame &&
-                    frame.name == $"rabbit-walk-{headings[i / 4]}-{1 + i % 4:00}",
-                    $"Rabbit walk frame {i} is missing or out of order.");
-            CasinoCustomerAI rabbit = pixel.GetComponentInParent<CasinoCustomerAI>();
-            if (rabbit.IsSeated)
-                Check(sprite == pixel.SelectedStandingArt && sprite.name == "rabbit-walk-south-03",
-                    "Seated Rabbit must stop walking and show the planted front frame.");
+                    frame.name == $"{dealerWalkPrefix}{headings[i / 4]}-{1 + i % 4:00}",
+                    $"{species} walk frame {i} is missing or out of order.");
+            CasinoCustomerAI customer = pixel.GetComponentInParent<CasinoCustomerAI>();
+            if (customer.IsSeated)
+                Check(sprite == pixel.SelectedStandingArt && sprite.name == dealerWalkPrefix + "south-03",
+                    $"Seated {species} must stop walking and show the planted front frame.");
         }
         MaterialPropertyBlock block = new MaterialPropertyBlock();
         renderer.GetPropertyBlock(block);
@@ -370,7 +371,11 @@ public static class ApprovedArtPlayModeValidation
                     "The live customer pool does not match the six supplied regular/VIP customer species.");
                 spawner.SetGuidedPractice(true);
                 spawner.SetAcceptingArrivals(false);
-                if (level == 1) yield return ValidateRabbitWalk(spawner);
+                if (level == 1)
+                {
+                    yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Rabbit);
+                    yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Dog);
+                }
                 foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
                     dealer.TrainingProtected = true;
                 yield return Capture($"level-{level}-roulette-chairs");
@@ -475,35 +480,36 @@ public static class ApprovedArtPlayModeValidation
             }
         }
 
-        private IEnumerator ValidateRabbitWalk(CasinoCustomerSpawner spawner)
+        private IEnumerator ValidateCustomerWalk(CasinoCustomerSpawner spawner, CasinoAnimalSpecies species)
         {
-            CasinoCustomerAI rabbit = (CasinoCustomerAI)Call(spawner, "SpawnCustomer", 0,
-                (CasinoAnimalSpecies?)CasinoAnimalSpecies.Rabbit);
-            Check(rabbit != null, "The real spawner could not create Rabbit for directional validation.");
-            rabbit.enabled = false;
-            rabbit.GetComponent<CustomerPatience>().Pause();
-            var agent = rabbit.GetComponent<UnityEngine.AI.NavMeshAgent>();
-            PixelCharacterVisual visual = rabbit.GetComponentInChildren<PixelCharacterVisual>();
+            string prefix = species.ToString().ToLowerInvariant() + "-walk-";
+            CasinoCustomerAI customer = (CasinoCustomerAI)Call(spawner, "SpawnCustomer", 0,
+                (CasinoAnimalSpecies?)species);
+            Check(customer != null, $"The real spawner could not create {species} for directional validation.");
+            customer.enabled = false;
+            customer.GetComponent<CustomerPatience>().Pause();
+            var agent = customer.GetComponent<UnityEngine.AI.NavMeshAgent>();
+            PixelCharacterVisual visual = customer.GetComponentInChildren<PixelCharacterVisual>();
             string[] headings = { "south", "east", "north", "west" };
             Vector3[] directions = { Vector3.back, Vector3.right, Vector3.forward, Vector3.left };
             try
             {
                 Check(UnityEngine.AI.NavMesh.SamplePosition(new Vector3(-9, 0, -4),
                     out UnityEngine.AI.NavMeshHit hit, .5f, UnityEngine.AI.NavMesh.AllAreas),
-                    "Rabbit walk validation requires an open floor route.");
+                    $"{species} walk validation requires an open floor route.");
                 agent.obstacleAvoidanceType = UnityEngine.AI.ObstacleAvoidanceType.NoObstacleAvoidance;
                 for (int direction = 0; direction < headings.Length; direction++)
                 {
-                    Check(agent.Warp(hit.position), "Rabbit could not reach its walk validation route.");
+                    Check(agent.Warp(hit.position), $"{species} could not reach its walk validation route.");
                     agent.ResetPath();
                     agent.velocity = Vector3.zero;
                     yield return null;
                     yield return new WaitForEndOfFrame();
-                    Check(visual.Renderer.sprite.name == "rabbit-walk-south-03",
-                        "Idle Rabbit must face front on the planted frame.");
+                    Check(visual.Renderer.sprite.name == prefix + "south-03",
+                        $"Idle {species} must face front on the planted frame.");
                     var sequence = new List<string>();
                     var changes = new List<float>();
-                    Vector3 origin = rabbit.transform.position;
+                    Vector3 origin = customer.transform.position;
                     float start = Time.time;
                     while (Time.time - start < 1.05f)
                     {
@@ -518,44 +524,44 @@ public static class ApprovedArtPlayModeValidation
                         ValidateActor(visual);
                         yield return null;
                     }
-                    Check(Vector3.Dot(rabbit.transform.position - origin, directions[direction]) > .8f,
-                        "Rabbit animation must follow actual NavMesh movement.");
-                    Check(sequence.Count >= 5, "Rabbit did not complete and repeat its four-frame walk.");
+                    Check(Vector3.Dot(customer.transform.position - origin, directions[direction]) > .8f,
+                        $"{species} animation must follow actual NavMesh movement.");
+                    Check(sequence.Count >= 5, $"{species} did not complete and repeat its four-frame walk.");
                     for (int i = 0; i < sequence.Count; i++)
-                        Check(sequence[i] == $"rabbit-walk-{headings[direction]}-{i % 4 + 1:00}",
-                            $"Rabbit {headings[direction]} walk was out of order: {string.Join(", ", sequence)}");
+                        Check(sequence[i] == $"{prefix}{headings[direction]}-{i % 4 + 1:00}",
+                            $"{species} {headings[direction]} walk was out of order: {string.Join(", ", sequence)}");
                     float cadence = (changes[4] - changes[0]) / 4f;
                     Check(Mathf.Abs(cadence - .18f) < .04f,
-                        $"Rabbit {headings[direction]} cadence was {cadence:F3}s instead of 180 ms.");
-                    yield return Capture($"rabbit-walk-{headings[direction]}");
+                        $"{species} {headings[direction]} cadence was {cadence:F3}s instead of 180 ms.");
+                    yield return Capture($"{prefix}{headings[direction]}");
                     agent.velocity = Vector3.zero;
                     agent.ResetPath();
                     yield return null;
                     yield return new WaitForEndOfFrame();
-                    Check(visual.Renderer.sprite.name == "rabbit-walk-south-03",
-                        $"Rabbit retained its {headings[direction]} facing after stopping.");
+                    Check(visual.Renderer.sprite.name == prefix + "south-03",
+                        $"{species} retained its {headings[direction]} facing after stopping.");
                     yield return new WaitForSeconds(.4f);
-                    Check(visual.Renderer.sprite.name == "rabbit-walk-south-03",
-                        "Idle Rabbit must not keep cycling its feet.");
-                    Debug.Log($"RABBIT WALK PASSED {headings[direction]}: sequence={string.Join(",", sequence)}, " +
+                    Check(visual.Renderer.sprite.name == prefix + "south-03",
+                        $"Idle {species} must not keep cycling its feet.");
+                    Debug.Log($"{species.ToString().ToUpperInvariant()} WALK PASSED {headings[direction]}: sequence={string.Join(",", sequence)}, " +
                         $"cadence={cadence:F3}s, planted front idle.");
                 }
                 visual.SetVip(true);
                 yield return null;
                 yield return new WaitForEndOfFrame();
                 Check(!visual.UsesCustomerWalkArt &&
-                    visual.Renderer.sprite.name == "VIP_Rabbit_Standing_48x64",
-                    "Rabbit's regular walk frames replaced the VIP formalwear.");
+                    visual.Renderer.sprite.name == $"VIP_{species}_Standing_48x64",
+                    $"{species}'s regular walk frames replaced the VIP formalwear.");
                 ValidateActor(visual);
                 ValidateAura(visual);
                 visual.SetVip(false);
                 yield return null;
                 yield return new WaitForEndOfFrame();
                 ValidateActor(visual);
-                Check(visual.Renderer.sprite.name == "rabbit-walk-south-03",
-                    "Rabbit did not restore its planted idle after leaving VIP mode.");
+                Check(visual.Renderer.sprite.name == prefix + "south-03",
+                    $"{species} did not restore its planted idle after leaving VIP mode.");
             }
-            finally { Destroy(rabbit.gameObject); }
+            finally { Destroy(customer.gameObject); }
             yield return null;
         }
 
