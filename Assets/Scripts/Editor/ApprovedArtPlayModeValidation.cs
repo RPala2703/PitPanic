@@ -161,9 +161,9 @@ public static class ApprovedArtPlayModeValidation
         Check(renderer.enabled && renderer.color.a > .9f, $"Character {species} is hidden.");
         Check(pixel.GetComponentsInChildren<MeshRenderer>(true).All(mesh => !mesh.enabled),
             $"Legacy procedural character is visible beside approved {species}.");
-        bool directional = directionalPlayer || directionalDealer || directionalCustomer;
-        int pixelsPerUnit = directional ? 256 : 32;
-        Vector2 expectedSize = directional ? new Vector2(256, 256) : new Vector2(48, 64);
+        bool largeCanvas = directionalPlayer || directionalDealer;
+        int pixelsPerUnit = largeCanvas ? 256 : 32;
+        Vector2 expectedSize = largeCanvas ? new Vector2(256, 256) : new Vector2(48, 64);
         Check(sprite.pivot == new Vector2(sprite.rect.width * .5f, 0),
             "Standing/directional sprite lost its bottom-center foot pivot.");
         Check(sprite.pixelsPerUnit == pixelsPerUnit && sprite.texture.filterMode == FilterMode.Point &&
@@ -489,6 +489,7 @@ public static class ApprovedArtPlayModeValidation
                     if (dealer.IsAtStation)
                         Check(Vector3.Distance(dealer.transform.position, dealer.AssignedStation.DealerPosition.position) < .15f,
                             "Dealer no longer aligns with the campaign station.");
+                yield return WaitForStandingCustomers();
                 ValidateFloorArt();
                 yield return Capture($"level-{level}-live-floor");
                 yield return new WaitForSeconds(1);
@@ -531,7 +532,7 @@ public static class ApprovedArtPlayModeValidation
                     var changes = new List<float>();
                     Vector3 origin = customer.transform.position;
                     float start = Time.time;
-                    while (Time.time - start < 1.05f)
+                    while (Time.time - start < 1.05f && sequence.Count < 5)
                     {
                         agent.velocity = directions[direction] * 1.5f;
                         yield return new WaitForEndOfFrame();
@@ -845,6 +846,23 @@ public static class ApprovedArtPlayModeValidation
                 "The three near-side Roulette standing positions are not evenly spaced.");
             Debug.Log("LIVE ROULETTE STANDING PASSED: 3 facing away by the layout, 1 facing left at the right end, " +
                 "4 reachable real customer positions, no chairs.");
+        }
+
+        private static IEnumerator WaitForStandingCustomers()
+        {
+            float deadline = Time.realtimeSinceStartup + 5;
+            while (true)
+            {
+                yield return new WaitForEndOfFrame();
+                bool aligned = FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None)
+                    .Where(customer => customer.IsSeated)
+                    .All(customer => Vector3.Distance(
+                        customer.GetComponentInChildren<PixelCharacterVisual>().transform.position,
+                        customer.Seat.SittingPosition) < .04f);
+                if (aligned) yield break;
+                Check(Time.realtimeSinceStartup < deadline,
+                    "Arriving customers did not finish moving to their standing anchors.");
+            }
         }
 
         private static void ValidateStandingCustomers()

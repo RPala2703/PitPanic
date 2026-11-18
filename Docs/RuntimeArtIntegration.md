@@ -698,8 +698,11 @@ Tiger, Pig, Bear and Fox each use their 16 supplied PNGs at the same 180 ms cade
 Penguin. They face the direction of travel while walking and return to the
 planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
-Regular Rabbit, Dog, Cat and Raccoon customers each use their supplied 16 transparent 256x256 PNGs with
+Regular Rabbit, Dog, Cat and Raccoon customers each use their supplied 16 transparent 48x64 PNGs with
 the same 180 ms cadence, directional walking and front-facing frame `03` idle.
+These are the original `48x64/frames` files from each clean walk pack, imported at
+32 PPU with point filtering. The existing sprite references and world-height
+targets are unchanged; player/dealer frames remain 256x256 at 256 PPU.
 Customers stop walking at their assigned table positions. They use the planted
 frame facing their table, while idle customers elsewhere face front.
 Customer navigation and reservation/service behaviour are unchanged.
