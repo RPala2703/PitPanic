@@ -223,6 +223,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 UnityEngine.InputSystem.Key.A
             };
             string[] names = { "Front", "Right", "Back", "Left" };
+            WaitForEndOfFrame renderedFrame = new WaitForEndOfFrame();
             for (int i = 0; i < keys.Length; i++)
             {
                 Vector3 directionStart = player.transform.position;
@@ -234,7 +235,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 {
                     if (failure != null) throw failure;
                     InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys[i]));
-                    yield return null;
+                    yield return renderedFrame;
                 }
                 Check(visual.IsPlayerWalking && visual.PlayerFacingName == names[i] &&
                       visual.PlayerWalkFrameIndex == i * 4 &&
@@ -257,7 +258,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                            Time.realtimeSinceStartup < phaseDeadline)
                     {
                         InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys[i]));
-                        yield return null;
+                        yield return renderedFrame;
                     }
 
                     float phaseDuration = Time.unscaledTime - currentPhaseStarted;
