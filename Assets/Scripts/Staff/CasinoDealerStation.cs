@@ -8,6 +8,7 @@ public sealed class CasinoDealerStation : MonoBehaviour
     [SerializeField] private BlackjackTableInteraction blackjackTable;
     [SerializeField] private CasinoTableAttention attention;
     [SerializeField] private AIDealer initialDealer;
+    private SpriteRenderer tableSurface;
 
     public string StationName => string.IsNullOrWhiteSpace(stationName) ? name : stationName;
     public Transform DealerPosition => dealerPosition;
@@ -65,6 +66,10 @@ public sealed class CasinoDealerStation : MonoBehaviour
 
     private void Awake()
     {
+        string surfaceName = blackjackTable != null ? "Pixel BlackjackV2" : "Pixel Roulette";
+        Transform surface = transform.Find("VisualRoot/" + surfaceName);
+        if (surface != null) tableSurface = surface.GetComponent<SpriteRenderer>();
+
         if (initialDealer != null)
         {
             AssignedDealer = initialDealer;
@@ -72,8 +77,14 @@ public sealed class CasinoDealerStation : MonoBehaviour
             {
                 blackjackTable.SetAssignedDealer(initialDealer);
             }
+
         }
     }
+
+    public int DealerBackdropOrder(int defaultOrder) =>
+        tableSurface != null && tableSurface.enabled
+            ? Mathf.Min(defaultOrder, tableSurface.sortingOrder - 1)
+            : defaultOrder;
 
     public AIDealer CompleteReplacement(AIDealer replacement)
     {
@@ -109,7 +120,16 @@ public sealed class CasinoDealerStation : MonoBehaviour
             return false;
         }
 
-        AssignedDealer?.CancelReplacementRequest();
+        if (AssignedDealer != null && !AssignedDealer.IsAtStation)
+        {
+            AssignedDealer = null;
+            if (blackjackTable != null) blackjackTable.SetAssignedDealer(null);
+            attention.RequestAttentionOnce(TableAttentionReason.TableUnstaffed);
+        }
+        else
+        {
+            AssignedDealer?.CancelReplacementRequest();
+        }
         PendingReplacement = null;
         ResolveAttention(TableAttentionReason.StaffRotationRequired);
         return true;

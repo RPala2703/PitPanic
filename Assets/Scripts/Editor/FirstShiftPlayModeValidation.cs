@@ -1081,12 +1081,30 @@ public static class FirstShiftPlayModeValidation
             Check((bool)Call(shift, "PrepareTutorialLesson", 8),
                 "The break lesson cannot recover when the relieved dealer is already unavailable");
             Set(shift, "tutorialRelievedDealer", relievedDealer);
+            AIDealer incoming = manager.Dealers[readyIndex];
+            AIDealer outgoing = blackjack.AssignedDealer;
+            CasinoDealerStation swapStation = outgoing.AssignedStation;
             Call(pit, "SelectDealer", readyIndex);
             Call(pit, "AssignSelectedDealer", 0);
             timeout = Time.realtimeSinceStartup + 60;
             while (!(bool)Get(shift, "assigned") && Time.realtimeSinceStartup < timeout) yield return null;
             Check((bool)Get(shift, "assigned"), "Assignment did not advance tutorial");
             yield return Press(UnityEngine.InputSystem.Key.Escape);
+            float swapDeadline = Time.time + 18f;
+            bool sawOutgoingLeave = false;
+            while (swapStation.AssignedDealer != incoming)
+            {
+                Check(Time.time < swapDeadline, "Cover stalled during the dealer handoff.");
+                if (!outgoing.IsAtStation)
+                {
+                    sawOutgoingLeave = true;
+                    Check(Vector3.ProjectOnPlane(incoming.transform.position - outgoing.transform.position,
+                        Vector3.up).magnitude > .50f, "The swapping dealers overlapped.");
+                }
+                yield return null;
+            }
+            Check(sawOutgoingLeave && incoming.IsAtStation && !outgoing.IsAtStation,
+                "The incoming dealer took the stand before the outgoing dealer cleared it.");
             yield return WaitForTutorialLesson(8);
             yield return Press(UnityEngine.InputSystem.Key.E);
             Check(pit.IsOpen, "Pit desk did not reopen for the break lesson");

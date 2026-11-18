@@ -513,7 +513,15 @@ public static class ApprovedArtPlayModeValidation
             ValidateWallArt();
             foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
             {
-                SpriteRenderer actor = dealer.GetComponentInChildren<PixelCharacterVisual>().Renderer;
+                PixelCharacterVisual visual = dealer.GetComponentInChildren<PixelCharacterVisual>();
+                SpriteRenderer actor = visual.Renderer;
+                if (dealer.IsAtStation)
+                {
+                    string surface = dealer.AssignedStation.BlackjackTable != null ? "Pixel BlackjackV2" : "Pixel Roulette";
+                    SpriteRenderer tabletop = dealer.AssignedStation.transform.Find("VisualRoot/" + surface).GetComponent<SpriteRenderer>();
+                    Check(actor.sortingOrder < tabletop.sortingOrder,
+                        $"{dealer.name} is drawn in front of the tabletop.");
+                }
                 Color32[] pixels = actor.sprite.texture.GetPixels32();
                 int min = actor.sprite.texture.height, max = -1;
                 for (int y = 0; y < actor.sprite.texture.height; y++)
@@ -526,8 +534,10 @@ public static class ApprovedArtPlayModeValidation
 
                 float height = (max - min + 1) / actor.sprite.pixelsPerUnit * actor.transform.lossyScale.y;
                 float penguinHeight = 2.2f * 60f / 64f;
-                Check(Mathf.Abs(height / penguinHeight - 1) < .03f,
-                    "Dealer apparent height differs from Penguin by more than 3%: " + dealer.name);
+                // Directional packs preserve their supplied transparent margins, which vary by pose.
+                float heightTolerance = visual.UsesDealerWalkArt ? .15f : .03f;
+                Check(Mathf.Abs(height / penguinHeight - 1) < heightTolerance,
+                    $"Dealer apparent height is outside the expected range: {dealer.name}");
             }
             foreach (SpriteRenderer chair in FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None)
                 .Where(renderer => renderer.name == "Pixel Chair"))

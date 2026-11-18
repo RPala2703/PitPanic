@@ -28,6 +28,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     private enum PlayerFacing { Front, Right, Back, Left }
     private PlayerFacing playerFacing = PlayerFacing.Front;
     private CasinoPlayerController playerController;
+    private int normalSortingOrder;
     private bool dealerWalkArt;
     private bool dealerWasWalking;
     private bool isPlayerVisual => playerController != null;
@@ -275,7 +276,11 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         if (customer != null && customerAnimationAtlas != null) animationAtlas = customerAnimationAtlas;
         carrier = GetComponentInParent<CasinoPlayerFloatCarrier>();
         restScale = spriteRenderer != null ? spriteRenderer.transform.localScale : Vector3.one;
-        if (spriteRenderer != null) spriteColor = spriteRenderer.color;
+        if (spriteRenderer != null)
+        {
+            spriteColor = spriteRenderer.color;
+            normalSortingOrder = spriteRenderer.sortingOrder;
+        }
         previousPosition = transform.position;
         BindAnimationFrames();
         if (spriteRenderer != null && (UsesPlayerDirectionalArt || dealerWalkArt) && UsesApprovedStandingArt)
@@ -532,6 +537,16 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         gestureRemaining = Mathf.Max(0, gestureRemaining - Time.deltaTime);
         actionRemaining = Mathf.Max(0, actionRemaining - Time.deltaTime);
         spriteRenderer.transform.localPosition = new Vector3(0, .04f, 0);
+        if (dealer != null && dealer.IsAtStation)
+        {
+            // The table's pixel overlay is transparent, so the depth buffer alone cannot hide feet.
+            spriteRenderer.sortingOrder = dealer.AssignedStation.DealerBackdropOrder(normalSortingOrder);
+            spriteRenderer.transform.position += dealer.AssignedStation.DealerPosition.forward * .36f;
+        }
+        else if (dealer != null)
+        {
+            spriteRenderer.sortingOrder = normalSortingOrder;
+        }
     }
 
     private static int PlayerWalkPhase(float elapsed) =>

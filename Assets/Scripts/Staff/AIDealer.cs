@@ -33,6 +33,10 @@ public sealed class AIDealer : MonoBehaviour
 
     private NavMeshAgent agent;
     private CasinoDealerStation pendingStation;
+    private Vector3 tableRouteTarget;
+    private AIDealer departingDealer;
+    private float clearanceDeadline;
+    private const float HandoffClearance = 1.15f;
     private DealerDutyState state;
     private Vector3 originalScale;
     private bool hasRequestedExhaustion;
@@ -184,7 +188,7 @@ public sealed class AIDealer : MonoBehaviour
         Configure(manager, breakRoomPosition, pitDeskPosition, initialAssignedStation, energy, fullRestThreshold);
     }
 
-    public bool BeginAssignment(CasinoDealerStation station)
+    public bool BeginAssignment(CasinoDealerStation station, Vector3 routeTarget)
     {
         if (!CanBeAssignedFromState(state) || station == null || station.DealerPosition == null || !agent.isOnNavMesh)
         {
@@ -193,17 +197,26 @@ public sealed class AIDealer : MonoBehaviour
 
         ReleaseFromStationSpot();
         agent.updateRotation = true;
-        if (!agent.SetDestination(station.DealerPosition.position))
+        if (!agent.SetDestination(routeTarget))
         {
             return false;
         }
 
         pendingStation = station;
+        tableRouteTarget = routeTarget;
+        departingDealer = null;
         ReservedPitPosition = null;
         pathFailureReported = false;
         state = DealerDutyState.TravelingToTable;
         agent.isStopped = false;
         return true;
+    }
+
+    public void WaitForDealerToClear(AIDealer outgoing)
+    {
+        departingDealer = outgoing;
+        clearanceDeadline = Time.time + 5f;
+        agent.isStopped = true;
     }
 
     public bool ReturnToPitDesk(Transform position, bool requiresDecision = false)
@@ -222,12 +235,14 @@ public sealed class AIDealer : MonoBehaviour
         if (position == null || agent == null || !agent.isOnNavMesh ||
             !agent.SetDestination(position.position))
         {
+            if (IsAtStation) SnapToStation();
             return false;
         }
 
         agent.updateRotation = true;
         AssignedStation = null;
         pendingStation = null;
+        departingDealer = null;
         ReservedPitPosition = position;
         pathFailureReported = false;
         state = returningFromBreak
@@ -343,6 +358,7 @@ public sealed class AIDealer : MonoBehaviour
     {
         AssignedStation = null;
         pendingStation = null;
+        departingDealer = null;
         ReservedPitPosition = null;
         state = DealerDutyState.WaitingForPitDeskPosition;
         pathFailureReported = false;
@@ -358,7 +374,7 @@ public sealed class AIDealer : MonoBehaviour
         if (destination == null || agent == null) return false;
         ReleaseFromStationSpot();
         if (!agent.isOnNavMesh ||
-            !agent.SetDestination(destination.position))
+            !agent.SetDestination(state == DealerDutyState.TravelingToTable ? tableRouteTarget : destination.position))
         {
             return false;
         }
@@ -428,6 +444,26 @@ public sealed class AIDealer : MonoBehaviour
     private void Update()
     {
         if (Time.timeScale == 0) return;
+        if (departingDealer != null)
+        {
+            Vector3 offset = departingDealer.transform.position - pendingStation.DealerPosition.position;
+            offset.y = 0f;
+            if (offset.sqrMagnitude < HandoffClearance * HandoffClearance)
+            {
+                if (Time.time >= clearanceDeadline) NotifyAssignmentFailed();
+                return;
+            }
+
+            departingDealer = null;
+            tableRouteTarget = pendingStation.DealerPosition.position;
+            if (!agent.SetDestination(tableRouteTarget))
+            {
+                NotifyAssignmentFailed();
+                return;
+            }
+            agent.isStopped = false;
+            return;
+        }
         if (Destination != null && !IsAtStation && !IsResting && agent.isOnNavMesh && !agent.pathPending &&
             !HasReachedDestination())
         {

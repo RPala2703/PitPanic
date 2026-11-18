@@ -691,8 +691,11 @@ Tiger, Pig and Bear each use their 16 supplied PNGs at the same 180 ms cadence a
 Penguin. They face the direction of travel while walking and return to the
 planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
-Dealer movement, assignments and rest behavior are unchanged. The live art
-validation checks their prefab bindings, full sprite bounds and URP textures.
+At staffed tables, the dealer's sprite sits slightly toward the table so the
+table edge occludes their feet; the ground anchor and NavMesh are unchanged.
+During swaps, incoming dealers approach from the side and wait for the outgoing
+dealer to clear the stand before taking over. The live art validation checks
+prefab bindings, full sprite bounds and URP textures.
 
 ### Standing sprite edges and diagonal facing
 

@@ -178,6 +178,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
 
         AIDealer outgoingDealer = station.AssignedDealer;
         Transform outgoingDestination = null;
+        Vector3 routeTarget = station.DealerPosition.position;
         if (outgoingDealer != null)
         {
             if (!TryGetOutgoingDestination(
@@ -189,6 +190,11 @@ public sealed class DealerAssignmentManager : MonoBehaviour
                 return false;
             }
 
+            if (!TryFindHandoffPosition(dealer.transform.position, station, outgoingDestination.position, out routeTarget))
+            {
+                reason = "No clear space to hand over at this table.";
+                return false;
+            }
             outgoingDealer.ReservePitDeskPosition(outgoingDestination);
         }
 
@@ -199,7 +205,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             return false;
         }
 
-        if (!dealer.BeginAssignment(station))
+        if (!dealer.BeginAssignment(station, routeTarget))
         {
             station.CancelReplacement(dealer);
             ReleaseOutgoingReservation(outgoingDealer);
@@ -294,13 +300,14 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         }
 
         AIDealer outgoingDealer = station.AssignedDealer;
-        if (outgoingDealer != null)
+        if (outgoingDealer != null && outgoingDealer.IsAtStation)
         {
             Transform destination = outgoingDealer.ReservedPitPosition;
             if (destination == null || !HasCompletePath(outgoingDealer.transform.position, destination.position))
             {
                 station.CancelReplacement(dealer);
-                ReleaseOutgoingReservation(outgoingDealer);
+                if (outgoingDealer != null && outgoingDealer.IsAtStation)
+                    ReleaseOutgoingReservation(outgoingDealer);
                 ReturnFailedAssigneeToPitDesk(dealer);
                 SyncPitDeskAttention();
                 return;
@@ -315,7 +322,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
                 return;
             }
 
-            station.CompleteReplacement(dealer);
+            dealer.WaitForDealerToClear(outgoingDealer);
         }
         else
         {
@@ -337,7 +344,8 @@ public sealed class DealerAssignmentManager : MonoBehaviour
             CasinoDealerStation station = GetPendingStation(dealer);
             AIDealer outgoingDealer = station != null ? station.AssignedDealer : null;
             station?.CancelReplacement(dealer);
-            ReleaseOutgoingReservation(outgoingDealer);
+            if (outgoingDealer != null && outgoingDealer.IsAtStation)
+                ReleaseOutgoingReservation(outgoingDealer);
             ReturnFailedAssigneeToPitDesk(dealer);
         }
         else if (dealer.State == DealerDutyState.TravelingToPitDesk ||
@@ -548,6 +556,28 @@ public sealed class DealerAssignmentManager : MonoBehaviour
         NavMeshPath path = new NavMeshPath();
         return NavMesh.CalculatePath(startHit.position, destinationHit.position, NavMesh.AllAreas, path) &&
                path.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private static bool TryFindHandoffPosition(Vector3 start, CasinoDealerStation station, Vector3 exit,
+        out Vector3 position)
+    {
+        Transform stand = station.DealerPosition;
+        Vector3 origin = stand.position;
+        Vector3 side = stand.right;
+        if (Vector3.Dot(exit - origin, side) > 0f) side = -side;
+        foreach (float sign in new[] { 1f, -1f })
+        {
+            Vector3 shoulder = origin + sign * side * 1.35f - stand.forward * .35f;
+            if (NavMesh.SamplePosition(shoulder, out NavMeshHit hit, .45f, NavMesh.AllAreas) &&
+                HasCompletePath(start, hit.position) && HasCompletePath(hit.position, origin))
+            {
+                position = hit.position;
+                return true;
+            }
+        }
+
+        position = origin;
+        return false;
     }
 
     private void SyncPitDeskAttention()
