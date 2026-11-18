@@ -96,7 +96,7 @@ public static class ApprovedArtPlayModeValidation
         bool directionalDealer = species is CasinoAnimalSpecies.Tiger or CasinoAnimalSpecies.Pig or CasinoAnimalSpecies.Bear
             or CasinoAnimalSpecies.Fox;
         bool directionalCustomer = !pixel.IsVip &&
-            species is CasinoAnimalSpecies.Rabbit or CasinoAnimalSpecies.Dog;
+            species is CasinoAnimalSpecies.Rabbit or CasinoAnimalSpecies.Dog or CasinoAnimalSpecies.Cat;
         Check(pixel.UsesCustomerWalkArt == directionalCustomer, $"Unexpected customer walk bindings for {species}.");
         string dealerWalkPrefix = $"{species.ToString().ToLowerInvariant()}-walk-";
         Check(pixel.UsesDealerWalkArt == directionalDealer, $"Unexpected dealer walk bindings for {species}.");
@@ -384,6 +384,7 @@ public static class ApprovedArtPlayModeValidation
                 {
                     yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Rabbit);
                     yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Dog);
+                    yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Cat);
                 }
                 foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
                     dealer.TrainingProtected = true;
