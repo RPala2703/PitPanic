@@ -568,7 +568,7 @@ public static class FirstShiftPlayModeValidation
             Check(!((CanvasGroup)Get(titleScreen, "remarkGroup")).blocksRaycasts,
                 "Idle dialogue blocks title controls");
             Image titlePenguin = art.Find("Title Penguin").GetComponent<Image>();
-            Check(titlePenguin.sprite.name == "Penguin_Idle_Front", "Title did not use the approved front idle sprite.");
+            Check(titlePenguin.sprite.name == "penguin-walk-south-03", "Title did not use the planted south idle pose.");
             CheckTitlePenguinAspect(titlePenguin);
             Check(!menu.transform.Find("Continue").GetComponent<Button>().interactable, "Fresh save enabled Continue");
             menu.transform.Find("Settings").GetComponent<Button>().onClick.Invoke();

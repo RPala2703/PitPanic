@@ -93,15 +93,14 @@ public static class ApprovedArtPlayModeValidation
         Sprite sprite = renderer.sprite;
         string path = AssetDatabase.GetAssetPath(sprite);
         bool directionalPlayer = pixel.UsesPlayerDirectionalArt;
-        string expectedName = directionalPlayer ? $"Penguin_Idle_{pixel.PlayerFacingName}" :
-            $"{(pixel.IsVip ? "VIP_" : "")}{species}_Standing_48x64";
+        string expectedName = $"{(pixel.IsVip ? "VIP_" : "")}{species}_Standing_48x64";
         string expectedPath = directionalPlayer
             ? "Assets/Art/ApprovedCasino/Characters/Player/"
             : ApprovedCasinoArtIntegration.ArtRoot + "/";
         bool expectedSprite = directionalPlayer
             ? pixel.IsPlayerWalking
                 ? pixel.UsesPlayerWalkArt && pixel.IsPlayerWalkSprite(sprite)
-                : sprite == pixel.SelectedStandingArt && sprite.name == expectedName
+                : sprite == pixel.SelectedStandingArt && sprite.name.EndsWith("-03", StringComparison.Ordinal)
             : sprite == pixel.SelectedStandingArt && sprite.name == expectedName;
         Check(pixel.UsesApprovedStandingArt && expectedSprite && path.StartsWith(expectedPath),
             $"Wrong live sprite for {species}/VIP={pixel.IsVip}: {path}/{sprite?.name}");
@@ -117,9 +116,7 @@ public static class ApprovedArtPlayModeValidation
         Check(pixel.GetComponentsInChildren<MeshRenderer>(true).All(mesh => !mesh.enabled),
             $"Legacy procedural character is visible beside approved {species}.");
         int pixelsPerUnit = directionalPlayer ? 256 : 32;
-        Vector2 expectedSize = directionalPlayer
-            ? pixel.IsPlayerWalking ? new Vector2(256, 256) : new Vector2(363, 587)
-            : new Vector2(48, 64);
+        Vector2 expectedSize = directionalPlayer ? new Vector2(256, 256) : new Vector2(48, 64);
         Check(sprite.pivot == new Vector2(sprite.rect.width * .5f, 0),
             "Standing/directional sprite lost its bottom-center foot pivot.");
         Check(sprite.pixelsPerUnit == pixelsPerUnit && sprite.texture.filterMode == FilterMode.Point &&

@@ -23,7 +23,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     [SerializeField] private Sprite playerLeft;
     [SerializeField] private Sprite[] playerWalkFrames;
     private const int PlayerWalkFramesPerDirection = 4;
-    private const float PlayerWalkFrameDuration = 0.2f;
+    private const float PlayerWalkFrameDuration = 0.18f;
     private enum PlayerFacing { Front, Right, Back, Left }
     private PlayerFacing playerFacing = PlayerFacing.Front;
     private CasinoPlayerController playerController;

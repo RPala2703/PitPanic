@@ -670,14 +670,16 @@ opened at:
 
 The playable Penguin uses the supplied 16 transparent PNGs unchanged. The
 prefab maps S to south, D to east, W to north and A to west, playing frames
-`01 -> 02 -> 03 -> 04 -> 01` at 200 ms per frame while moving. Stopping
-restores the original idle sprite for the last facing.
+`01 -> 02 -> 03 -> 04 -> 01` at 180 ms per frame while moving. Stopping holds
+frame `03` for the last facing: both feet are planted in that pose. Walking
+again restarts the cycle at `01`.
 
 The walk frames use full 256x256 bounds, a shared bottom-center pivot,
 point filtering, and no compression or mipmaps. The existing uniform
 sprite scaling and foot anchor are unchanged, preserving each frame's
 aspect ratio and offsets within its original canvas. The title entrance
-uses the same north-facing walk frames and the original title idle art.
+uses the same north-facing walk cycle and holds the matching planted pose
+when stationary.
 
 Run `PenguinDirectionalWalkPlayModeValidation.Run` in a visible Unity Editor
 with `PIT_PANIC_PENGUIN_EVIDENCE` set to a capture folder. It checks the

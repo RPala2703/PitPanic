@@ -37,6 +37,9 @@ public static class PenguinDirectionalWalkPlayModeValidation
             if (visual == null)
                 throw new InvalidOperationException("The Penguin player prefab has no PixelCharacterVisual.");
             SerializedObject serialized = new SerializedObject(visual);
+            string[] idleSlots = { "playerFront", "playerRight", "playerBack", "playerLeft" };
+            for (int i = 0; i < idleSlots.Length; i++)
+                serialized.FindProperty(idleSlots[i]).objectReferenceValue = walk[i * 4 + 2];
             SerializedProperty walkFrames = serialized.FindProperty("playerWalkFrames");
             if (walkFrames == null)
                 throw new InvalidOperationException("PixelCharacterVisual is missing playerWalkFrames.");
@@ -51,7 +54,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
             PrefabUtility.UnloadPrefabContents(prefab);
         }
         AssetDatabase.SaveAssets();
-        Debug.Log("PENGUIN WALK ART IMPORTED: 16 full 256x256 frames, point-filtered at 256 PPU with shared bottom-center pivots. Existing idle poses were not changed.");
+        Debug.Log("PENGUIN WALK ART IMPORTED: 16 full 256x256 frames, point-filtered at 256 PPU with shared bottom-center pivots. Frame 03 is the planted idle in each direction.");
     }
 
     private static string WalkSpriteName(int direction, int frame) =>
@@ -191,7 +194,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 if (current is IEnumerator nested) tests.Push(nested);
                 else yield return current;
             }
-            Debug.Log("PENGUIN WALK CYCLE PLAY MODE PASSED: all four directional idles and 01/02/03/04 walk cycles, 0.2s phase holds, projected aspect, zoom/full-floor captures, real interaction and final-zero freeze.");
+            Debug.Log("PENGUIN WALK CYCLE PLAY MODE PASSED: planted frame 03 stationary idles, 01/02/03/04 walk cycles and restart, 0.18s phase holds, projected aspect, zoom/full-floor captures, real interaction and final-zero freeze.");
             Restore();
             EditorApplication.Exit(0);
         }
@@ -254,7 +257,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 {
                     int previousPhase = (transition - 1) % 4;
                     int nextPhase = transition % 4;
-                    float phaseDeadline = Time.realtimeSinceStartup + .6f;
+                    float phaseDeadline = Time.realtimeSinceStartup + 2f;
                     while (visual.PlayerWalkFrameIndex == i * 4 + previousPhase &&
                            Time.realtimeSinceStartup < phaseDeadline)
                     {
@@ -266,13 +269,13 @@ public static class PenguinDirectionalWalkPlayModeValidation
                     float phaseEndSampleGap = Time.unscaledDeltaTime;
                     string expectedSprite = WalkSpriteName(i, nextPhase);
                     // The actual transition lies between the last two samples.
-                    bool expectedDuration = phaseDuration + phaseStartSampleGap >= .185f &&
-                                            phaseDuration - phaseEndSampleGap <= .215f;
+                    bool expectedDuration = phaseDuration + phaseStartSampleGap >= .165f &&
+                                            phaseDuration - phaseEndSampleGap <= .195f;
                     Check(visual.PlayerWalkFrameIndex == i * 4 + nextPhase &&
                           visual.Renderer.sprite.name == expectedSprite &&
                           (transition == 1 || expectedDuration),
                         $"{names[i]} walk phase {transition} did not hold/select the expected pose " +
-                        $"{expectedSprite} for about 0.2s: {phaseDuration:0.000}s, " +
+                        $"{expectedSprite} for about 0.18s: {phaseDuration:0.000}s, " +
                         $"{visual.PlayerWalkFrameIndex}/{visual.Renderer.sprite.name}.");
                     if (transition > 1)
                         phaseDurations[previousPhase] = phaseDuration;
@@ -284,8 +287,8 @@ public static class PenguinDirectionalWalkPlayModeValidation
                     ValidatePlayerScreenAspect(visual.Renderer.sprite, visual.Renderer.transform, sceneCamera);
                 }
                 float cycleDuration = phaseDurations.Sum();
-                Check(cycleDuration + cycleStartSampleGap >= .78f &&
-                      cycleDuration - phaseStartSampleGap <= .82f,
+                Check(cycleDuration + cycleStartSampleGap >= .70f &&
+                      cycleDuration - phaseStartSampleGap <= .74f,
                     $"{names[i]} four-beat walk cycle averaged {phaseDurations.Average():0.000}s per pose.");
                 Vector3 travel = player.transform.position - directionStart;
                 Vector3 expectedHeading = new[] { Vector3.back, Vector3.right, Vector3.forward, Vector3.left }[i];
@@ -297,10 +300,17 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 deadline = Time.realtimeSinceStartup + 3;
                 while (visual.IsPlayerWalking && Time.realtimeSinceStartup < deadline) yield return null;
                 Check(!visual.IsPlayerWalking && visual.Renderer.sprite == visual.SelectedStandingArt &&
-                      visual.Renderer.sprite.name == $"Penguin_Idle_{names[i]}",
+                      visual.Renderer.sprite.name == WalkSpriteName(i, 2),
                     $"{names[i]} did not immediately return to its directional idle pose on stop.");
                 Vector3 stoppedAt = player.transform.position;
-                yield return new WaitForSecondsRealtime(.15f);
+                float idleUntil = Time.realtimeSinceStartup + .8f;
+                while (Time.realtimeSinceStartup < idleUntil)
+                {
+                    yield return renderedFrame;
+                    Check(!visual.IsPlayerWalking && visual.PlayerWalkFrameIndex == -1 &&
+                          visual.Renderer.sprite.name == WalkSpriteName(i, 2),
+                        $"{names[i]} left frame 03 while stationary.");
+                }
                 Check(Vector3.Distance(stoppedAt, player.transform.position) < .05f,
                     $"{names[i]} player continued drifting after the idle pose returned.");
                 ApprovedArtPlayModeValidation.ValidateActor(visual);
@@ -308,9 +318,30 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 ValidatePlayerScreenAspect(visual.Renderer.sprite, visual.Renderer.transform, sceneCamera);
                 yield return Capture($"floor-{names[i].ToLowerInvariant()}-idle");
                 if (i == 0) yield return CaptureZoomedAppearance(player.transform);
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys[i]));
+                deadline = Time.realtimeSinceStartup + 1f;
+                while (!visual.IsPlayerWalking && Time.realtimeSinceStartup < deadline)
+                    yield return renderedFrame;
+                Check(visual.IsPlayerWalking && visual.PlayerWalkFrameIndex == i * 4 &&
+                      visual.Renderer.sprite.name == WalkSpriteName(i, 0),
+                    $"{names[i]} did not restart from frame 01.");
+                deadline = Time.realtimeSinceStartup + 2f;
+                while (visual.PlayerWalkFrameIndex == i * 4 && Time.realtimeSinceStartup < deadline)
+                    yield return renderedFrame;
+                Check(visual.PlayerWalkFrameIndex == i * 4 + 1 &&
+                      visual.Renderer.sprite.name == WalkSpriteName(i, 1),
+                    $"{names[i]} did not advance to frame 02 after restarting.");
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                deadline = Time.realtimeSinceStartup + 1f;
+                while (visual.IsPlayerWalking && Time.realtimeSinceStartup < deadline)
+                    yield return renderedFrame;
+                Check(!visual.IsPlayerWalking && visual.Renderer.sprite.name == WalkSpriteName(i, 2),
+                    $"{names[i]} did not return to frame 03 after restarting.");
                 Debug.Log($"PENGUIN {WalkDirections[i].ToUpperInvariant()} 01/02/03/04/01 CYCLE PASSED: " +
                     $"{string.Join("/", phaseDurations.Select(duration => $"{duration:0.000}s"))}; " +
-                    $"idle={visual.Renderer.sprite.name}, position={player.transform.position}");
+                    $"mean={phaseDurations.Average():0.000}s, idle={visual.Renderer.sprite.name} (held 0.8s), " +
+                    $"restart=01/02, position={player.transform.position}");
             }
 
             yield return ValidateDiagonalFacing(player, visual);
@@ -363,7 +394,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
             yield return null;
-            Check(!visual.IsPlayerWalking && visual.Renderer.sprite.name == "Penguin_Idle_Back",
+            Check(!visual.IsPlayerWalking && visual.Renderer.sprite.name == "penguin-walk-north-03",
                 "Releasing both direction keys did not preserve the last facing for idle.");
             Debug.Log("PENGUIN DIAGONAL FACING PASSED: W+D moved diagonally without switching poses in either key order; releasing one key selected the remaining direction.");
         }
