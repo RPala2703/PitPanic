@@ -687,7 +687,7 @@ saved prefab in Play Mode without re-importing or reassigning its sprites.
 
 ### Four-frame directional dealer walk cycles
 
-Tiger, Pig and Bear each use their 16 supplied PNGs at the same 180 ms cadence as
+Tiger, Pig, Bear and Fox each use their 16 supplied PNGs at the same 180 ms cadence as
 Penguin. They face the direction of travel while walking and return to the
 planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
