@@ -218,7 +218,7 @@ public static class ApprovedCasinoArtIntegration
         foreach (PixelCharacterVisual pixel in Object.FindObjectsByType<PixelCharacterVisual>(FindObjectsSortMode.None))
             ConfigureCharacter(pixel);
 
-        ConfigureRouletteSeating();
+        ConfigureStandingCustomers();
         foreach (SpriteRenderer renderer in Object.FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None))
         {
             switch (renderer.name)
@@ -238,9 +238,6 @@ public static class ApprovedCasinoArtIntegration
                 case "Pixel Roulette Wheel":
                     // The approved table already contains the wheel. Keep its gameplay pivot, not a second wheel.
                     renderer.enabled = false;
-                    break;
-                case "Pixel Chair":
-                    ConfigureChair(renderer);
                     break;
                 case "Pixel BreakRoom":
                 case "Pixel Entrance":
@@ -307,20 +304,42 @@ public static class ApprovedCasinoArtIntegration
         Debug.Log("BLACKJACK ARTWORK SAVED: both real tables replaced; gameplay anchors and colliders unchanged.");
     }
 
-    [MenuItem("Pit Panic/Art/Arrange Roulette Chairs Around Betting Layout")]
-    public static void ArrangeRouletteChairs()
+    [MenuItem("Pit Panic/Art/Use Standing Table Customers")]
+    public static void UseStandingTableCustomers()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode || EditorSceneManager.GetActiveScene().isDirty)
-            throw new InvalidOperationException("Arrange Roulette seating outside Play Mode with the scene saved.");
+            throw new InvalidOperationException("Update standing customers outside Play Mode with the scene saved.");
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/PitPanicPrototype.unity");
-        ConfigureRouletteSeating();
-        foreach (CasinoSeat seat in Object.FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None))
-            if (seat.GameType == CasinoCustomerGame.Roulette)
-                ConfigureChair(seat.GetComponentInChildren<SpriteRenderer>());
+        ConfigureStandingCustomers();
         EditorSceneManager.MarkSceneDirty(scene);
         if (!EditorSceneManager.SaveScene(scene))
-            throw new IOException("Could not save Roulette seating.");
-        Debug.Log("ROULETTE SEATING SAVED: three rear-facing chairs by the layout, one left-facing at the right end; four real seats retained.");
+            throw new IOException("Could not save standing customers.");
+        Debug.Log("STANDING CUSTOMERS SAVED: ten table positions retained, chairs removed, close table-facing standing anchors; approach paths unchanged.");
+    }
+
+    private static void ConfigureStandingCustomers()
+    {
+        ConfigureRouletteSeating();
+        CasinoSeat[] seats = Object.FindObjectsByType<CasinoSeat>(FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        if (seats.Length != 10)
+            throw new InvalidOperationException($"Expected ten real table positions, found {seats.Length}.");
+        foreach (CasinoSeat seat in seats)
+        {
+            if (seat.GameType != CasinoCustomerGame.Roulette)
+            {
+                Transform position = seat.transform.Find("Customer Sitting Position");
+                if (position == null)
+                    throw new InvalidOperationException("Blackjack customer position is missing: " + seat.name);
+                position.localPosition = new Vector3(0, 0, 1.8f);
+                position.localRotation = Quaternion.identity;
+                EditorUtility.SetDirty(position);
+            }
+            CasinoSeatVisual chairMotion = seat.GetComponent<CasinoSeatVisual>();
+            if (chairMotion != null) Object.DestroyImmediate(chairMotion);
+            Transform chair = seat.transform.Find("Pixel Chair");
+            if (chair != null) Object.DestroyImmediate(chair.gameObject);
+        }
     }
 
     private static void ConfigureRouletteSeating()
@@ -335,28 +354,14 @@ public static class ApprovedCasinoArtIntegration
             if (facing == null || customerSeat == null || customerSeat.BettingPosition == null)
                 throw new InvalidOperationException($"Roulette seat {i + 1} is missing its sitting or betting anchor.");
             bool rightEnd = i == 3;
-            // Approach anchors stay outside the collider; the seated visual moves inward onto its chair.
+            // Navigation stays outside the collider; only the standing visual moves up to the table.
             seat.localPosition = rightEnd ? new Vector3(4.35f, 0, -.35f) :
                 new Vector3(i * 1.25f, 0, -3.05f);
-            facing.localPosition = rightEnd ? Vector3.left : Vector3.forward;
+            facing.localPosition = rightEnd ? Vector3.left * 1.4f : Vector3.forward * 1.6f;
             facing.localRotation = rightEnd ? Quaternion.Euler(0, -90, 0) : Quaternion.identity;
             customerSeat.BettingPosition.localPosition = rightEnd ? new Vector3(2.1f, 1.3f, -.35f) :
                 new Vector3(Mathf.Min(i * 1.25f, 2.1f), 1.3f, -.8f);
         }
-    }
-
-    private static void ConfigureChair(SpriteRenderer renderer)
-    {
-        if (renderer == null) throw new InvalidOperationException("A real seat is missing its independent chair.");
-        CasinoSeat seat = renderer.GetComponentInParent<CasinoSeat>();
-        if (seat == null) throw new InvalidOperationException("A table chair requires its real seat.");
-        bool roulette = seat.GameType == CasinoCustomerGame.Roulette;
-        Vector3 facing = seat.Facing * Vector3.forward;
-        int view = !roulette ? 5 : facing.x < -.2f ? 3 : facing.x > .2f ? 7 :
-            facing.z > 0 ? 5 : 1;
-        Billboard(renderer, roulette ? $"stools/CasinoStool_View{view:00}" :
-            $"chairs/VelvetChair_View{view:00}", 1.3f);
-        renderer.transform.position = seat.SittingPosition;
     }
 
     private static void MoveLabel(string name, Vector3 localPosition)

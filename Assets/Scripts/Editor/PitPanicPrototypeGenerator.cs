@@ -267,19 +267,6 @@ public static class PitPanicPrototypeGenerator
         firstTableSeats.CopyTo(seats, 0);
         secondTableSeats.CopyTo(seats, firstTableSeats.Length);
         rouletteSeats.CopyTo(seats, firstTableSeats.Length + secondTableSeats.Length);
-        foreach (CasinoSeat seat in seats)
-        {
-            GameObject chair = new GameObject("Pixel Chair");
-            chair.transform.SetParent(seat.transform, false);
-            chair.transform.position = seat.SittingPosition;
-            chair.transform.localScale = Vector3.one * .85f;
-            chair.AddComponent<SpriteRenderer>().sprite =
-                AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/Pixel/Structure_Chair.png");
-            chair.GetComponent<SpriteRenderer>().sortingOrder = -5;
-            chair.AddComponent<PixelBillboard>();
-            chair.AddComponent<PixelSpriteTextureBinding>();
-            seat.gameObject.AddComponent<CasinoSeatVisual>().Configure(chair.transform);
-        }
         Transform[] breakPositions = CreateBreakRoom(woodMaterial, feltMaterial, trimMaterial);
         Transform cashierWaypoint = CreateCashierStation(
             new Vector3(0f, 0f, -8.1f),
@@ -1484,10 +1471,8 @@ public static class PitPanicPrototypeGenerator
             {
                 throw new System.InvalidOperationException($"{seat.name} seated pose is not aligned with its matching betting spot.");
             }
-            CasinoSeatVisual seatVisual = seat.GetComponent<CasinoSeatVisual>();
-            if (seatVisual == null || seatVisual.Chair == null ||
-                Vector3.Distance(seatVisual.Chair.position, seat.SittingPosition) > .02f)
-                throw new System.InvalidOperationException($"{seat.name} chair must share its customer's sitting anchor.");
+            if (seat.GetComponent<CasinoSeatVisual>() != null || seat.transform.Find("Pixel Chair") != null)
+                throw new System.InvalidOperationException($"{seat.name} must be a standing position without a chair.");
         }
 
         foreach (CasinoDealerStation station in stations)

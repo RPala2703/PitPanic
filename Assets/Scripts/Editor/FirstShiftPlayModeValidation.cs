@@ -463,9 +463,9 @@ public static class FirstShiftPlayModeValidation
                             $"Level {level}: {dealer.name} was left behind when its table moved");
                 foreach (CasinoSeat seat in FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None))
                 {
-                    Transform chair = seat.GetComponent<CasinoSeatVisual>().Chair;
-                    Check(Vector3.Distance(chair.position, seat.SittingPosition) < .02f,
-                        $"Level {level}: {seat.name} chair is not at its sitting anchor");
+                    Check(seat.GetComponent<CasinoSeatVisual>() == null &&
+                        seat.transform.Find("Pixel Chair") == null,
+                        $"Level {level}: {seat.name} still has a chair instead of a standing position");
                     Check(UnityEngine.AI.NavMesh.SamplePosition(seat.Position, out var hit, .25f,
                         UnityEngine.AI.NavMesh.AllAreas) && Vector3.Distance(hit.position, seat.Position) < .25f,
                         $"Level {level}: {seat.name} approach uses a stale table footprint");
@@ -1540,7 +1540,7 @@ public static class FirstShiftPlayModeValidation
                 (seatedVisual.UsesApprovedStandingArt ||
                  seatedVisual.GetComponentInChildren<SpriteRenderer>().transform.localScale == Vector3.one) &&
                 !servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
-                "Seated customer does not align with the chair or is being squashed instead of frame animated");
+                "Table customer does not align with the standing anchor or is being squashed");
             PixelCharacterVisual playerVisual = player.GetComponentInChildren<PixelCharacterVisual>();
             playerVisual.PlayAction(CasinoAnimationPose.Deal, player.transform.position + Vector3.back, 1f);
             yield return new WaitForSeconds(.3f);
@@ -1612,7 +1612,7 @@ public static class FirstShiftPlayModeValidation
             Check((int)Get(shift, "failedAttempts") == missesBeforeTimeout + 1,
                 "Customer patience expiry did not increment MISSED exactly once");
             Check(servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
-                "Customer did not resume navigation after leaving their chair");
+                "Customer did not resume navigation after leaving their standing position");
             Check(CasinoTaskFeedback.Message(exhaustedTable.GetComponent<CasinoTableAttention>()) == "Dealer needs break",
                 "Exhausted station did not provide the short speech-bubble cue");
             Set(exhaustedDealer, "energy", oldEnergy);

@@ -29,7 +29,7 @@ existing visual children; it does not place decorative customer objects.
 | Rabbit, Dog, Cat, Raccoon, Deer, Elephant | All six real spawner prefab references use matching approved sprites |
 | Six VIP appearances | Existing `CasinoCustomerAI.SetVip()` selects matching approved VIP art, including High Rollers opening guests |
 | Blackjack, Roulette, Cash Desk, Pit Desk | Existing scene SpriteRenderers use approved station art |
-| Ten independent seats | Existing `CasinoSeatVisual` chair children use rear-facing Velvet Chair View05 or the supplied stool angle matching the seat direction |
+| Ten table customer positions | Existing reservation/service slots remain; chair objects and pull-out components are removed, with close standing anchors in their place |
 | Existing scenery | Plants, windows/curtains, lamps and sofa use supplied decor |
 
 The former eleven-species customer pool is intentionally restricted to the six
@@ -100,9 +100,8 @@ parent scale; gameplay roots, agents and colliders are not enlarged.
 
 VIP and ordinary variants share the same species target. These are full sprite
 canvas dimensions; transparent border pixels are not represented as ink height.
-Blackjack width is 6.2 units, Roulette 6.0, Cash Desk 4.0, Pit Desk 4.4;
-independent chair height is 1.3. Thus ordinary customer heights are about
-37-48% of Blackjack width and 1.8-2.3 times chair height, with Dog and Elephant
+Blackjack width is 6.2 units, Roulette 6.0, Cash Desk 4.0, Pit Desk 4.4.
+Ordinary customer heights are about 37-48% of Blackjack width, with Dog and Elephant
 deliberately substantial. The existing camera projection is unchanged.
 
 The four dealers now use Penguin's apparent height as their reference. Penguin,
@@ -114,7 +113,8 @@ root transforms and colliders are unchanged by this size correction.
 ## Casino cleanup follow-up
 
 The carpet portion of this earlier cleanup is superseded by the supplied
-burgundy flooring below; its wall, chair and furniture changes are retained.
+burgundy flooring below. Its wall and furniture changes are retained; table
+chairs are superseded by the standing-customer update below.
 
 The latest integrated scene, not an earlier layout, received a visual-only pass:
 
@@ -461,7 +461,10 @@ PIT_PANIC_BUILD_PATH="$EVIDENCE/Pit Panic.app" "$UNITY" -batchmode -quit \
   -executeMethod PitPanicPresentationBuild.Run -logFile "$EVIDENCE/build-final.log"
 ```
 
-### Roulette chairs around the betting layout
+### Historical Roulette chair arrangement
+
+The standing-customer update below supersedes these chair visuals and sitting
+offsets while retaining the same three near-side positions and right-end slot.
 
 The four corner stools were replaced with three evenly spaced stools on the
 near edge of the betting layout and one at the right end, farthest from the
@@ -482,9 +485,9 @@ are unchanged. The scene audit records only 20 Roulette seating Transform/
 SpriteRenderer block changes, no additions/removals, and no unrelated changes
 against the final panel-only wall scene.
 
-`ApprovedCasinoArtIntegration.ArrangeRouletteChairs` is the targeted saved-scene
-migration; the same helpers are used by the existing art-integration/generator
-path. It does not rerun character, floor, wall or furniture installation.
+The former `ApprovedCasinoArtIntegration.ArrangeRouletteChairs` migration has been
+replaced by `ApprovedCasinoArtIntegration.UseStandingTableCustomers`; the existing
+art-integration/generator path uses the same standing-layout helper.
 
 Evidence:
 `/Users/rahulpala/.copilot/session-state/753e4550-8d41-464b-adaf-1a9686ebf1df/files/roulette-chairs/`
@@ -502,10 +505,7 @@ Evidence:
 - `scene-audit.json`: exact changed-block list.
 - `build.log`, `Pit Panic.app`: fresh macOS standalone with this chair layout.
 
-Reproduce the targeted migration with
-`"$UNITY" -batchmode -quit -job-worker-count 2 -projectPath "$PWD" -executeMethod ApprovedCasinoArtIntegration.ArrangeRouletteChairs -logFile "$EVIDENCE/integration.log"`.
-Use the live validation and build commands above with `EVIDENCE` set to this
-directory; its final validation log is named `play-mode.log`.
+The evidence above records the older chair layout, not the current standing layout.
 
 ### Dramatic final ten seconds
 
@@ -622,9 +622,8 @@ standalone build; `Pit Panic.app` is the latest build including the glow.
   legacy airborne floor ball are removed. Roulette wagers no longer fly from
   customers, and payout props no longer fly to customers' floor positions.
   Actual bets, results, payouts and the interactive minigame are unchanged.
-- Other supplied chair angles and decor files remain imported and available;
-  the real floor uses the selected independent chair/stool views and existing
-  scenery locations rather than displaying all 30 prop files as a gallery.
+- Supplied chair angles remain imported for recovery but no table chairs are
+  displayed. Existing scenery locations are retained.
 - Existing live labels, HUD and task markers can temporarily cover an actor;
   they were not hidden to stage screenshots.
 
@@ -701,7 +700,9 @@ planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
 Regular Rabbit, Dog and Cat customers each use their supplied 16 transparent 256x256 PNGs with
 the same 180 ms cadence, directional walking and front-facing frame `03` idle.
-Seated customers stop walking; customer navigation and seating are unchanged.
+Customers stop walking at their assigned table positions. They use the planted
+frame facing their table, while idle customers elsewhere face front.
+Customer navigation and reservation/service behaviour are unchanged.
 VIP Rabbits, Dogs and Cats retain their existing formalwear and gold outline because
 these packs supply only the regular outfits.
 At staffed tables, the dealer's sprite sits slightly toward the table so the
@@ -712,6 +713,30 @@ the artwork. This changes rendering only, not the player's position or collision
 During swaps, incoming dealers approach from the side and wait for the outgoing
 dealer to clear the stand before taking over. The live art validation checks
 prefab bindings, full sprite bounds and URP textures.
+
+### Standing table customers
+
+All ten table chair objects and their `CasinoSeatVisual` pull-out components
+are removed. The six Blackjack standing anchors retain their original X
+positions (-1.7, 0, 1.7 per table) and move inward to table-local Z -1.2.
+Roulette retains three near-side anchors at X 0, 1.25, 2.5, now at Z -1.45,
+and its right-end anchor is (2.95, 0, -.35). All anchors remain at floor height,
+face into their table and move with it on all three campaign layouts.
+Approach/NavMesh positions, betting points and reservation/service references
+are retained. The existing `CasinoSeat`/`IsSeated` names continue to mean an
+occupied gameplay slot; customers are visually standing, not sitting.
+
+Regular Rabbit, Dog and Cat use their supplied north/west planted frame 03
+at the table and return to front frame 03 when idle elsewhere. The remaining
+regular species and all VIPs currently have front-only approved artwork.
+Their world facing is aligned with the table, but their existing front-facing
+illustrations are preserved rather than replaced with older-style artwork.
+Matching back/side artwork is still required to turn those sprites visually.
+
+`Pit Panic/Art/Use Standing Table Customers` is the targeted saved-scene command;
+the main art integration and scene generator retain the same layout. Live art
+validation checks chair absence, ten preserved slots, close anchor positions,
+real navigation, planted table-facing frames and settled customer alignment.
 
 ### Standing sprite edges and diagonal facing
 

@@ -45,8 +45,11 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         HasPlayerWalkFrames && System.Array.IndexOf(playerWalkFrames, sprite) >= 0;
     public string PlayerFacingName => playerFacing.ToString();
     public Sprite SelectedStandingArt => UsesPlayerDirectionalArt ? PlayerFacingSprite :
-        UsesNpcWalkArt ? NpcWalkSprite(PlayerFacing.Front, 2) :
+        UsesNpcWalkArt ? NpcWalkSprite(StationaryNpcFacing, 2) :
         vip ? approvedVipStanding : approvedStanding;
+    private PlayerFacing StationaryNpcFacing => customer != null && customer.IsSeated && customer.Seat != null
+        ? FacingForHeading(customer.Seat.Facing * Vector3.forward)
+        : PlayerFacing.Front;
     public bool IsPlayerWalking { get; private set; }
     public int PlayerWalkFrameIndex { get; private set; } = -1;
     public SpriteRenderer Renderer => spriteRenderer;

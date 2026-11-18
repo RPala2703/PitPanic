@@ -141,8 +141,13 @@ public static class ApprovedArtPlayModeValidation
                     $"{species} walk frame {i} is missing or out of order.");
             CasinoCustomerAI customer = pixel.GetComponentInParent<CasinoCustomerAI>();
             if (customer.IsSeated)
-                Check(sprite == pixel.SelectedStandingArt && sprite.name == dealerWalkPrefix + "south-03",
-                    $"Seated {species} must stop walking and show the planted front frame.");
+            {
+                Vector3 facing = customer.Seat.Facing * Vector3.forward;
+                string heading = Mathf.Abs(facing.x) > Mathf.Abs(facing.z)
+                    ? facing.x > 0 ? "east" : "west" : facing.z > 0 ? "north" : "south";
+                Check(sprite == pixel.SelectedStandingArt && sprite.name == dealerWalkPrefix + heading + "-03",
+                    $"Standing {species} must stop walking and face the table on its planted frame.");
+            }
         }
         MaterialPropertyBlock block = new MaterialPropertyBlock();
         renderer.GetPropertyBlock(block);
@@ -388,7 +393,7 @@ public static class ApprovedArtPlayModeValidation
                 }
                 foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
                     dealer.TrainingProtected = true;
-                yield return Capture($"level-{level}-roulette-chairs");
+                yield return Capture($"level-{level}-standing-positions");
                 List<CasinoCustomerAI> spawned = new List<CasinoCustomerAI>();
                 Dictionary<CasinoCustomerAI, Vector3> origins = new Dictionary<CasinoCustomerAI, Vector3>();
                 int before = spawner.TotalSpawned;
@@ -409,7 +414,8 @@ public static class ApprovedArtPlayModeValidation
                         spawned.Add(customer);
                         origins.Add(customer, customer.transform.position);
                         CasinoSeat seat = FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None)
-                            .OrderBy(candidate => spawned.Count <= 4 && candidate.GameType == CasinoCustomerGame.Roulette ? 0 : 1)
+                            .OrderBy(candidate => spawned.Count <= 4 && candidate.GameType == CasinoCustomerGame.Roulette
+                                ? species == CasinoAnimalSpecies.Cat && candidate.name.EndsWith("4") ? -1 : 0 : 1)
                             .FirstOrDefault(candidate => candidate.IsAvailable && candidate.IsGameAvailable);
                         Check(seat != null && customer.TryVisitSeat(seat), $"Real spawn {species} could not reserve a real seat.");
                         yield return new WaitForSeconds(.4f);
@@ -437,6 +443,8 @@ public static class ApprovedArtPlayModeValidation
                         (level != 2 || CustomerOpeningVipsSeated(customers))) break;
                     yield return null;
                 }
+                yield return new WaitForSeconds(1.2f);
+                yield return new WaitForEndOfFrame();
                 foreach (PixelCharacterVisual pixel in FindObjectsByType<PixelCharacterVisual>(FindObjectsSortMode.None))
                 {
                     ValidateActor(pixel);
@@ -696,16 +704,7 @@ public static class ApprovedArtPlayModeValidation
                 Check(Mathf.Abs(height / penguinHeight - 1) < heightTolerance,
                     $"Dealer apparent height is outside the expected range: {dealer.name}");
             }
-            foreach (SpriteRenderer chair in FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None)
-                .Where(renderer => renderer.name == "Pixel Chair"))
-            {
-                CasinoSeat seat = chair.GetComponentInParent<CasinoSeat>();
-                Check(Vector3.Distance(chair.transform.position, seat.SittingPosition) <= .16f,
-                    "Independent chair no longer follows its real seat/pull-out animation.");
-                if (seat.GameType != CasinoCustomerGame.Roulette)
-                    Check(chair.sprite.name == "VelvetChair_View05",
-                        "Blackjack chairs must face the table, not the camera.");
-            }
+            ValidateStandingCustomers();
             Check(FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None)
                 .Where(renderer => renderer.name == "Pixel BreakRoom" || renderer.name == "Pixel Entrance" ||
                     renderer.name == "Table Rug").All(renderer => !renderer.enabled),
@@ -721,7 +720,7 @@ public static class ApprovedArtPlayModeValidation
                     "Station label covers the table artwork: " + labelName);
             }
             string[] names = { "Pixel BlackjackV2", "Pixel Roulette", "Pixel CashDesk", "Pixel PitDesk",
-                "Pixel Chair", "Pixel Plant", "Pixel Sofa" };
+                "Pixel Plant", "Pixel Sofa" };
             foreach (string name in names)
             {
                 SpriteRenderer[] renderers = FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None)
@@ -828,27 +827,52 @@ public static class ApprovedArtPlayModeValidation
                 bool rightEnd = seat.name.EndsWith("4");
                 Vector3 position = roulette.transform.InverseTransformPoint(seat.SittingPosition);
                 Vector3 facing = seat.Facing * Vector3.forward;
-                SpriteRenderer chair = seat.GetComponentInChildren<SpriteRenderer>();
-                Check(chair.sprite.name == (rightEnd ? "CasinoStool_View03" : "CasinoStool_View05"),
-                    "Roulette chair faces the wrong direction: " + seat.name);
-                Check(rightEnd ? position.x > 3 && Vector3.Dot(facing, Vector3.left) > .99f :
-                    position.x >= 0 && position.x <= 2.51f && Mathf.Abs(position.z + 2.05f) < .01f &&
+                Check(rightEnd ? Mathf.Abs(position.x - 2.95f) < .01f &&
+                    Vector3.Dot(facing, Vector3.left) > .99f :
+                    position.x >= 0 && position.x <= 2.51f && Mathf.Abs(position.z + 1.45f) < .01f &&
                     Vector3.Dot(facing, Vector3.forward) > .99f,
-                    "Roulette chairs must sit by the layout, not around the wheel: " + seat.name);
+                    "Roulette customers must stand close to and face the layout, not the wheel: " + seat.name);
                 UnityEngine.AI.NavMeshPath path = new UnityEngine.AI.NavMeshPath();
                 Check(UnityEngine.AI.NavMesh.SamplePosition(seat.Position, out UnityEngine.AI.NavMeshHit hit,
                     .2f, UnityEngine.AI.NavMesh.AllAreas) &&
                     UnityEngine.AI.NavMesh.CalculatePath(entrance, hit.position, UnityEngine.AI.NavMesh.AllAreas, path) &&
                     path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete,
                     "A rearranged Roulette seat is unreachable: " + seat.name);
-                Check(Vector3.Distance(chair.transform.position, seat.SittingPosition) <= .16f,
-                    "A Roulette chair no longer follows its seated customer's anchor.");
             }
             Check(Mathf.Abs(seats[1].SittingPosition.x - seats[0].SittingPosition.x - 1.25f) < .01f &&
                 Mathf.Abs(seats[2].SittingPosition.x - seats[1].SittingPosition.x - 1.25f) < .01f,
-                "The three near-side Roulette chairs are not evenly spaced.");
-            Debug.Log("LIVE ROULETTE CHAIRS PASSED: 3 facing away by the layout, 1 facing left at the right end, " +
-                "4 reachable real seats, matching chair/sitting anchors and preserved pull-out animation.");
+                "The three near-side Roulette standing positions are not evenly spaced.");
+            Debug.Log("LIVE ROULETTE STANDING PASSED: 3 facing away by the layout, 1 facing left at the right end, " +
+                "4 reachable real customer positions, no chairs.");
+        }
+
+        private static void ValidateStandingCustomers()
+        {
+            CasinoSeat[] seats = FindObjectsByType<CasinoSeat>(FindObjectsSortMode.None);
+            Check(seats.Length == 10, "Removing chairs must retain all ten gameplay positions.");
+            Check(FindObjectsByType<CasinoSeatVisual>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length == 0 &&
+                !FindObjectsByType<SpriteRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                    .Any(renderer => renderer.name == "Pixel Chair"),
+                "A table chair or its pull-out animation survived.");
+            foreach (CasinoSeat seat in seats)
+            {
+                if (seat.GameType != CasinoCustomerGame.Roulette)
+                {
+                    Vector3 position = seat.DealerStation.transform.InverseTransformPoint(seat.SittingPosition);
+                    Check(Mathf.Abs(position.z + 1.2f) < .01f && Mathf.Abs(position.x) <= 1.71f &&
+                        Vector3.Dot(seat.Facing * Vector3.forward, Vector3.forward) > .99f,
+                        "A Blackjack standing position is too far from its table or faces away.");
+                }
+                CasinoCustomerAI customer = seat.Occupant;
+                if (customer == null || !customer.IsSeated) continue;
+                PixelCharacterVisual visual = customer.GetComponentInChildren<PixelCharacterVisual>();
+                Check(Quaternion.Angle(customer.transform.rotation, seat.Facing) < 1 &&
+                    Vector3.Distance(visual.transform.position, seat.SittingPosition) < .04f,
+                    $"Standing customer does not align with its table-facing anchor: {seat.name}.");
+                ValidateActor(visual);
+                Debug.Log($"LIVE STANDING {seat.GameType}/{seat.name}: sprite={visual.Renderer.sprite.name}, " +
+                    $"position={visual.transform.position}, facing={customer.transform.forward}; no chair.");
+            }
         }
 
         private static void ValidateWallArt()
