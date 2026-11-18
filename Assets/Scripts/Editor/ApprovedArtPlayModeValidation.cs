@@ -93,7 +93,7 @@ public static class ApprovedArtPlayModeValidation
         Sprite sprite = renderer.sprite;
         string path = AssetDatabase.GetAssetPath(sprite);
         bool directionalPlayer = pixel.UsesPlayerDirectionalArt;
-        bool directionalDealer = species == CasinoAnimalSpecies.Tiger || species == CasinoAnimalSpecies.Pig;
+        bool directionalDealer = species is CasinoAnimalSpecies.Tiger or CasinoAnimalSpecies.Pig or CasinoAnimalSpecies.Bear;
         string dealerWalkPrefix = $"{species.ToString().ToLowerInvariant()}-walk-";
         Check(pixel.UsesDealerWalkArt == directionalDealer, $"Unexpected dealer walk bindings for {species}.");
         string expectedName = $"{(pixel.IsVip ? "VIP_" : "")}{species}_Standing_48x64";
