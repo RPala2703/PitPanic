@@ -611,11 +611,12 @@ standalone build; `Pit Panic.app` is the latest build including the glow.
   sitting, dealing and reactions retain their actual gameplay states but do not
   substitute legacy animated frames. New directional/action drawings were not
   invented.
-- The floor Roulette table uses `roulette-table-idle.png` between spins. During
-  dealer and manual spins, the nine supplied frames loop at 12 fps in order,
-  starting from frame 01 on each spin. The inspection and manual spin panels
-  show the same artwork during the spin only. The gameplay pivot, ball,
-  timing and results remain unchanged; the legacy wheel layer stays hidden.
+- The floor Roulette table uses the supplied static pixel-art table in
+  `roulette-table-idle.png` (only transparent outer padding removed). It stays
+  static through dealer and manual spins. The recent nine-frame overlays and
+  legacy airborne floor ball are removed. Roulette wagers no longer fly from
+  customers, and payout props no longer fly to customers' floor positions.
+  Actual bets, results, payouts and the interactive minigame are unchanged.
 - Other supplied chair angles and decor files remain imported and available;
   the real floor uses the selected independent chair/stool views and existing
   scenery locations rather than displaying all 30 prop files as a gallery.

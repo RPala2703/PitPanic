@@ -45,8 +45,6 @@ public sealed class RouletteRoundController : MonoBehaviour
     [SerializeField] private RouletteTableMinigame assistanceMinigame;
     [SerializeField] private Transform physicalWheel;
     [SerializeField] private Transform chipContainer;
-    [SerializeField] private SpriteRenderer tableArt;
-    [SerializeField] private Sprite[] spinFrames;
     [SerializeField, Min(0.1f)] private float bettingSeconds = 3f;
     [SerializeField, Min(0.1f)] private float spinSeconds = 3f;
     [SerializeField, Min(0.1f)] private float settlementSeconds = 1.5f;
@@ -61,8 +59,6 @@ public sealed class RouletteRoundController : MonoBehaviour
     private readonly HashSet<CasinoCustomerAI> activeCustomers = new HashSet<CasinoCustomerAI>();
     private float phaseTimer;
     private float spinElapsed;
-    private float wheelStartAngle;
-    private float wheelExtraRotation;
     private int pendingWinningNumber = -1;
     private int latestWinningNumber = -1;
     private int assistanceWinningNumber = -1;
@@ -73,16 +69,6 @@ public sealed class RouletteRoundController : MonoBehaviour
     private bool subscriptionsBound;
     private bool tutorialRoundRequested;
     private bool tutorialRound;
-    private Transform visibleBall;
-    private Sprite idleTableSprite;
-    private Vector3 idleTableScale;
-    private PixelSpriteTextureBinding tableTextureBinding;
-
-    public Sprite SpinSprite => isActiveAndEnabled && Phase == RouletteRoundPhase.Spinning
-        ? SpinFrameAt(spinElapsed) : null;
-
-    internal Sprite SpinFrameAt(float elapsed) => spinFrames != null && spinFrames.Length > 0
-        ? spinFrames[Mathf.FloorToInt(elapsed * 12f) % spinFrames.Length] : null;
 
     public bool IsTutorialRound => tutorialRound;
     public void PrepareTutorialRound() => tutorialRoundRequested = true;
@@ -422,14 +408,6 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
     }
 
-    private void Awake()
-    {
-        if (tableArt == null) return;
-        idleTableSprite = tableArt.sprite;
-        idleTableScale = tableArt.transform.localScale;
-        tableTextureBinding = tableArt.GetComponent<PixelSpriteTextureBinding>();
-    }
-
     private void Start()
     {
         if (!IsConfigured)
@@ -450,31 +428,6 @@ public sealed class RouletteRoundController : MonoBehaviour
     private void OnDisable()
     {
         UnbindTaskEvents();
-        SetTableSpinFrame(null);
-    }
-
-    private void LateUpdate()
-    {
-        Sprite frame = SpinSprite;
-        if (frame == null && assistanceMinigame != null)
-            frame = assistanceMinigame.ActiveSpinSprite;
-        SetTableSpinFrame(frame);
-    }
-
-    private void SetTableSpinFrame(Sprite frame)
-    {
-        if (tableArt == null || idleTableSprite == null) return;
-        Sprite next = frame != null ? frame : idleTableSprite;
-        if (tableArt.sprite == next) return;
-
-        // The supplied frames use a smaller canvas. Match the idle artwork's world footprint.
-        Vector3 idleSize = idleTableSprite.bounds.size;
-        Vector3 nextSize = next.bounds.size;
-        tableArt.transform.localScale = new Vector3(
-            idleTableScale.x * idleSize.x / nextSize.x,
-            idleTableScale.y * idleSize.y / nextSize.y, idleTableScale.z);
-        tableArt.sprite = next;
-        tableTextureBinding?.RefreshSprite();
     }
 
     private void Update()
@@ -666,9 +619,6 @@ public sealed class RouletteRoundController : MonoBehaviour
             SpriteRenderer renderer = PixelWorldProps.CreateSurface(chip.transform, "Pixel Roulette Chip",
                 CasinoPixelArt.ChipForValue(composition[i].ValuePence), new Vector2(0.09f, 0.09f), -7);
             renderer.color = Color.white;
-            chip.AddComponent<CasinoPropFlight>().Configure(
-                transform.InverseTransformPoint(customerBet.Customer.transform.position) + Vector3.up,
-                chip.transform.localPosition, .5f + i * .06f, CasinoSoundCue.Chip);
             tableChips.Add(chip);
             visuals.Add(chip);
         }
@@ -694,8 +644,6 @@ public sealed class RouletteRoundController : MonoBehaviour
         Phase = RouletteRoundPhase.Spinning;
         pendingWinningNumber = UnityEngine.Random.Range(0, 37);
         spinElapsed = 0f;
-        wheelStartAngle = physicalWheel.localEulerAngles.y;
-        wheelExtraRotation = UnityEngine.Random.Range(900f, 1500f);
         // Everyone leans in to follow the ball, each at their own moment.
         Vector3 wheel = physicalWheel != null ? physicalWheel.position : transform.position;
         int watcher = 0;
@@ -716,48 +664,17 @@ public sealed class RouletteRoundController : MonoBehaviour
             foreach (GameObject chip in chips)
             {
                 if (chip == null) continue;
-                CasinoPropFlight prior = chip.GetComponent<CasinoPropFlight>();
-                if (prior != null) Destroy(prior);
-                chip.AddComponent<CasinoPropFlight>().Configure(chip.transform.localPosition,
-                    new Vector3(-1.5f, 1.3f, .7f), .6f, CasinoSoundCue.Chip);
+                Destroy(chip);
             }
             return;
-        }
-        if (bet.Customer == null) return;
-        Vector3 target = transform.InverseTransformPoint(bet.Customer.transform.position) + Vector3.up;
-        int count = Mathf.Clamp((int)(bet.WinningsPence / 500), 1, 6);
-        for (int i = 0; i < count; i++)
-        {
-            GameObject chip = new GameObject("Roulette Winner Chip");
-            chip.transform.SetParent(chipContainer, false);
-            PixelWorldProps.CreateSurface(chip.transform, "Payout", CasinoPixelArt.ChipForAmount((int)bet.WinningsPence), new Vector2(.22f, .22f), -5);
-            chip.AddComponent<CasinoPropFlight>().Configure(new Vector3(-1.5f, 1.3f, .7f),
-                target + Vector3.up * i * .03f, .65f + i * .06f, CasinoSoundCue.Chip);
-            tableChips.Add(chip);
         }
     }
 
     private void UpdateWheelSpin()
     {
         spinElapsed = Mathf.Min(spinSeconds, spinElapsed + Time.deltaTime);
-        float progress = Mathf.Clamp01(spinElapsed / Mathf.Max(0.1f, spinSeconds));
-        float eased = 1f - Mathf.Pow(1f - progress, 3f);
-        Vector3 angles = physicalWheel.localEulerAngles;
-        angles.y = wheelStartAngle + wheelExtraRotation * eased;
-        physicalWheel.localEulerAngles = angles;
-        if (visibleBall == null)
-        {
-            visibleBall = new GameObject("Roulette Moving Ball").transform;
-            visibleBall.SetParent(physicalWheel, false);
-            PixelWorldProps.CreateSurface(visibleBall, "Pixel Ball", CasinoPixelArt.Ball,
-                new Vector2(.12f, .12f), -6);
-        }
-        float ballAngle = -eased * Mathf.PI * 16;
-        visibleBall.localPosition = new Vector3(Mathf.Cos(ballAngle) * .6f, .32f, Mathf.Sin(ballAngle) * .6f);
         if (spinElapsed >= spinSeconds)
         {
-            float resultAngle = ((Array.IndexOf(CasinoPixelArt.WheelOrder, pendingWinningNumber) + .5f) / 37f * 2 - 1) * Mathf.PI;
-            visibleBall.localPosition = new Vector3(Mathf.Cos(resultAngle) * .6f, .32f, Mathf.Sin(resultAngle) * .6f);
             AssistanceOpportunity?.Invoke(this);
             if (Phase == RouletteRoundPhase.Spinning) SettleRound(pendingWinningNumber);
         }
@@ -780,11 +697,6 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
 
         roundSettled = true;
-        if (visibleBall != null)
-        {
-            float angle = ((Array.IndexOf(CasinoPixelArt.WheelOrder, winningNumber) + .5f) / 37f * 2 - 1) * Mathf.PI;
-            visibleBall.localPosition = new Vector3(Mathf.Cos(angle) * .6f, .32f, Mathf.Sin(angle) * .6f);
-        }
         pendingWinningNumber = winningNumber;
         latestWinningNumber = winningNumber;
         recentResults.Enqueue(winningNumber);
@@ -862,15 +774,12 @@ public sealed class RouletteRoundController : MonoBehaviour
                 chips.Count > 0 && chips[0] != null)
             {
                 GameObject chip = chips[0];
-                CasinoPropFlight oldFlight = chip.GetComponent<CasinoPropFlight>();
-                if (oldFlight != null) Destroy(oldFlight);
                 int column = winningNumber == 0 ? 1 : (winningNumber - 1) % 3;
                 int row = winningNumber == 0 ? 11 : (winningNumber - 1) / 3;
                 Vector3 target = winningNumber == 0
                     ? new Vector3(0f, 1.34f, 1.12f)
                     : new Vector3((column - 1) * .28f, 1.34f, (.5f - row) * .14f);
-                chip.AddComponent<CasinoPropFlight>().Configure(chip.transform.localPosition,
-                    target, .72f, CasinoSoundCue.Chip);
+                chip.transform.localPosition = target;
             }
         }
         else

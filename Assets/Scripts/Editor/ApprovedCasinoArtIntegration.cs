@@ -222,7 +222,6 @@ public static class ApprovedCasinoArtIntegration
                     break;
                 case "Pixel Roulette":
                     Surface(renderer, "tables/roulette-table-idle", 6f);
-                    BindRouletteSpinArtwork(renderer);
                     break;
                 case "Pixel CashDesk":
                     Surface(renderer, "stations/CashDesk_Concept", 4f);
@@ -357,18 +356,6 @@ public static class ApprovedCasinoArtIntegration
         Sprite sprite = Sprite.Create(source.texture, region, pivot, source.pixelsPerUnit, 0, SpriteMeshType.FullRect);
         sprite.name = source.name;
         AssetDatabase.CreateAsset(sprite, path);
-    }
-
-    private static void BindRouletteSpinArtwork(SpriteRenderer renderer)
-    {
-        SerializedObject roulette = new SerializedObject(renderer.GetComponentInParent<RouletteRoundController>());
-        roulette.FindProperty("tableArt").objectReferenceValue = renderer;
-        SerializedProperty frames = roulette.FindProperty("spinFrames");
-        frames.arraySize = 9;
-        for (int i = 0; i < frames.arraySize; i++)
-            frames.GetArrayElementAtIndex(i).objectReferenceValue =
-                Load($"CasinoProps/tables/roulette-wheel-{i + 1:00}");
-        roulette.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void Surface(SpriteRenderer renderer, string path, float width)

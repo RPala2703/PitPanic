@@ -1226,26 +1226,10 @@ public static class FirstShiftPlayModeValidation
                   (!hadCover || roulette.AssistanceWinningNumber == resultBeforeManualSpin),
                 "Taking over Roulette lost the existing bets or COVER result");
             Call(rgame, "BeginSpin");
-            Image artwork = (Image)Get(rgame, "spinArtwork");
-            SpriteRenderer tableArt = (SpriteRenderer)Get(roulette, "tableArt");
-            Sprite idle = (Sprite)Get(roulette, "idleTableSprite");
-            Check(artwork.gameObject.activeInHierarchy && artwork.sprite.name == "roulette-wheel-01",
-                "Manual Roulette spin did not start on the first supplied frame");
-            bool looped = false;
-            bool advanced = false;
-            bool floorAnimated = false;
-            float spinDeadline = Time.realtimeSinceStartup + 8f;
-            while (artwork.gameObject.activeInHierarchy && Time.realtimeSinceStartup < spinDeadline)
-            {
-                yield return null;
-                if (!artwork.gameObject.activeInHierarchy) break;
-                floorAnimated |= tableArt.sprite != idle;
-                if (artwork.sprite.name != "roulette-wheel-01") advanced = true;
-                else if (advanced) looped = true;
-            }
-            yield return null;
-            Check(looped && floorAnimated && !artwork.gameObject.activeInHierarchy && tableArt.sprite == idle,
-                "Manual Roulette spin did not loop and restore the idle table when SWEEP opened");
+            yield return new WaitForSeconds(3);
+            Check(GameObject.Find("Roulette Moving Ball") == null &&
+                roulette.GetComponentsInChildren<CasinoPropFlight>().Length == 0,
+                "Outdated roulette floor ball or flying chips reappeared during a manual spin");
             IList chips = (IList)Get(rgame, "sweepChips");
             var tray = (RectTransform)Get(rgame, "trayHitArea");
             Vector2 trayPoint = RectTransformUtility.WorldToScreenPoint(null, tray.position);

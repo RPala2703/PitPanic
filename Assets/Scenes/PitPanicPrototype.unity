@@ -14142,17 +14142,6 @@ MonoBehaviour:
   assistanceMinigame: {fileID: 1505345162}
   physicalWheel: {fileID: 1575327733}
   chipContainer: {fileID: 509367474}
-  tableArt: {fileID: 1959694488}
-  spinFrames:
-  - {fileID: 21300000, guid: 0c5ac96562f04e239ee2685496443ec8, type: 3}
-  - {fileID: 21300000, guid: 57b756290409474286b7e40aa1ccfd17, type: 3}
-  - {fileID: 21300000, guid: 769d2f1382fc465dafc3e7749e7a4a4f, type: 3}
-  - {fileID: 21300000, guid: 56d350215573424ca80e8538f6ef64c4, type: 3}
-  - {fileID: 21300000, guid: a5e1018792844a6ba0bd9b0fd7182121, type: 3}
-  - {fileID: 21300000, guid: 6e9f5136177e4de4b32c4a4ae1b2ca88, type: 3}
-  - {fileID: 21300000, guid: df755495d0fb41e88a09ea490357b1b3, type: 3}
-  - {fileID: 21300000, guid: 71f97ae3a18e4a24bfc1cc3941416293, type: 3}
-  - {fileID: 21300000, guid: 79cc4dab4b4c4a2d95fd906129f31086, type: 3}
   bettingSeconds: 3
   spinSeconds: 3
   settlementSeconds: 1.5
@@ -21016,8 +21005,8 @@ Transform:
   m_GameObject: {fileID: 1959694485}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 1.2, z: -1.53515625}
-  m_LocalScale: {x: 0.75, y: 0.75, z: 0.75}
+  m_LocalPosition: {x: 0, y: 1.2, z: -1.79577465}
+  m_LocalScale: {x: 1.3521127, y: 1.3521127, z: 1.3521127}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 584051164}
