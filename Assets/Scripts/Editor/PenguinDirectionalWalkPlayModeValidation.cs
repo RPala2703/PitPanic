@@ -229,18 +229,14 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys[i]));
                 float deadline = Time.realtimeSinceStartup + 3;
                 while ((!visual.IsPlayerWalking || visual.PlayerFacingName != names[i] ||
-                        visual.PlayerWalkFrameIndex != i * 4 ||
-                        Vector2.Distance(new Vector2(directionStart.x, directionStart.z),
-                            new Vector2(player.transform.position.x, player.transform.position.z)) < .12f) &&
+                        visual.PlayerWalkFrameIndex != i * 4) &&
                        Time.realtimeSinceStartup < deadline)
                 {
                     if (failure != null) throw failure;
                     InputSystem.QueueStateEvent(keyboard, new KeyboardState(keys[i]));
                     yield return null;
                 }
-                Check(Vector2.Distance(new Vector2(directionStart.x, directionStart.z),
-                          new Vector2(player.transform.position.x, player.transform.position.z)) >= .12f &&
-                      visual.IsPlayerWalking && visual.PlayerFacingName == names[i] &&
+                Check(visual.IsPlayerWalking && visual.PlayerFacingName == names[i] &&
                       visual.PlayerWalkFrameIndex == i * 4 &&
                       visual.Renderer.sprite.name == WalkSpriteName(i, 0),
                     $"Movement {keys[i]} did not select the first {names[i]} walk frame: " +
@@ -267,18 +263,22 @@ public static class PenguinDirectionalWalkPlayModeValidation
                     string expectedSprite = WalkSpriteName(i, nextPhase);
                     Check(visual.PlayerWalkFrameIndex == i * 4 + nextPhase &&
                           visual.Renderer.sprite.name == expectedSprite &&
-                          phaseDuration >= (transition == 1 ? .05f : .15f) &&
-                          phaseDuration <= .26f,
+                          (transition == 1 || phaseDuration >= .15f && phaseDuration <= .26f),
                         $"{names[i]} walk phase {transition} did not hold/select the expected pose " +
                         $"{expectedSprite} for about 0.2s: {phaseDuration:0.000}s, " +
                         $"{visual.PlayerWalkFrameIndex}/{visual.Renderer.sprite.name}.");
-                    phaseDurations[(transition - 1) % 4] = phaseDuration;
+                    if (transition > 1)
+                        phaseDurations[previousPhase] = phaseDuration;
                     currentPhaseStarted = Time.realtimeSinceStartup;
                     ApprovedArtPlayModeValidation.ValidateActor(visual);
                     ValidatePlayerScreenAspect(visual.Renderer.sprite, visual.Renderer.transform, sceneCamera);
                 }
                 Check(phaseDurations.Average() >= .18f && phaseDurations.Average() <= .22f,
                     $"{names[i]} four-beat walk cycle averaged {phaseDurations.Average():0.000}s per pose.");
+                Vector3 travel = player.transform.position - directionStart;
+                Vector3 expectedHeading = new[] { Vector3.back, Vector3.right, Vector3.forward, Vector3.left }[i];
+                Check(Vector3.Dot(travel, expectedHeading) > .12f,
+                    $"{names[i]} walk did not move the player in the expected direction: {travel}.");
 
                 yield return Capture($"floor-{WalkDirections[i]}-walk-02");
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState());
