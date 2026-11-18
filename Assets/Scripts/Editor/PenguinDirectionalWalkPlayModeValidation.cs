@@ -249,6 +249,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 float[] phaseDurations = new float[4];
                 float currentPhaseStarted = Time.unscaledTime;
                 float phaseStartSampleGap = 0f;
+                float cycleStartSampleGap = 0f;
                 for (int transition = 1; transition <= 5; transition++)
                 {
                     int previousPhase = (transition - 1) % 4;
@@ -275,12 +276,16 @@ public static class PenguinDirectionalWalkPlayModeValidation
                         $"{visual.PlayerWalkFrameIndex}/{visual.Renderer.sprite.name}.");
                     if (transition > 1)
                         phaseDurations[previousPhase] = phaseDuration;
+                    else
+                        cycleStartSampleGap = phaseEndSampleGap;
                     currentPhaseStarted = Time.unscaledTime;
                     phaseStartSampleGap = phaseEndSampleGap;
                     ApprovedArtPlayModeValidation.ValidateActor(visual);
                     ValidatePlayerScreenAspect(visual.Renderer.sprite, visual.Renderer.transform, sceneCamera);
                 }
-                Check(phaseDurations.Average() >= .18f && phaseDurations.Average() <= .22f,
+                float cycleDuration = phaseDurations.Sum();
+                Check(cycleDuration + cycleStartSampleGap >= .78f &&
+                      cycleDuration - phaseStartSampleGap <= .82f,
                     $"{names[i]} four-beat walk cycle averaged {phaseDurations.Average():0.000}s per pose.");
                 Vector3 travel = player.transform.position - directionStart;
                 Vector3 expectedHeading = new[] { Vector3.back, Vector3.right, Vector3.forward, Vector3.left }[i];
