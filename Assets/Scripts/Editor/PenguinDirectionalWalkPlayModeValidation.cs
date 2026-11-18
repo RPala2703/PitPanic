@@ -246,12 +246,13 @@ public static class PenguinDirectionalWalkPlayModeValidation
                     $"pressed={keyboard[keys[i]].isPressed}, timeScale={Time.timeScale:0.00}.");
                 ApprovedArtPlayModeValidation.ValidateActor(visual);
                 float[] phaseDurations = new float[4];
-                float currentPhaseStarted = Time.realtimeSinceStartup;
+                float currentPhaseStarted = Time.unscaledTime;
+                float phaseStartSampleGap = 0f;
                 for (int transition = 1; transition <= 5; transition++)
                 {
                     int previousPhase = (transition - 1) % 4;
                     int nextPhase = transition % 4;
-                    float phaseDeadline = currentPhaseStarted + .6f;
+                    float phaseDeadline = Time.realtimeSinceStartup + .6f;
                     while (visual.PlayerWalkFrameIndex == i * 4 + previousPhase &&
                            Time.realtimeSinceStartup < phaseDeadline)
                     {
@@ -259,17 +260,22 @@ public static class PenguinDirectionalWalkPlayModeValidation
                         yield return null;
                     }
 
-                    float phaseDuration = Time.realtimeSinceStartup - currentPhaseStarted;
+                    float phaseDuration = Time.unscaledTime - currentPhaseStarted;
+                    float phaseEndSampleGap = Time.unscaledDeltaTime;
                     string expectedSprite = WalkSpriteName(i, nextPhase);
+                    // The actual transition lies between the last two samples.
+                    bool expectedDuration = phaseDuration + phaseStartSampleGap >= .185f &&
+                                            phaseDuration - phaseEndSampleGap <= .215f;
                     Check(visual.PlayerWalkFrameIndex == i * 4 + nextPhase &&
                           visual.Renderer.sprite.name == expectedSprite &&
-                          (transition == 1 || phaseDuration >= .15f && phaseDuration <= .26f),
+                          (transition == 1 || expectedDuration),
                         $"{names[i]} walk phase {transition} did not hold/select the expected pose " +
                         $"{expectedSprite} for about 0.2s: {phaseDuration:0.000}s, " +
                         $"{visual.PlayerWalkFrameIndex}/{visual.Renderer.sprite.name}.");
                     if (transition > 1)
                         phaseDurations[previousPhase] = phaseDuration;
-                    currentPhaseStarted = Time.realtimeSinceStartup;
+                    currentPhaseStarted = Time.unscaledTime;
+                    phaseStartSampleGap = phaseEndSampleGap;
                     ApprovedArtPlayModeValidation.ValidateActor(visual);
                     ValidatePlayerScreenAspect(visual.Renderer.sprite, visual.Renderer.transform, sceneCamera);
                 }
