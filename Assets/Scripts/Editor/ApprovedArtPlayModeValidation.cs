@@ -93,35 +93,36 @@ public static class ApprovedArtPlayModeValidation
         Sprite sprite = renderer.sprite;
         string path = AssetDatabase.GetAssetPath(sprite);
         bool directionalPlayer = pixel.UsesPlayerDirectionalArt;
-        bool directionalTiger = species == CasinoAnimalSpecies.Tiger;
-        Check(pixel.UsesDealerWalkArt == directionalTiger, $"Unexpected dealer walk bindings for {species}.");
+        bool directionalDealer = species == CasinoAnimalSpecies.Tiger || species == CasinoAnimalSpecies.Pig;
+        string dealerWalkPrefix = $"{species.ToString().ToLowerInvariant()}-walk-";
+        Check(pixel.UsesDealerWalkArt == directionalDealer, $"Unexpected dealer walk bindings for {species}.");
         string expectedName = $"{(pixel.IsVip ? "VIP_" : "")}{species}_Standing_48x64";
         string expectedPath = directionalPlayer
             ? "Assets/Art/ApprovedCasino/Characters/Player/"
-            : directionalTiger ? "Assets/Art/ApprovedCasino/Characters/Staff/"
+            : directionalDealer ? "Assets/Art/ApprovedCasino/Characters/Staff/"
             : ApprovedCasinoArtIntegration.ArtRoot + "/";
         bool expectedSprite = directionalPlayer
             ? pixel.IsPlayerWalking
                 ? pixel.UsesPlayerWalkArt && pixel.IsPlayerWalkSprite(sprite)
                 : sprite == pixel.SelectedStandingArt && sprite.name.EndsWith("-03", StringComparison.Ordinal)
-            : directionalTiger ? sprite.name.StartsWith("tiger-walk-", StringComparison.Ordinal)
+            : directionalDealer ? sprite.name.StartsWith(dealerWalkPrefix, StringComparison.Ordinal)
             : sprite == pixel.SelectedStandingArt && sprite.name == expectedName;
         Check(pixel.UsesApprovedStandingArt && expectedSprite && path.StartsWith(expectedPath),
             $"Wrong live sprite for {species}/VIP={pixel.IsVip}: {path}/{sprite?.name}");
-        if (directionalTiger)
+        if (directionalDealer)
         {
             string[] headings = { "south", "east", "north", "west" };
             SerializedProperty cycle = new SerializedObject(pixel).FindProperty("dealerWalkFrames");
-            Check(cycle.arraySize == 16, "Tiger must have four walk frames per heading.");
+            Check(cycle.arraySize == 16, $"{species} must have four walk frames per heading.");
             for (int i = 0; i < cycle.arraySize; i++)
                 Check(cycle.GetArrayElementAtIndex(i).objectReferenceValue is Sprite frame &&
-                    frame.name == $"tiger-walk-{headings[i / 4]}-{1 + i % 4:00}",
-                    $"Tiger walk frame {i} is missing or out of order.");
+                    frame.name == $"{dealerWalkPrefix}{headings[i / 4]}-{1 + i % 4:00}",
+                    $"{species} walk frame {i} is missing or out of order.");
             AIDealer dealer = pixel.GetComponentInParent<AIDealer>();
             if (dealer.IsResting || dealer.IsAtStation)
             {
-                Check(sprite == pixel.SelectedStandingArt && sprite.name == "tiger-walk-south-03",
-                    $"Stationary Tiger used {sprite.name} instead of the front-facing planted frame.");
+                Check(sprite == pixel.SelectedStandingArt && sprite.name == dealerWalkPrefix + "south-03",
+                    $"Stationary {species} used {sprite.name} instead of the front-facing planted frame.");
             }
         }
         MaterialPropertyBlock block = new MaterialPropertyBlock();
@@ -135,7 +136,7 @@ public static class ApprovedArtPlayModeValidation
         Check(renderer.enabled && renderer.color.a > .9f, $"Character {species} is hidden.");
         Check(pixel.GetComponentsInChildren<MeshRenderer>(true).All(mesh => !mesh.enabled),
             $"Legacy procedural character is visible beside approved {species}.");
-        bool directional = directionalPlayer || directionalTiger;
+        bool directional = directionalPlayer || directionalDealer;
         int pixelsPerUnit = directional ? 256 : 32;
         Vector2 expectedSize = directional ? new Vector2(256, 256) : new Vector2(48, 64);
         Check(sprite.pivot == new Vector2(sprite.rect.width * .5f, 0),
