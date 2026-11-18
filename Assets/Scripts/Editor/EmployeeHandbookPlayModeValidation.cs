@@ -289,7 +289,48 @@ public static class EmployeeHandbookPlayModeValidation
                 "Guest unlock/read state should persist after New Game and reload.");
             yield return PressEscape();
             Check(!handbook.IsOpen, "Escape did not close the reloaded handbook.");
+            yield return VerifyDescriptions(title, entries);
             yield return VerifyCapturedFiles();
+        }
+
+        private IEnumerator VerifyDescriptions(CasinoTitleScreen title, HandbookEntry[] entries)
+        {
+            CasinoDemoProgression.AwardShift(1, 2);
+            CasinoDemoProgression.AwardShift(2, 2);
+            Click(title.transform.Find("Handbook").GetComponent<Button>());
+            yield return null;
+            CasinoEmployeeHandbook handbook = FindHandbook();
+            Text description = handbook.GetComponentsInChildren<Text>()
+                .Single(text => text.name == "Entry description");
+            using (var unbounded = new TextGenerator())
+            {
+                foreach (HandbookCategory category in Enum.GetValues(typeof(HandbookCategory)))
+                {
+                    Click(Find(handbook, "Tab " + category));
+                    int count = entries.Count(entry => entry.category == category);
+                    for (int i = 0; i < count; i++)
+                    {
+                        yield return null;
+                        Canvas.ForceUpdateCanvases();
+                        HandbookEntry entry = handbook.CurrentEntry;
+                        Check(!handbook.CurrentEntryLocked && description.text == entry.description,
+                            $"Handbook description does not match the entry for {entry.id}.");
+                        TextGenerator rendered = description.cachedTextGenerator;
+                        TextGenerationSettings settings =
+                            description.GetGenerationSettings(description.rectTransform.rect.size);
+                        settings.fontSize = rendered.fontSizeUsedForBestFit;
+                        settings.resizeTextForBestFit = false;
+                        settings.verticalOverflow = VerticalWrapMode.Overflow;
+                        Check(unbounded.Populate(description.text, settings) &&
+                              rendered.characterCountVisible == unbounded.characterCountVisible,
+                            $"Handbook description is clipped for {entry.id}.");
+                        if (entry.id == "rules-vip-service") yield return Capture("09-handbook-long-description");
+                        Click(Find(handbook, "Next entry"));
+                    }
+                }
+            }
+            Debug.Log($"HANDBOOK DESCRIPTIONS PASSED: all {entries.Length} entries displayed without clipping.");
+            yield return PressEscape();
         }
 
         private static CasinoEmployeeHandbook FindHandbook()

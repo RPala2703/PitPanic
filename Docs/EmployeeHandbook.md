@@ -10,7 +10,7 @@ All content lives in `Assets/Resources/Handbook/EmployeeHandbook.asset` (`Casino
 | --- | --- |
 | `id` | Stable key used for save data. Do not rename after shipping, or players lose read/unlock state for that entry. |
 | `category` | `Staff`, `Guests`, `Equipment` or `HouseRules` (tab). Entries keep asset order inside a tab. |
-| `title` / `description` | Display text. Current descriptions are placeholders ("... coming soon."). |
+| `title` / `description` | Display text. Separate paragraphs in a description with a blank line. |
 | `image` | Any existing sprite. It is shown as a small 128 px thumbnail in the top-right corner; the centred title and description are the focus. |
 | `unlock` / `level` | `Always`, `TutorialComplete`, `LevelUnlocked` (level N available), or `LevelCleared` (stars earned on level N). |
 
