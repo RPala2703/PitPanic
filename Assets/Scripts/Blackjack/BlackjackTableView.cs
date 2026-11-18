@@ -13,6 +13,8 @@ public sealed class BlackjackTableView : MonoBehaviour
 
     private Canvas canvas;
     private GameObject board;
+    private GameObject interactionBackdrop;
+    private GameObject backdropShade;
     private GameObject interactionPrompt;
     private Text promptText;
     private Text messageText;
@@ -111,6 +113,8 @@ public sealed class BlackjackTableView : MonoBehaviour
         }
 
         board.SetActive(visible);
+        interactionBackdrop.SetActive(visible);
+        backdropShade.SetActive(visible);
     }
 
     public void SetPromptVisible(bool visible, string prompt)
@@ -195,6 +199,17 @@ public sealed class BlackjackTableView : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
+        interactionBackdrop = CasinoPixelArt.AddInteractionBackdrop(canvas.transform);
+        backdropShade = CasinoMinigamePresentation.CreateImage(
+            "Velvet backdrop shade", canvas.transform, Vector2.zero, Vector2.zero,
+            new Color(0.055f, 0.025f, 0.05f, 0.18f));
+        RectTransform shadeRect = backdropShade.GetComponent<RectTransform>();
+        shadeRect.anchorMin = Vector2.zero;
+        shadeRect.anchorMax = Vector2.one;
+        shadeRect.offsetMin = Vector2.zero;
+        shadeRect.offsetMax = Vector2.zero;
+        interactionBackdrop.SetActive(false);
+        backdropShade.SetActive(false);
         CreatePrompt();
         BuildTableBoard();
     }

@@ -55,9 +55,11 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
         activePresentation = presentation;
 
         (Color accent, Color boardColor, Color gameColor) = GetTheme(title);
+        CasinoPixelArt.AddInteractionBackdrop(root.transform);
         GameObject dimmer = CreateImage("Casino Dimmer", root.transform, Vector2.zero,
-            new Vector2(2000f, 1200f), new Color(0.015f, 0.025f, 0.025f, 0.78f), true);
+            new Vector2(2000f, 1200f), new Color(0.015f, 0.025f, 0.025f, 0.24f), true);
         Stretch(dimmer.GetComponent<RectTransform>());
+        boardColor.a = 0.92f;
 
         GameObject board = CreateImage("Minigame Board", root.transform, Vector2.zero,
             new Vector2(1510f, 820f), boardColor, false);
@@ -138,6 +140,7 @@ public sealed class CasinoMinigamePresentation : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (AudioListener.pause) return;
         if (canvasGroup == null)
         {

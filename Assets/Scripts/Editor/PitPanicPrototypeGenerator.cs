@@ -324,6 +324,7 @@ public static class PitPanicPrototypeGenerator
             dealerManager,
             playerController.GetComponent<CasinoPlayerFloatCarrier>());
         SaveNavigationData(navigationSurface);
+        ApprovedCasinoArtIntegration.ApplyToCurrentScene();
 
         EditorSceneManager.MarkSceneDirty(scene);
         if (!EditorSceneManager.SaveScene(scene, ScenePath))

@@ -16,6 +16,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private Canvas canvas;
     private GameObject prompt;
     private GameObject board;
+    private GameObject interactionBackdrop;
+    private GameObject backdropShade;
     private Text dealerText;
     private Text phaseText;
     private Text participantsText;
@@ -89,6 +91,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         player.SetMovementEnabled(false);
+        interactionBackdrop.SetActive(true);
+        backdropShade.SetActive(true);
         prompt.SetActive(false);
         Refresh();
         board.SetActive(true);
@@ -166,6 +170,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         {
             board.SetActive(false);
         }
+        if (interactionBackdrop != null) interactionBackdrop.SetActive(false);
+        if (backdropShade != null) backdropShade.SetActive(false);
 
         if (player != null)
         {
@@ -232,6 +238,17 @@ public sealed class RouletteInspectionView : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
+        interactionBackdrop = CasinoPixelArt.AddInteractionBackdrop(canvas.transform);
+        backdropShade = CasinoMinigamePresentation.CreateImage(
+            "Velvet backdrop shade", canvas.transform, Vector2.zero, Vector2.zero,
+            new Color(0.055f, 0.025f, 0.05f, 0.18f));
+        RectTransform shadeRect = backdropShade.GetComponent<RectTransform>();
+        shadeRect.anchorMin = Vector2.zero;
+        shadeRect.anchorMax = Vector2.one;
+        shadeRect.offsetMin = Vector2.zero;
+        shadeRect.offsetMax = Vector2.zero;
+        interactionBackdrop.SetActive(false);
+        backdropShade.SetActive(false);
         prompt = CreateObject("Roulette Inspection Prompt", canvas.transform);
         SetRect(prompt, new Vector2(0.5f, 0f), new Vector2(0f, 104f), new Vector2(480f, 48f));
         Image promptBackground = prompt.AddComponent<Image>();

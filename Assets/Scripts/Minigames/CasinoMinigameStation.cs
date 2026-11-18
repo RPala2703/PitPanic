@@ -13,12 +13,14 @@ public sealed class CasinoMinigameStation : MonoBehaviour
     private CasinoMinigame subscribedMinigame;
 
     public bool IsTaskPending { get; private set; }
+    public bool HasRecordedMiss { get; private set; }
     public bool IsMinigameRunning => minigame != null && minigame.IsRunning;
     public bool IsPlayerInRange(Transform candidate) =>
         IsConfigured && candidate != null && interactionZone.IsPlayerInRange(candidate);
     public CasinoMinigameType MinigameType => minigameType;
     public event Action<CasinoMinigameResult> TaskSucceeded;
     public event Action TaskAbandoned;
+    public event Action TaskMissed;
     public static bool ShouldResolveTaskOnAbandon(CasinoMinigameType type) =>
         type != CasinoMinigameType.Shuffle && type != CasinoMinigameType.Spin && type != CasinoMinigameType.Cover;
 
@@ -62,6 +64,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
         minigameType = type;
         attentionReason = reason;
         IsTaskPending = true;
+        HasRecordedMiss = false;
         attention.RequestAttentionOnce(reason);
         BindMinigame();
         return true;
@@ -69,6 +72,7 @@ public sealed class CasinoMinigameStation : MonoBehaviour
 
     public bool TryBegin()
     {
+        if (CasinoShiftController.GameplayFrozen) return false;
         if (!IsTaskPending || IsMinigameRunning || !IsConfigured ||
             CasinoMinigamePresentation.IsOpen ||
             CasinoPlayerInteractionRouter.IsAnyInspectionOpen() ||
@@ -115,17 +119,29 @@ public sealed class CasinoMinigameStation : MonoBehaviour
             TaskSucceeded?.Invoke(result);
         }
 
-        // Failed tasks stay pending so the player can retry them.
+        // A retryable attempt keeps the same task and deadline, not another miss.
+        else if (!minigame.HasCarriedDeadline)
+        {
+            RecordMiss();
+        }
     }
 
     private void OnMinigameAbandoned()
     {
         if (ShouldResolveTaskOnAbandon(minigameType))
         {
+            RecordMiss();
             ResolveTask();
         }
 
         TaskAbandoned?.Invoke();
+    }
+
+    private void RecordMiss()
+    {
+        if (!IsTaskPending || HasRecordedMiss) return;
+        HasRecordedMiss = true;
+        TaskMissed?.Invoke();
     }
 
     private void BindMinigame()

@@ -9,6 +9,7 @@ using UnityEngine.UI;
 public sealed class CasinoShiftController : MonoBehaviour
 {
     public static CasinoShiftController Active { get; private set; }
+    public static bool GameplayFrozen => Active != null && Active.ending;
     public bool IsTraining => running && tutorial;
     public bool IsTrainingCashOut => IsTraining && TutorialStage == 5;
     public bool IsTrainingFloatRefill => IsTraining && TutorialStage == 6;
@@ -74,9 +75,11 @@ public sealed class CasinoShiftController : MonoBehaviour
     private Canvas canvas;
     private GameObject menu;
     private GameObject levelSelect;
+    private CasinoEmployeeHandbook handbook;
     private GameObject hud;
     private GameObject results;
     private CasinoResultsScreen resultsScreen;
+    private CasinoShiftFinale finale;
     private GameObject pausePanel;
     private Button[] levelButtons;
     private Text[] levelButtonLabels;
@@ -186,14 +189,13 @@ public sealed class CasinoShiftController : MonoBehaviour
             table.RoundSettled += OnBlackjackSettled;
         roulette.BetSettled += OnRouletteSettled;
         foreach (CasinoMinigameStation station in stations)
+        {
             station.TaskSucceeded += OnTaskSucceeded;
+            station.TaskMissed += OnTaskMissed;
+        }
         CasinoCustomerAI.ServiceTimedOut += OnServiceTimedOut;
-        foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
-            dealer.EnergyDepleted += OnServiceTimedOut;
         foreach (CasinoMinigame game in minigames)
         {
-            game.Completed += OnMinigameCompleted;
-            game.Abandoned += OnMinigameAbandoned;
             if (game is BlackjackShuffleMinigame && game.GetComponent<BlackjackTableInteraction>() == blackjack)
                 game.Completed += OnShuffleCompleted;
             if (game is RouletteTableMinigame)
@@ -364,11 +366,8 @@ public sealed class CasinoShiftController : MonoBehaviour
             CasinoSoundscape.SetIntensity(1 - remaining / shiftSeconds);
             spawner.SetShiftProgress(1 - remaining / shiftSeconds);
             spawner.SetFinale(remaining <= 60f);
-            if (remaining <= 0f)
-            {
-                ending = true;
-                spawner.SetAcceptingArrivals(false);
-            }
+            if (!tutorial) finale.Tick(remaining);
+            if (remaining <= 0f) FinishShift();
             if (!tutorial && !ending)
                 objectiveText.text = $"TASKS COMPLETED {completedTasks}  •  MISSED {failedAttempts}";
         }
@@ -378,12 +377,6 @@ public sealed class CasinoShiftController : MonoBehaviour
         tipsText.color = Color.Lerp(new Color(.55f, 1f, .55f), new Color(1f, .86f, .25f), tipPulse);
         int seconds = Mathf.CeilToInt(remaining);
         timerText.text = $"SHIFT {shift}  •  {seconds / 60:00}:{seconds % 60:00}";
-        if (ending)
-        {
-            objectiveText.text = "SHIFT OVER! FINISH OR CLOSE THE CURRENT TASK.";
-            arrow.gameObject.SetActive(false);
-            if (!AnyInteractionOpen()) FinishShift();
-        }
     }
 
     private bool AnyInteractionOpen()
@@ -399,6 +392,8 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void BeginShift(int number, bool guided)
     {
+        ending = false;
+        finale.ResetPresentation();
         CasinoSoundscape.SetMusicTrack(CasinoMusicTrack.Casino);
         CasinoSoundscape.SetFocus(null);
         newGameRequested = false;
@@ -440,6 +435,7 @@ public sealed class CasinoShiftController : MonoBehaviour
 
     private void SetPaused(bool value)
     {
+        if (ending) return;
         if (paused == value) return;
         if (value) timeScaleBeforePause = Time.timeScale;
         Time.timeScale = value ? 0f : Mathf.Max(.01f, timeScaleBeforePause);
@@ -835,32 +831,18 @@ public sealed class CasinoShiftController : MonoBehaviour
     {
         if (!running) return;
         running = false;
+        ending = true;
+        remaining = 0;
+        spawner.SetAcceptingArrivals(false);
         rouletteScheduler.CancelTutorialAssistance();
         CasinoSoundscape.SetIntensity(0);
         dealers.SetPaused(true);
         router.enabled = false;
         player.SetMovementEnabled(false);
-        int pending = 0;
-        foreach (CasinoMinigameStation station in stations)
-        {
-            if (station == null || !station.IsTaskPending)
-                continue;
-            if (station.MinigameType == CasinoMinigameType.Pack &&
-                cashDesk.ActiveCustomer == null && cashDesk.GetRequestedOrders().Count > 0)
-                continue;
-            pending++;
-        }
-        foreach (CasinoFloatRefillDestination destination in cashDesk.Destinations)
-            if (destination != null && destination.NeedsRefill()) pending++;
-        foreach (CasinoDealerStation station in dealers.Stations)
-        {
-            CasinoTableAttention attention = station != null ? station.Attention : null;
-            if (attention != null && (attention.GetPendingCount(TableAttentionReason.DealerBreakRequired) > 0 ||
-                attention.GetPendingCount(TableAttentionReason.DealerExhausted) > 0 ||
-                attention.GetPendingCount(TableAttentionReason.TableUnstaffed) > 0))
-                pending++;
-        }
-        pending += pitDesk.PendingSecurityCases;
+        arrow.gameObject.SetActive(false);
+        timerText.text = $"SHIFT {shift}  •  00:00";
+        CountUnfinishedTasks(out int pending, out int pendingMisses);
+        int misses = failedAttempts + pendingMisses;
         int penalties = Mathf.Max(0, CustomerSatisfaction.PenaltyCount - penaltyStart);
         int serviceStarts = Mathf.Max(0, CustomerSatisfaction.ServiceStartCount - serviceStart);
         int customers = spawner.TotalSpawned;
@@ -869,20 +851,29 @@ public sealed class CasinoShiftController : MonoBehaviour
             : 100;
         int tips = CasinoTipJar.TotalPence;
         int tipBonus = CasinoTipPolicy.Default.StarBonus(tips);
-        int performanceStars = CasinoDemoProgression.PerformanceStars(satisfaction, failedAttempts + pending, tips);
-        passed = CasinoDemoProgression.Passed(completedTasks, satisfaction, failedAttempts + pending);
+        int performanceStars = CasinoDemoProgression.PerformanceStars(satisfaction, misses, tips);
+        passed = CasinoDemoProgression.Passed(completedTasks, satisfaction, misses);
         int rating = passed ? performanceStars : 0;
         if (passed) CasinoDemoProgression.AwardShift(shift, rating);
-        CasinoSoundscape.SetFocus(results.transform);
-        CasinoSoundscape.PlayResultsMusic(passed);
-        CasinoSoundscape.Play(passed ? CasinoSoundCue.Success : CasinoSoundCue.Disappointed,
-            player.transform.position, results.transform);
         string explanation = BuildResultExplanation(passed, satisfaction, completedTasks,
-            failedAttempts + pending, serviceStarts);
-        hud.SetActive(false);
-        results.SetActive(true);
-        resultsScreen.Show(shift, passed, rating, CasinoDemoProgression.BestStars(shift), serviceStarts,
-            satisfaction, completedTasks, failedAttempts + pending, pending, tips, CasinoTipJar.TipCount,
+            misses, serviceStarts);
+        int finalCompleted = completedTasks;
+        int finalTipCount = CasinoTipJar.TipCount;
+        int bestStars = CasinoDemoProgression.BestStars(shift);
+        bool hasNextLevel = passed && shift < CasinoDemoProgression.LastShift &&
+            CasinoDemoProgression.UnlockedShift >= shift + 1;
+        foreach (CasinoMinigame game in minigames)
+            game.StopAllCoroutines();
+        finale.ShowTimeUp(() =>
+        {
+            CasinoSoundscape.SetFocus(results.transform);
+            CasinoSoundscape.PlayResultsMusic(passed);
+            CasinoSoundscape.Play(passed ? CasinoSoundCue.Success : CasinoSoundCue.Disappointed,
+                player.transform.position, results.transform);
+            hud.SetActive(false);
+            results.SetActive(true);
+            resultsScreen.Show(shift, passed, rating, bestStars, serviceStarts,
+            satisfaction, finalCompleted, misses, pending, tips, finalTipCount,
             tipBonus, explanation,
             RequiredResultSprite($"Results/Backgrounds/Level{shift}_{(passed ? "Pass" : "Fail")}_Background"),
             RequiredResultSprite("Results/UI/Results_Passed"),
@@ -890,8 +881,31 @@ public sealed class CasinoShiftController : MonoBehaviour
             RequiredResultSprite("Results/UI/Results_Star_Filled"),
             RequiredResultSprite("Results/UI/Results_Star_Hollow"),
             RequiredResultSprite("Results/UI/Results_Info_Panel"),
-            passed && shift < CasinoDemoProgression.LastShift &&
-                CasinoDemoProgression.UnlockedShift >= shift + 1);
+            hasNextLevel);
+        });
+    }
+
+    private void CountUnfinishedTasks(out int pending, out int pendingMisses)
+    {
+        pending = pendingMisses = 0;
+        foreach (CasinoMinigameStation station in stations)
+        {
+            if (station == null || !station.IsTaskPending)
+                continue;
+            if (station.MinigameType == CasinoMinigameType.Pack &&
+                cashDesk.ActiveCustomer == null && cashDesk.GetRequestedOrders().Count > 0)
+                continue;
+            pending++;
+            if (!station.HasRecordedMiss) pendingMisses++;
+        }
+        foreach (CasinoFloatRefillDestination destination in cashDesk.Destinations)
+            if (destination != null && destination.NeedsRefill())
+            {
+                pending++;
+                pendingMisses++;
+            }
+        pending += pitDesk.PendingSecurityCases;
+        pendingMisses += pitDesk.PendingSecurityCases;
     }
 
     private static Sprite RequiredResultSprite(string resourcePath)
@@ -972,17 +986,12 @@ public sealed class CasinoShiftController : MonoBehaviour
         { tipRemark = true; tipRemarkPending = false; }
     }
     private void OnTaskSucceeded(CasinoMinigameResult result) { if (running) completedTasks++; }
-    private void OnMinigameCompleted(CasinoMinigameResult result)
-    {
-        if (!running) return;
-        if (!result.Success) failedAttempts++;
-    }
+    private void OnTaskMissed() { if (running) failedAttempts++; }
     private void OnCashOutCompleted(CasinoMinigameResult result)
     {
         if (running && tutorial && TutorialStage == 5 && result.Success &&
             cashDesk.GetComponent<CashDeskPackMinigame>().IsCashOutMode) cashOutDone = true;
     }
-    private void OnMinigameAbandoned() { if (running) failedAttempts++; }
     private void OnServiceTimedOut() { if (running) failedAttempts++; }
     private void OnShuffleCompleted(CasinoMinigameResult result) { if (running && tutorial && TutorialStage == 2 && result.Success) shuffleDone = true; }
     private void OnRouletteCompleted(CasinoMinigameResult result)
@@ -1022,8 +1031,6 @@ public sealed class CasinoShiftController : MonoBehaviour
         if (Active == this) Active = null;
         CasinoPerformanceDirector.TipDelivered -= OnTipDelivered;
         CasinoCustomerAI.ServiceTimedOut -= OnServiceTimedOut;
-        foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
-            dealer.EnergyDepleted -= OnServiceTimedOut;
         Time.timeScale = 1f;
         AudioListener.pause = false;
         foreach (BlackjackTableInteraction table in FindObjectsByType<BlackjackTableInteraction>(FindObjectsSortMode.None))
@@ -1031,13 +1038,15 @@ public sealed class CasinoShiftController : MonoBehaviour
         if (roulette != null) roulette.BetSettled -= OnRouletteSettled;
         if (stations != null)
             foreach (CasinoMinigameStation station in stations)
-                if (station != null) station.TaskSucceeded -= OnTaskSucceeded;
+                if (station != null)
+                {
+                    station.TaskSucceeded -= OnTaskSucceeded;
+                    station.TaskMissed -= OnTaskMissed;
+                }
         if (minigames != null)
             foreach (CasinoMinigame game in minigames)
                 if (game != null)
                 {
-                    game.Completed -= OnMinigameCompleted;
-                    game.Abandoned -= OnMinigameAbandoned;
                     game.Completed -= OnShuffleCompleted;
                     game.Completed -= OnRouletteCompleted;
                     game.Completed -= OnCashOutCompleted;
@@ -1234,6 +1243,7 @@ public sealed class CasinoShiftController : MonoBehaviour
     {
         canvas = CasinoMinigameHud.Create("Shift UI", 100);
         canvas.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1600f, 900f);
+        handbook = CasinoEmployeeHandbook.Create(canvas.transform);
         menu = Panel("Welcome", new Vector2(780f, 430f));
         menu.AddComponent<CasinoTitleScreen>().Build(() =>
         {
@@ -1241,7 +1251,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             menu.SetActive(false);
             OpenLevelSelect();
         }, () => OpenLevelSelect(),
-            CasinoDemoProgression.UnlockedShift > 1 || PlayerPrefs.GetInt(SaveTutorial, 0) != 0);
+            CasinoDemoProgression.UnlockedShift > 1 || PlayerPrefs.GetInt(SaveTutorial, 0) != 0, handbook);
 
         levelSelect = Panel("Level Select", new Vector2(1040f, 640f));
         Label(levelSelect.transform, "Level Select Title", "CHOOSE YOUR CASINO", new Vector2(0, 260),
@@ -1258,9 +1268,17 @@ public sealed class CasinoShiftController : MonoBehaviour
                 () => SelectLevel(level), new Vector2(850, 92));
             levelButtonLabels[i] = levelButtons[i].GetComponentInChildren<Text>();
         }
-        MakeButton(levelSelect.transform, "Level Select Back", "BACK", new Vector2(0, -270),
+        MakeButton(levelSelect.transform, "Level Select Back", "BACK", new Vector2(-145, -270),
             () => { newGameRequested = false; levelSelect.SetActive(false); menu.SetActive(true); },
             new Vector2(250, 48));
+        Button levelHandbook = null;
+        levelHandbook = MakeButton(levelSelect.transform, "Level Select Handbook", "HANDBOOK", new Vector2(145, -270),
+            () => handbook.Open(() =>
+            {
+                if (UnityEngine.EventSystems.EventSystem.current != null)
+                    UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(levelHandbook.gameObject);
+            }), new Vector2(250, 48));
+        handbook.RegisterLauncher(levelHandbook);
         levelSelect.SetActive(false);
 
         hud = new GameObject("Shift objective", typeof(RectTransform));
@@ -1294,6 +1312,8 @@ public sealed class CasinoShiftController : MonoBehaviour
         resultsScreen.Build(results.transform, RestartShift,
             () => SelectLevel(shift + 1), OpenLevelSelect, ReturnToMainMenu);
         results.SetActive(false);
+        finale = gameObject.AddComponent<CasinoShiftFinale>();
+        finale.Build();
         GameObject pauseShade = CasinoMinigamePresentation.CreateImage("Pause backdrop", canvas.transform,
             Vector2.zero, new Vector2(1600, 900), new Color(0, 0, 0, .7f), true);
         RectTransform shadeRect = (RectTransform)pauseShade.transform;
@@ -1370,6 +1390,7 @@ public sealed class CasinoShiftController : MonoBehaviour
                 (available ? descriptions[i] : "LOCKED  •  Clear the previous level to unlock");
             levelButtons[i].interactable = available;
         }
+        handbook.RefreshLaunchers();
         CasinoSoundscape.SetFocus(levelSelect.transform);
     }
 

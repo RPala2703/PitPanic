@@ -20,6 +20,7 @@ public sealed class CasinoSeatVisual : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         bool sitting = seat.Occupant != null && seat.Occupant.IsSeated;
         chair.localPosition = Vector3.MoveTowards(chair.localPosition,
             home + (sitting ? Vector3.zero : pullOut), Time.deltaTime * .6f);

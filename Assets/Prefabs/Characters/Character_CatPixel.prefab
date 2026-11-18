@@ -260,7 +260,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1075c49bc7944aa080263e5d259b315, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PixelCharacterVisual
   spriteRenderer: {fileID: 3239763721665634573}
   frames:
@@ -280,6 +280,8 @@ MonoBehaviour:
   animationAtlas: {fileID: 2800000, guid: eae61e5fb0ef348d2b497f972fe28f63, type: 3}
   customerAnimationAtlas: {fileID: 2800000, guid: 23437f2fce3e445969dbf7198a921b16, type: 3}
   vipAnimationAtlas: {fileID: 2800000, guid: ffdf5db32be39468b96dd49230253859, type: 3}
+  approvedStanding: {fileID: 21300000, guid: 6a35ec63af64948709ee5f2d1f82f917, type: 3}
+  approvedVipStanding: {fileID: 21300000, guid: 8c4e5d51533bc4dc99b8e630a49c522f, type: 3}
 --- !u!114 &8801481685724094098
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -290,7 +292,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2d5a321bc2fb4ff4a9ef50a43a0b6701, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::CasinoCharacterVisual
   species: 7
   animatedBody: {fileID: 6316836564573219146}
@@ -1407,7 +1409,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.04, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.15, y: 1.15, z: 1.15}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1687823790881623127}
@@ -1461,7 +1463,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: fa0acfd5955cb486581dd87c7b1011d8, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 6a35ec63af64948709ee5f2d1f82f917, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -1481,7 +1483,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 22e9ad97fbd6e496b8762c585ecf9584, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PixelSpriteTextureBinding
 --- !u!1 &4823408303894524444
 GameObject:

@@ -102,6 +102,7 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (roundController != null && roundController.HasActiveCustomersAndDealer)
         {
             activePlaySeconds += Time.deltaTime;

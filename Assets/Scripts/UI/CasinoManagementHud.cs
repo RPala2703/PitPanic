@@ -79,6 +79,7 @@ public sealed class CasinoManagementHud : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (panelRect != null)
         {
             PitDeskInteraction pitDesk = FindFirstObjectByType<PitDeskInteraction>();

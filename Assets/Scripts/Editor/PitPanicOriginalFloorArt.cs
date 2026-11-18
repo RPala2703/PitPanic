@@ -121,6 +121,18 @@ public static class PitPanicOriginalFloorArt
             int cx = x + 16 + ((y / 32) & 1) * 8;
             int cy = y + 16;
             Rosette(pixels, cx, cy, motif);
+            Color32 seam = Shade(baseColor, .73f);
+            Rect(pixels, x + 1, y + 1, 30, 1, Shade(baseColor, 1.14f));
+            Rect(pixels, x + 1, y + 30, 30, 1, seam);
+            Rect(pixels, x + 1, y + 2, 1, 28, seam);
+            Rect(pixels, x + 30, y + 2, 1, 28, Shade(baseColor, .82f));
+            for (int detail = 0; detail < 4; detail++)
+            {
+                int px = x + 3 + (detail * 7 + y / 32 * 3) % 25;
+                int py = y + 4 + (detail * 11 + x / 32 * 5) % 24;
+                Pixel(pixels, px, py, Shade(motif, detail % 2 == 0 ? 1.18f : .68f));
+                Pixel(pixels, px + 1, py, Shade(motif, 1.12f));
+            }
         }
 
     }
@@ -159,17 +171,38 @@ public static class PitPanicOriginalFloorArt
                 Diamond(pixels, x, y, 2, Shade(trim, .82f));
             }
         }
+        for (int y = bottom + 20; y < top - 14; y += 36)
+        {
+            for (int side = 0; side < 2; side++)
+            {
+                int x = side == 0 ? left + 22 : right - 23;
+                Diamond(pixels, x, y, 4, Shade(trim, .66f));
+                Diamond(pixels, x, y, 2, Shade(trim, 1.18f));
+                Pixel(pixels, x, y, new Color32(255, 239, 191, 255));
+            }
+        }
         Rect(pixels, left + 14, bottom + 13, 1, height - 26, Shade(trim, .78f));
         Rect(pixels, right - 15, bottom + 13, 1, height - 26, Shade(trim, .78f));
         Rect(pixels, left + 1, bottom + 1, width - 2, 1, new Color32(255, 224, 146, 255));
         Rect(pixels, left + 1, top - 2, width - 2, 1, new Color32(255, 224, 146, 255));
+        Rect(pixels, left + 2, bottom + 2, 1, height - 4, Shade(trim, .68f));
+        Rect(pixels, right - 3, bottom + 2, 1, height - 4, Shade(trim, .68f));
+        for (int corner = 0; corner < 4; corner++)
+        {
+            int x = corner % 2 == 0 ? left + 8 : right - 9;
+            int y = corner < 2 ? bottom + 8 : top - 9;
+            Diamond(pixels, x, y, 5, Shade(trim, .65f));
+            Diamond(pixels, x, y, 3, Shade(trim, 1.16f));
+            Pixel(pixels, x, y, new Color32(255, 235, 169, 255));
+        }
     }
 
     private static void Rosette(Color32[] pixels, int cx, int cy, Color32 color)
     {
         Color32 shadow = Shade(color, .6f);
         Diamond(pixels, cx, cy, 11, shadow);
-        Diamond(pixels, cx, cy, 8, color);
+        Diamond(pixels, cx, cy, 9, Shade(color, .72f));
+        Diamond(pixels, cx, cy, 7, color);
         Diamond(pixels, cx - 5, cy, 4, shadow);
         Diamond(pixels, cx + 5, cy, 4, shadow);
         Diamond(pixels, cx, cy - 5, 4, shadow);
@@ -181,6 +214,13 @@ public static class PitPanicOriginalFloorArt
         Diamond(pixels, cx, cy, 3, shadow);
         Diamond(pixels, cx, cy, 1, Shade(color, 1.32f));
         Pixel(pixels, cx, cy, new Color32(255, 226, 151, 255));
+        for (int side = -1; side <= 1; side += 2)
+        {
+            Pixel(pixels, cx + side * 8, cy + side * 2, Shade(color, 1.25f));
+            Pixel(pixels, cx + side * 8, cy - side * 2, Shade(color, 1.25f));
+            Pixel(pixels, cx + side * 2, cy + side * 8, Shade(color, 1.25f));
+            Pixel(pixels, cx - side * 2, cy + side * 8, Shade(color, 1.25f));
+        }
     }
 
     private static void WallBand(Color32[] pixels, Color32 wall, Color32 panel, Color32 trim)

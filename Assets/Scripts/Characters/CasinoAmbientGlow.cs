@@ -14,6 +14,7 @@ public sealed class CasinoAmbientGlow : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (sprite != null)
         {
             float glow = .93f + .07f * Mathf.Sin(Time.time * 3 + phase);

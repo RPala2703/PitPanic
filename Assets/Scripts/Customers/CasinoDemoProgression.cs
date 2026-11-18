@@ -36,6 +36,8 @@ public static class CasinoDemoProgression
 
     public static void StartNewGame()
     {
+        // Latch earned handbook entries before the campaign keys they depend on are cleared.
+        CasinoHandbookProgress.Sync();
         PlayerPrefs.DeleteKey("PitPanic.TutorialComplete");
         PlayerPrefs.DeleteKey(UnlockedLevelKey);
         for (int level = 1; level <= LevelCount; level++)

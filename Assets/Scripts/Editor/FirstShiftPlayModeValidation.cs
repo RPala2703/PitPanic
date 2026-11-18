@@ -16,7 +16,17 @@ using UnityEngine.UI;
 public static class FirstShiftPlayModeValidation
 {
     private const string Key = "PitPanic.FullShiftTest";
-    static FirstShiftPlayModeValidation() { EditorApplication.update += StartTest; }
+    static FirstShiftPlayModeValidation()
+    {
+        EditorApplication.update += StartTest;
+        if (EditorApplication.isPlaying && !SessionState.GetBool(Key, false) &&
+            UnityEngine.Object.FindFirstObjectByType<ShiftTestDriver>() != null)
+        {
+            Debug.LogError("Shift validation interrupted by a script reload; restoring profile.");
+            ShiftTestDriver.Restore();
+            EditorApplication.Exit(1);
+        }
+    }
     public static void Run()
     {
         if (!Application.isBatchMode)
@@ -47,7 +57,7 @@ public static class FirstShiftPlayModeValidation
     private static string[] ProgressKeys() => new[] { CasinoDemoProgression.CreditsKey,
         CasinoDemoProgression.UpgradeKeys[0], CasinoDemoProgression.UpgradeKeys[1], CasinoDemoProgression.UpgradeKeys[2],
         CasinoDemoProgression.BestStarsKey(1), CasinoDemoProgression.BestStarsKey(2),
-        CasinoDemoProgression.BestStarsKey(3) };
+        CasinoDemoProgression.BestStarsKey(3) }.Concat(CasinoHandbookProgress.AllKeys()).ToArray();
 
     private static void StartTest()
     {
@@ -67,17 +77,48 @@ public static class FirstShiftPlayModeValidation
         private float lessonShiftTime;
         private Exception lessonFailure;
         private bool dialogueValidated;
+        private float testDeadline;
+        private bool finishing;
         private static object Get(object o, string name) => o.GetType().GetField(name, Flags).GetValue(o);
         private static object Call(object o, string name, params object[] args) =>
             o.GetType().GetMethod(name, Flags).Invoke(o, args);
         private static void Set(object o, string name, object value) => o.GetType().GetField(name, Flags).SetValue(o, value);
         private static void Check(bool value, string reason) { if (!value) throw new Exception(reason); }
-        private IEnumerator WaitForTitleTransition()
+        private IEnumerator WaitForTitleTransition(bool verifyPenguin = false)
         {
             float deadline = Time.realtimeSinceStartup + 5f;
             GameObject menu = (GameObject)Get(shift, "menu");
-            while (menu.activeSelf && Time.realtimeSinceStartup < deadline) yield return null;
+            Image hero = (Image)Get(menu.GetComponent<CasinoTitleScreen>(), "penguinImage");
+            string[] expected = { "Penguin_Walk_Back_A", "Penguin_Idle_Back", "Penguin_Walk_Back_B", "Penguin_Idle_Back" };
+            int phase = 0;
+            float previousY = hero.rectTransform.anchoredPosition.y;
+            while (menu.activeSelf && Time.realtimeSinceStartup < deadline)
+            {
+                if (verifyPenguin)
+                {
+                    CheckTitlePenguinAspect(hero);
+                    float y = hero.rectTransform.anchoredPosition.y;
+                    if (y > previousY && phase < expected.Length && hero.sprite.name == expected[phase])
+                        phase++;
+                    previousY = y;
+                }
+                yield return null;
+            }
             if (menu.activeSelf) lessonFailure = new Exception("Title entrance did not finish.");
+            if (verifyPenguin)
+            {
+                Check(phase == expected.Length, $"Title Penguin did not play the full walk sequence while moving toward the door (observed {phase}/4 phases).");
+                Debug.Log("TITLE PENGUIN PASSED: source aspect, back-facing step A/idle/step B/idle while moving, and entrance completion.");
+            }
+        }
+
+        private static void CheckTitlePenguinAspect(Image hero)
+        {
+            Vector2 size = hero.rectTransform.rect.size;
+            Vector2 source = hero.sprite.rect.size;
+            Check(Mathf.Abs(size.x / size.y - source.x / source.y) < .001f &&
+                  hero.rectTransform.pivot == new Vector2(.5f, 0),
+                "Title Penguin distorted the source sprite or lost its feet anchor.");
         }
         private IEnumerator WaitForTutorialLesson(int stage, float limit = 90f)
         {
@@ -92,6 +133,7 @@ public static class FirstShiftPlayModeValidation
         private void Start()
         {
             DontDestroyOnLoad(gameObject);
+            testDeadline = Time.realtimeSinceStartup + 420;
             Application.logMessageReceived += OnLog;
             StartCoroutine(RunTest());
         }
@@ -102,6 +144,14 @@ public static class FirstShiftPlayModeValidation
         }
         private void Update()
         {
+            if (!finishing && (lessonFailure != null || Time.realtimeSinceStartup >= testDeadline))
+            {
+                finishing = true;
+                Debug.LogException(lessonFailure ?? new Exception("Shift test exceeded its real-time deadline."));
+                Restore();
+                EditorApplication.Exit(1);
+                return;
+            }
             if (shift == null || !shift.IsLessonOpen) { lessonObservedAt = -1; return; }
             try
             {
@@ -134,7 +184,7 @@ public static class FirstShiftPlayModeValidation
                     switch (shift.TutorialStage)
                     {
                         case 1:
-                            Check(blackjack.IsShuffleReady, "Blackjack approach lesson appeared before SHUFFLE was ready");
+                            Check(blackjack.IsDealerStaffed, "Blackjack approach lesson has no working dealer");
                             break;
                         case 2:
                             Check(blackjack.IsShuffleReady, "SHUFFLE lesson appeared before the task was ready");
@@ -142,6 +192,8 @@ public static class FirstShiftPlayModeValidation
                                 "Training blocked manual Roulette spin outside its own lesson");
                             break;
                         case 3:
+                            Check(roulette.IsDealerStaffed, "Roulette approach lesson has no working dealer");
+                            break;
                         case 4:
                             Check(roulette.IsCoverReady, "COVER lesson appeared before the task was ready");
                             break;
@@ -228,11 +280,13 @@ public static class FirstShiftPlayModeValidation
 
         private IEnumerator RunTest()
         {
-            IEnumerator test = Test();
+            Stack<IEnumerator> tests = new Stack<IEnumerator>();
+            tests.Push(Test());
             float deadline = Time.realtimeSinceStartup + 420f;
-            while (true)
+            while (tests.Count > 0)
             {
                 bool next;
+                object current = null;
                 try
                 {
                     if (Time.realtimeSinceStartup >= deadline)
@@ -245,7 +299,10 @@ public static class FirstShiftPlayModeValidation
                             $"bj={stalled?.State} shuffleReady={stalled?.IsShuffleReady} staffed={stalled?.IsDealerStaffed}{seats}");
                     }
                     if (lessonFailure != null) throw lessonFailure;
+                    IEnumerator test = tests.Peek();
                     next = test.MoveNext();
+                    if (next) current = test.Current;
+                    else tests.Pop();
                 }
                 catch (Exception e)
                 {
@@ -254,16 +311,24 @@ public static class FirstShiftPlayModeValidation
                     EditorApplication.Exit(1);
                     yield break;
                 }
-                if (!next) break;
-                yield return test.Current;
+                if (!next) continue;
+                if (current is IEnumerator nested) tests.Push(nested);
+                else yield return current;
             }
             Debug.Log("FULL SHIFT INTERACTION TEST PASSED");
             Restore();
             EditorApplication.Exit(0);
         }
 
-        private static void Restore()
+        public static void Restore()
         {
+            foreach (ShiftTestDriver driver in FindObjectsByType<ShiftTestDriver>(FindObjectsSortMode.None))
+            {
+                driver.finishing = true;
+                Application.logMessageReceived -= driver.OnLog;
+                if (driver.keyboard != null && driver.keyboard.added) InputSystem.RemoveDevice(driver.keyboard);
+                if (driver.mouse != null && driver.mouse.added) InputSystem.RemoveDevice(driver.mouse);
+            }
             RestoreKey("PitPanic.TutorialComplete", SessionState.GetInt("PitPanic.OldTutorial", -1));
             RestoreKey("PitPanic.UnlockedShift", SessionState.GetInt("PitPanic.OldUnlocked", -1));
             foreach (string key in ProgressKeys()) RestoreKey(key, SessionState.GetInt("Old." + key, -1));
@@ -502,6 +567,9 @@ public static class FirstShiftPlayModeValidation
                 "The title replaced supplied art, duplicated the logo or cloned extra world actors");
             Check(!((CanvasGroup)Get(titleScreen, "remarkGroup")).blocksRaycasts,
                 "Idle dialogue blocks title controls");
+            Image titlePenguin = art.Find("Title Penguin").GetComponent<Image>();
+            Check(titlePenguin.sprite.name == "Penguin_Idle_Front", "Title did not use the approved front idle sprite.");
+            CheckTitlePenguinAspect(titlePenguin);
             Check(!menu.transform.Find("Continue").GetComponent<Button>().interactable, "Fresh save enabled Continue");
             menu.transform.Find("Settings").GetComponent<Button>().onClick.Invoke();
             GameObject settings = menu.transform.Find("Settings panel").gameObject;
@@ -541,7 +609,7 @@ public static class FirstShiftPlayModeValidation
             Check(menu.GetComponent<CasinoTitleScreen>().IsTransitioning, "NEW GAME skipped the door transition");
             Check(!((AudioSource)Get(sound, "music")).isPlaying,
                 "NEW GAME did not stop title music immediately");
-            yield return WaitForTitleTransition();
+            yield return WaitForTitleTransition(verifyPenguin: true);
             GameObject levelSelect = (GameObject)Get(shift, "levelSelect");
             Check(levelSelect.activeSelf && !shift.IsRunning, "New Game did not open the campaign level selector");
             Check(!((AudioSource)Get(sound, "music")).isPlaying,
@@ -651,7 +719,11 @@ public static class FirstShiftPlayModeValidation
             Check(player.GetComponentInChildren<CasinoCharacterVisual>().Species == CasinoAnimalSpecies.Penguin,
                 "Playable pit boss is not a penguin");
             foreach (PixelCharacterVisual visual in FindObjectsByType<PixelCharacterVisual>(FindObjectsSortMode.None))
-                Check(visual.HasFrameAnimation, "Actor has no multi-frame action atlas: " + visual.name);
+            {
+                Check(visual.UsesApprovedStandingArt || visual.HasFrameAnimation,
+                    "Actor has neither approved standing art nor legacy action frames: " + visual.name);
+                if (visual.UsesApprovedStandingArt) ApprovedArtPlayModeValidation.ValidateActor(visual);
+            }
             foreach (AIDealer dealer in manager.Dealers)
                 Check(dealer.DealerId == dealer.GetComponentInChildren<CasinoCharacterVisual>().Species.ToString(),
                     "Dealer name does not match animal");
@@ -716,8 +788,10 @@ public static class FirstShiftPlayModeValidation
             yield return Press(UnityEngine.InputSystem.Key.Q);
             Check(blackjack.IsInspectionOpen, "Q failed to inspect BJ1");
             Call(shift, "LateUpdate");
+            float shuffleLessonDeadline = Time.realtimeSinceStartup + 40;
+            while (!shift.IsLessonOpen && Time.realtimeSinceStartup < shuffleLessonDeadline) yield return null;
             Check(shift.IsLessonOpen && (int)Get(shift, "shownLesson") == 2 && blackjack.IsShuffleReady,
-                "Opening Blackjack did not immediately show its ready SHUFFLE lesson");
+                "Opening Blackjack did not show SHUFFLE after the safe deal boundary became ready");
             Check(!((Text)Get(shift, "arrow")).gameObject.activeSelf,
                 "Objective arrow overlaps the Blackjack inspection popup");
             ValidatePopup(((GameObject)Get(Get(blackjack, "tableView"), "board")).transform);
@@ -807,8 +881,10 @@ public static class FirstShiftPlayModeValidation
                 Array.TrueForAll(blackjackTables, table => !table.IsPlayerInRange(candidate)));
             Check(inspection.TryOpenInspectionFromPlayerInput(), "Could not open Roulette inspection after SHUFFLE");
             Call(shift, "LateUpdate");
+            float coverLessonDeadline = Time.realtimeSinceStartup + 40;
+            while (!shift.IsLessonOpen && Time.realtimeSinceStartup < coverLessonDeadline) yield return null;
             Check(shift.IsLessonOpen && (int)Get(shift, "shownLesson") == 4 && roulette.IsCoverReady,
-                "Opening Roulette did not immediately show its ready COVER lesson");
+                "Opening Roulette did not show COVER after the real round became ready");
             ValidatePopup(((GameObject)Get(inspection, "board")).transform);
             Check(roulette.FloatDestination.TryAddChips(new[] { 100, 100, 100, 100 }),
                 "Could not provision synthetic roulette payout inventory");
@@ -1222,11 +1298,11 @@ public static class FirstShiftPlayModeValidation
             Check(pit.IsOpen, "Pit Desk did not reopen before the shift-end handoff");
             Set(shift, "remaining", 0f);
             yield return null;
-            Check(shift.IsRunning && !spawner.AcceptingArrivals,
-                "Shift did not wait for the open pit desk to close");
+            Check(!shift.IsRunning && !spawner.AcceptingArrivals && Time.timeScale == 0 &&
+                CasinoShiftController.GameplayFrozen,
+                "Shift did not freeze immediately with the pit desk open");
             yield return Press(UnityEngine.InputSystem.Key.Escape);
-            yield return null;
-            yield return null;
+            yield return new WaitForSecondsRealtime(CasinoShiftFinale.HoldSeconds + CasinoShiftFinale.FadeSeconds + .2f);
             Check(!shift.IsRunning && PlayerPrefs.GetInt("PitPanic.UnlockedShift", 1) >= 2,
                 "Shift results or progression failed");
             GameObject results = (GameObject)Get(shift, "results");
@@ -1298,14 +1374,16 @@ public static class FirstShiftPlayModeValidation
             Check(Array.TrueForAll(sideVips, vip =>
                     vip != null && vip.IsVip &&
                     vip.GetComponentInChildren<PixelCharacterVisual>().IsVip &&
-                    vip.GetComponentInChildren<PixelCharacterVisual>().UsesVipAnimation),
+                    (vip.GetComponentInChildren<PixelCharacterVisual>().UsesApprovedStandingArt ||
+                     vip.GetComponentInChildren<PixelCharacterVisual>().UsesVipAnimation)),
                 "The Rabbit, Deer, Cat and Raccoon High Rollers were missing VIP status or their pictured outfits");
             foreach (CasinoCustomerAI sideVip in sideVips)
             {
                 SpriteRenderer aura = Array.Find(sideVip.GetComponentsInChildren<SpriteRenderer>(true),
                     renderer => renderer.name == "VIP Golden Aura");
-                Check(aura != null && aura.enabled,
-                    $"{sideVip.name} lost its golden VIP glow");
+                PixelCharacterVisual visual = sideVip.GetComponentInChildren<PixelCharacterVisual>();
+                if (visual.UsesApprovedStandingArt) ApprovedArtPlayModeValidation.ValidateActor(visual);
+                else Check(aura != null && aura.enabled, $"{sideVip.name} lost its golden VIP glow");
             }
             CasinoCustomerAI vip = sideVips[0];
             Check(vip.TryChooseBetPence(new[] { 1000 }, out int vipStake) && vipStake == 10000,
@@ -1431,13 +1509,15 @@ public static class FirstShiftPlayModeValidation
                 yield return null;
             }
             Check(servedCustomer != null, "Customer did not enter actual Blackjack service");
-            Check(servedCustomer.GetComponentInChildren<PixelCharacterVisual>().UsesCustomerAnimation,
+            Check(servedCustomer.GetComponentInChildren<PixelCharacterVisual>().UsesApprovedStandingArt ||
+                servedCustomer.GetComponentInChildren<PixelCharacterVisual>().UsesCustomerAnimation,
                 "Customer is using staff-uniform animation");
             yield return new WaitForSeconds(.9f);
             PixelCharacterVisual seatedVisual = servedCustomer.GetComponentInChildren<PixelCharacterVisual>();
             Check(Vector3.Distance(seatedVisual.transform.position, servedCustomer.Seat.SittingPosition) < .03f &&
                 seatedVisual.transform.localScale == Vector3.one &&
-                seatedVisual.GetComponentInChildren<SpriteRenderer>().transform.localScale == Vector3.one &&
+                (seatedVisual.UsesApprovedStandingArt ||
+                 seatedVisual.GetComponentInChildren<SpriteRenderer>().transform.localScale == Vector3.one) &&
                 !servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
                 "Seated customer does not align with the chair or is being squashed instead of frame animated");
             PixelCharacterVisual playerVisual = player.GetComponentInChildren<PixelCharacterVisual>();
@@ -1445,15 +1525,49 @@ public static class FirstShiftPlayModeValidation
             yield return new WaitForSeconds(.3f);
             int earlyFrame = playerVisual.CurrentFrame;
             yield return new WaitForSeconds(.3f);
-            Check(playerVisual.CurrentPose == CasinoAnimationPose.Deal && playerVisual.CurrentFrame > earlyFrame,
-                "Action did not advance through its drawn frame sequence");
+            Check(playerVisual.CurrentPose == CasinoAnimationPose.Deal &&
+                (playerVisual.UsesApprovedStandingArt || playerVisual.CurrentFrame > earlyFrame),
+                "Action state or legacy drawn frame sequence did not advance");
+            if (playerVisual.UsesApprovedStandingArt) ApprovedArtPlayModeValidation.ValidateActor(playerVisual);
             AIDealer exhaustedDealer = exhaustedTable.AssignedDealer;
             float oldEnergy = exhaustedDealer.Energy;
-            Set(exhaustedDealer, "energy", 0f);
+            int missesBeforeExhaustion = (int)Get(shift, "failedAttempts");
+            Set(exhaustedDealer, "energy", .00001f);
             yield return null;
+            yield return null;
+            Check(exhaustedDealer.Energy == 0f &&
+                (int)Get(shift, "failedAttempts") == missesBeforeExhaustion,
+                "Dealer energy depletion incorrectly counted as a missed task");
             Check(!exhaustedDealer.CanServe && !exhaustedTable.IsDealerStaffed,
                 "Zero energy dealer still serves the table");
             yield return null;
+            CasinoTableAttention exhaustedAttention = exhaustedTable.GetComponent<CasinoTableAttention>();
+            TableAttentionReason[] staffingReasons = { TableAttentionReason.DealerBreakRequired,
+                TableAttentionReason.DealerExhausted, TableAttentionReason.TableUnstaffed };
+            foreach (TableAttentionReason reason in staffingReasons)
+                while (exhaustedAttention.ResolveAttention(reason)) { }
+            object[] withoutStaffing = { 0, 0 };
+            typeof(CasinoShiftController).GetMethod("CountUnfinishedTasks", Flags).Invoke(shift, withoutStaffing);
+            foreach (TableAttentionReason reason in staffingReasons)
+                exhaustedAttention.RequestAttentionOnce(reason);
+            object[] withStaffing = { 0, 0 };
+            typeof(CasinoShiftController).GetMethod("CountUnfinishedTasks", Flags).Invoke(shift, withStaffing);
+            Check((int)withoutStaffing[0] == (int)withStaffing[0] &&
+                (int)withoutStaffing[1] == (int)withStaffing[1],
+                "Dealer break/exhaustion/unstaffed warnings added shift-end missed tasks");
+            CasinoMinigameStation exhaustedTask = exhaustedTable.GetComponent<CasinoMinigameStation>();
+            Set(exhaustedTask, "<IsTaskPending>k__BackingField", true);
+            object[] newPendingTask = { 0, 0 };
+            typeof(CasinoShiftController).GetMethod("CountUnfinishedTasks", Flags).Invoke(shift, newPendingTask);
+            Set(exhaustedTask, "<HasRecordedMiss>k__BackingField", true);
+            object[] countedPendingTask = { 0, 0 };
+            typeof(CasinoShiftController).GetMethod("CountUnfinishedTasks", Flags).Invoke(shift, countedPendingTask);
+            Check((int)newPendingTask[0] == (int)countedPendingTask[0] &&
+                (int)newPendingTask[1] == (int)countedPendingTask[1] + 1,
+                "A failed pending task was counted again at shift end or lost its unfinished status");
+            exhaustedTask.ResolveTaskAfterFatalFailure();
+            Debug.Log("LIVE MISSED TASK ACCOUNTING PASSED: dealer depletion/warnings add zero; " +
+                "already missed unfinished task is not counted twice.");
             Check(exhaustedDealer.GetComponent<CasinoSpeechBubble>().Message == "Zzz",
                 "An exhausted dealer is missing the sleeping speech bubble");
             MoveNear(exhaustedTable.transform, exhaustedTable.IsPlayerInRange);
@@ -1474,8 +1588,8 @@ public static class FirstShiftPlayModeValidation
             yield return new WaitForSecondsRealtime(1.2f);
             Check(CustomerSatisfaction.PenaltyCount > penalties && !servedCustomer.IsSeated,
                 "Neglected exhausted table did not lose its customer and satisfaction");
-            Check((int)Get(shift, "failedAttempts") > missesBeforeTimeout,
-                "Customer patience expiry did not immediately increment MISSED");
+            Check((int)Get(shift, "failedAttempts") == missesBeforeTimeout + 1,
+                "Customer patience expiry did not increment MISSED exactly once");
             Check(servedCustomer.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled,
                 "Customer did not resume navigation after leaving their chair");
             Check(CasinoTaskFeedback.Message(exhaustedTable.GetComponent<CasinoTableAttention>()) == "Dealer needs break",
@@ -1563,7 +1677,7 @@ public static class FirstShiftPlayModeValidation
                 "New Game did not reset the demo progression");
             Set(shift, "remaining", 0f);
             yield return null;
-            yield return null;
+            yield return new WaitForSecondsRealtime(CasinoShiftFinale.HoldSeconds + CasinoShiftFinale.FadeSeconds + .2f);
             Check(!shift.IsRunning && !shift.PassedShift && CasinoDemoProgression.UnlockedShift == 1 &&
                 CasinoDemoProgression.Credits == 0, "Failed shift unlocked content or awarded stamps");
             GameObject failedResults = (GameObject)Get(shift, "results");

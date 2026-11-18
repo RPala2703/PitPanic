@@ -292,15 +292,18 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             SpriteRenderer aura = Array.Find(vip.GetComponentsInChildren<SpriteRenderer>(true),
                 renderer => renderer.name == "VIP Golden Aura");
             PixelCharacterVisual character = vip.GetComponentInChildren<PixelCharacterVisual>();
-            if (aura == null || !aura.enabled || character == null || !character.IsVip || !character.UsesVipAnimation)
+            bool approved = character != null && character.UsesApprovedStandingArt &&
+                character.SelectedStandingArt != null && character.SelectedStandingArt.name.StartsWith("VIP_");
+            if (character == null || !character.IsVip || aura == null || !aura.enabled ||
+                (!approved && !character.UsesVipAnimation))
             {
-                Debug.LogError($"{vip.name} is missing VIP formalwear or the golden glow.");
+                Debug.LogError($"{vip.name} is missing its VIP appearance.");
                 Application.Quit(1);
                 yield break;
             }
         }
         ScreenCapture.CaptureScreenshot(Path.Combine(directory, "high-rollers-vip-guests.png"));
-        Debug.Log("HIGH ROLLERS VIP CHECK PASSED: Rabbit, Deer, Cat and Raccoon seated in their pictured outfits with golden auras.");
+        Debug.Log("HIGH ROLLERS VIP CHECK PASSED: Rabbit, Deer, Cat and Raccoon seated with their VIP appearances.");
         Application.Quit();
     }
 
@@ -315,11 +318,10 @@ public sealed class CasinoPresentationCapture : MonoBehaviour
             CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
             typeof(CasinoShiftController).GetMethod("BeginShift", flags).Invoke(shift, new object[] { level, false });
             if (shift.IsLessonOpen) shift.DismissLesson();
-            string[] floorNames = { "OpeningNightFloor", "HighRollersFloor", "ShadyBusinessFloor" };
             SpriteRenderer floor = GameObject.Find("Pixel Carpet")?.GetComponent<SpriteRenderer>();
-            if (floor == null || floor.sprite == null || floor.sprite.name != floorNames[level - 1])
+            if (floor == null || floor.sprite != CasinoCampaignPresentation.CarpetArtwork(level))
             {
-                Debug.LogError($"Level {level} did not select its original campaign floor art.");
+                Debug.LogError($"Level {level} did not select its clean campaign carpet.");
                 Application.Quit(1);
                 yield break;
             }

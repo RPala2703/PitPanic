@@ -1,15 +1,15 @@
 using System;
 using UnityEngine;
 
-public enum CasinoSoundCue { Card, Chip, Step, Celebrate, Disappointed, Success, Mistake, Warning, Roulette, Button, TaskFailed, Tip, Door, Entrance }
+public enum CasinoSoundCue { Card, Chip, Step, Celebrate, Disappointed, Success, Mistake, Warning, Roulette, Button, TaskFailed, Tip, Door, Entrance, FinalTick, TimeUp }
 public enum CasinoMusicTrack { Title, Casino, ResultsPassed, ResultsFailed }
 
 [DefaultExecutionOrder(-110)]
 public sealed class CasinoSoundscape : MonoBehaviour
 {
     private static CasinoSoundscape instance;
-    private readonly AudioClip[] cues = new AudioClip[14];
-    private readonly float[] lastPlayed = new float[14];
+    private readonly AudioClip[] cues = new AudioClip[16];
+    private readonly float[] lastPlayed = new float[16];
     private AudioSource music;
     private AudioClip titleTrack;
     private AudioClip casinoTrack;
@@ -154,6 +154,17 @@ public sealed class CasinoSoundscape : MonoBehaviour
         if (instance != null) instance.intensity = Mathf.Clamp01(value);
     }
 
+    public static void PlayShiftFinale(bool impact, bool urgent)
+    {
+        if (instance == null || AudioListener.pause) return;
+        // The global shift cue must remain audible while a minigame owns audio focus.
+        AudioSource source = instance.voices[instance.voice++ % instance.voices.Length];
+        source.pitch = urgent ? 1.18f : 1;
+        source.panStereo = 0;
+        source.PlayOneShot(instance.cues[(int)(impact ? CasinoSoundCue.TimeUp : CasinoSoundCue.FinalTick)],
+            impact ? 1 : urgent ? .9f : .65f);
+    }
+
     private void Update()
     {
         if (AudioListener.pause) return;
@@ -186,6 +197,7 @@ public sealed class CasinoSoundscape : MonoBehaviour
     {
         float length = cue == CasinoSoundCue.Roulette ? 2 : cue == CasinoSoundCue.Success || cue == CasinoSoundCue.Celebrate ? .6f :
             cue == CasinoSoundCue.TaskFailed ? .7f : cue == CasinoSoundCue.Door ? 1.15f :
+            cue == CasinoSoundCue.TimeUp ? .85f : cue == CasinoSoundCue.FinalTick ? .12f :
             cue == CasinoSoundCue.Entrance ? .55f : cue == CasinoSoundCue.Tip ? .45f : .2f;
         float[] samples = new float[Mathf.CeilToInt(22050 * length)];
         System.Random random = new System.Random((int)cue + 91);
@@ -203,6 +215,8 @@ public sealed class CasinoSoundscape : MonoBehaviour
                 CasinoSoundCue.Button => 880,
                 CasinoSoundCue.Door => 130 + 14 * Mathf.Sin(t * 6),
                 CasinoSoundCue.Entrance => 440,
+                CasinoSoundCue.FinalTick => 960,
+                CasinoSoundCue.TimeUp => 110 - t * 65,
                 // The success jingle climbs; a failed or missed task falls in low, buzzy steps.
                 CasinoSoundCue.TaskFailed => 330 * Mathf.Pow(.8f, Mathf.Floor(t * 6)),
                 // A tip is a bright two-note coin "ding-ding".
@@ -210,6 +224,8 @@ public sealed class CasinoSoundscape : MonoBehaviour
                 _ => 520 * Mathf.Pow(1.25f, Mathf.Floor(t * 10))
             };
             float tone = Mathf.Sin(t * frequency * Mathf.PI * 2);
+            if (cue == CasinoSoundCue.TimeUp)
+                tone = tone * .8f + Mathf.Sin(t * 2 * Mathf.PI * 220) * Mathf.Exp(-t * 12) * .5f;
             if (cue == CasinoSoundCue.Door)
             {
                 float noise = (float)(random.NextDouble() * 2 - 1);

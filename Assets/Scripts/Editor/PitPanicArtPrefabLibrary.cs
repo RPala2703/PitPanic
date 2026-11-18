@@ -146,11 +146,12 @@ public static class PitPanicArtPrefabLibrary
 
     public static GameObject[] GetCustomerCharacterPrefabs()
     {
-        GameObject[] prefabs = new GameObject[Species.Length];
-        for (int i = 0; i < Species.Length; i++)
+        CasinoAnimalSpecies[] customers = { CasinoAnimalSpecies.Rabbit, CasinoAnimalSpecies.Dog,
+            CasinoAnimalSpecies.Cat, CasinoAnimalSpecies.Raccoon, CasinoAnimalSpecies.Deer, CasinoAnimalSpecies.Elephant };
+        GameObject[] prefabs = new GameObject[customers.Length];
+        for (int i = 0; i < customers.Length; i++)
         {
-            prefabs[i] = AssetDatabase.LoadAssetAtPath<GameObject>(
-                $"{CharacterFolder}/Character_{Species[i]}Pixel.prefab");
+            prefabs[i] = GetCharacterPrefab(customers[i]);
         }
 
         return prefabs;
@@ -294,6 +295,7 @@ public static class PitPanicArtPrefabLibrary
         CasinoCharacterVisual visual = root.AddComponent<CasinoCharacterVisual>();
         visual.Configure(species, bodyRig, animatedHead, tailRig, sprite);
         visual.ConfigureArms(leftArm, rightArm);
+        ApprovedCasinoArtIntegration.ConfigureCharacter(pixel);
     }
 
     private static float EllipsoidFront(float x, float y, Vector3 radii, Vector3 centre)

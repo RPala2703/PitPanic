@@ -1755,7 +1755,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.04, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.12, y: 1.12, z: 1.12}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7458317159625777674}
@@ -1809,7 +1809,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: e7fcd0c0a003e47c6a2d6a008a5ec586, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 855ed35ad5b0b4f3d8e301a78db1dde8, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -2168,6 +2168,8 @@ MonoBehaviour:
   animationAtlas: {fileID: 2800000, guid: e6a66ee5c0a3a4fc8ae0a8bfd156e6f5, type: 3}
   customerAnimationAtlas: {fileID: 2800000, guid: f6796a51839b54a6ea161135d4de2322, type: 3}
   vipAnimationAtlas: {fileID: 2800000, guid: dfffc8afe89844281921c6ff786c9f95, type: 3}
+  approvedStanding: {fileID: 21300000, guid: 855ed35ad5b0b4f3d8e301a78db1dde8, type: 3}
+  approvedVipStanding: {fileID: 0}
 --- !u!114 &5261132512032478909
 MonoBehaviour:
   m_ObjectHideFlags: 0

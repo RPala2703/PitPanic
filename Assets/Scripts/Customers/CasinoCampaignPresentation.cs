@@ -17,12 +17,82 @@ public static class CasinoCampaignPresentation
         new Vector3(0f, 0f, 6.4f),
         new Vector3(0f, 0f, -3f)
     };
-    private static readonly string[] FloorArtwork =
+    public static Sprite CarpetArtwork(int level)
     {
-        "Art/Original/World/OpeningNightFloor",
-        "Art/Original/World/HighRollersFloor",
-        "Art/Original/World/ShadyBusinessFloor"
+        CasinoDemoProgression.ValidateLevel(level);
+        return FloorSprite("Carpet");
+    }
+
+    public static readonly string[] FloorVisualNames =
+    {
+        "Burgundy Gold Runner",
+        "Burgundy Border NW", "Burgundy Border NE", "Burgundy Border SW", "Burgundy Border SE",
+        "Burgundy Border North", "Burgundy Border South", "Burgundy Border West", "Burgundy Border East"
     };
+
+    private static Sprite FloorSprite(string name) =>
+        Resources.Load<Sprite>("Art/BurgundyFloor/" + name) ??
+        throw new InvalidOperationException($"Missing supplied burgundy flooring crop: {name}.");
+
+    public static void ApplyCarpet(SpriteRenderer carpet, int level)
+    {
+        carpet.sprite = CarpetArtwork(level);
+        carpet.drawMode = SpriteDrawMode.Tiled;
+        carpet.tileMode = SpriteTileMode.Continuous;
+        carpet.size = new Vector2(38, 22);
+        carpet.transform.localScale = Vector3.one;
+        carpet.color = Color.white;
+        carpet.GetComponent<PixelSpriteTextureBinding>()?.RefreshSprite();
+        Transform floor = carpet.transform.parent;
+        CasinoCashDeskInteraction cashDesk = UnityEngine.Object.FindFirstObjectByType<CasinoCashDeskInteraction>();
+        RouletteRoundController roulette = UnityEngine.Object.FindFirstObjectByType<RouletteRoundController>();
+        if (cashDesk == null || roulette == null)
+            throw new InvalidOperationException("The carpet aisle requires the actual cashier and Roulette.");
+        float start = cashDesk.transform.position.z;
+        float end = roulette.transform.position.z;
+        ConfigureFloorVisual(floor, FloorVisualNames[0], FloorSprite("Runner"),
+            new Vector2(103f / 32, Mathf.Abs(end - start)),
+            new Vector3(0, .02f, (start + end) * .5f), -98);
+        Sprite corner = FloorSprite("Corner");
+        const float trim = 14f / 32;
+        for (int i = 0; i < 4; i++)
+            ConfigureFloorVisual(floor, FloorVisualNames[i + 1], corner, new Vector2(trim, trim),
+                new Vector3((i % 2 == 0 ? -1 : 1) * (19 - trim * .5f),
+                    .015f, (i < 2 ? 1 : -1) * (11 - trim * .5f)),
+                -99, i % 2 != 0, i >= 2);
+        Sprite horizontal = FloorSprite("BorderHorizontal");
+        Sprite vertical = FloorSprite("BorderVertical");
+        ConfigureFloorVisual(floor, FloorVisualNames[5], horizontal, new Vector2(38 - trim * 2, trim),
+            new Vector3(0, .015f, 11 - trim * .5f), -99);
+        ConfigureFloorVisual(floor, FloorVisualNames[6], horizontal, new Vector2(38 - trim * 2, trim),
+            new Vector3(0, .015f, -11 + trim * .5f), -99, false, true);
+        ConfigureFloorVisual(floor, FloorVisualNames[7], vertical, new Vector2(trim, 22 - trim * 2),
+            new Vector3(-19 + trim * .5f, .015f, 0), -99);
+        ConfigureFloorVisual(floor, FloorVisualNames[8], vertical, new Vector2(trim, 22 - trim * 2),
+            new Vector3(19 - trim * .5f, .015f, 0), -99, true);
+        SpriteRenderer wall = carpet.transform.parent.Find("Casino Back Wall")?.GetComponent<SpriteRenderer>();
+        if (wall == null) throw new InvalidOperationException("The saved casino backdrop requires its north wall.");
+        wall.enabled = false;
+    }
+
+    private static void ConfigureFloorVisual(Transform floor, string name, Sprite sprite, Vector2 size,
+        Vector3 position, int order, bool flipX = false, bool flipY = false)
+    {
+        SpriteRenderer renderer = floor.Find(name)?.GetComponent<SpriteRenderer>();
+        if (renderer == null) throw new InvalidOperationException($"The saved floor is missing {name}.");
+        renderer.transform.localPosition = position;
+        renderer.transform.localRotation = Quaternion.Euler(90, 0, 0);
+        renderer.transform.localScale = Vector3.one;
+        renderer.sprite = sprite;
+        renderer.drawMode = SpriteDrawMode.Tiled;
+        renderer.tileMode = SpriteTileMode.Continuous;
+        renderer.size = size;
+        renderer.flipX = flipX;
+        renderer.flipY = flipY;
+        renderer.sortingOrder = order;
+        renderer.color = Color.white;
+        renderer.GetComponent<PixelSpriteTextureBinding>().RefreshSprite();
+    }
     private static readonly Color[] SkyColors =
     {
         new Color(.48f, .55f, .62f),
@@ -86,11 +156,7 @@ public static class CasinoCampaignPresentation
         SpriteRenderer carpet = GameObject.Find("Pixel Carpet")?.GetComponent<SpriteRenderer>();
         if (carpet != null)
         {
-            Sprite floor = Resources.Load<Sprite>(FloorArtwork[level - 1]);
-            if (floor == null)
-                throw new InvalidOperationException($"Missing original casino floor artwork for level {level}: {FloorArtwork[level - 1]}");
-            carpet.sprite = floor;
-            carpet.color = Color.white;
+            ApplyCarpet(carpet, level);
         }
         ApplySceneryPalette(SceneryTints[level - 1], TableRugTints[level - 1]);
         RenderSettings.ambientSkyColor = SkyColors[level - 1];

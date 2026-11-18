@@ -2333,7 +2333,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1075c49bc7944aa080263e5d259b315, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PixelCharacterVisual
   spriteRenderer: {fileID: 16188983391553236}
   frames:
@@ -2353,6 +2353,8 @@ MonoBehaviour:
   animationAtlas: {fileID: 2800000, guid: bf49b6d36704c45c093ddff7cafb3729, type: 3}
   customerAnimationAtlas: {fileID: 2800000, guid: 0a70a9a896d654c5fbd2aac4199343b9, type: 3}
   vipAnimationAtlas: {fileID: 2800000, guid: fa03233f28a0540d89b4498d09bbd5cb, type: 3}
+  approvedStanding: {fileID: 21300000, guid: 3d6fb97f22b504077a2908e615fd3642, type: 3}
+  approvedVipStanding: {fileID: 21300000, guid: b899c29b8a97447fbb00b1df9d2cb25d, type: 3}
 --- !u!114 &1034436111960076998
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2363,7 +2365,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2d5a321bc2fb4ff4a9ef50a43a0b6701, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::CasinoCharacterVisual
   species: 10
   animatedBody: {fileID: 2193438824748435639}
@@ -2883,7 +2885,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.04, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.35, y: 1.35, z: 1.35}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7916964183545820015}
@@ -2937,7 +2939,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: dc932f1e1602240d18500826efe5a16c, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 3d6fb97f22b504077a2908e615fd3642, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -2957,7 +2959,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 22e9ad97fbd6e496b8762c585ecf9584, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PixelSpriteTextureBinding
 --- !u!1 &8182485555273766844
 GameObject:

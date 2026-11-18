@@ -11,6 +11,7 @@ public sealed class CasinoPlayerController : MonoBehaviour
 
     private CharacterController characterController;
     private bool movementEnabled = true;
+    public Vector2 MoveInput { get; private set; }
 
     private void Awake()
     {
@@ -30,6 +31,8 @@ public sealed class CasinoPlayerController : MonoBehaviour
 
     private void Update()
     {
+        MoveInput = Vector2.zero;
+        if (CasinoShiftController.GameplayFrozen) return;
         Keyboard keyboard = Keyboard.current;
         if (!movementEnabled || keyboard == null)
         {
@@ -47,6 +50,7 @@ public sealed class CasinoPlayerController : MonoBehaviour
         if (keyboard.downArrowKey.isPressed) input.y -= 1f;
         if (keyboard.upArrowKey.isPressed) input.y += 1f;
 
+        MoveInput = input;
         Vector3 movement = new Vector3(input.x, 0f, input.y).normalized;
         if (movement.sqrMagnitude > 0.0001f)
         {

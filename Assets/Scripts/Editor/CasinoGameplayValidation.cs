@@ -24,6 +24,7 @@ public static class CasinoGameplayValidation
         CheckBlackjackWinnings();
         CheckChipPaletteAndRefills();
         CheckTaskDeadlines();
+        RunMissedTaskAccounting();
         CheckLargePayoutRefills();
         CheckCashOutCompositions();
         CheckTipping();
@@ -364,6 +365,79 @@ public static class CasinoGameplayValidation
                     $"Task speech must contain at most three words: {reason}.");
                 attention.ResolveAttention(reason);
             }
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    public static void RunMissedTaskAccounting()
+    {
+        GameObject root = new GameObject("Missed task accounting test");
+        try
+        {
+            CasinoTableAttention attention = root.AddComponent<CasinoTableAttention>();
+            TableInteractionZone zone = root.AddComponent<TableInteractionZone>();
+            zone.Configure(root.AddComponent<BoxCollider>());
+            CasinoPlayerController player = root.AddComponent<CasinoPlayerController>();
+            BlackjackShuffleMinigame game = root.AddComponent<BlackjackShuffleMinigame>();
+            CasinoMinigameStation station = root.AddComponent<CasinoMinigameStation>();
+            station.Configure(player, zone, attention, game, CasinoMinigameType.Shuffle,
+                TableAttentionReason.ShuffleAssistanceRequired);
+            int misses = 0, successes = 0;
+            station.TaskMissed += () => misses++;
+            station.TaskSucceeded += _ => successes++;
+            Check(station.RequestMinigame(CasinoMinigameType.Shuffle, TableAttentionReason.ShuffleAssistanceRequired),
+                "Could not request the accounting-test task.");
+
+            FieldInfo running = typeof(CasinoMinigame).GetField("<IsRunning>k__BackingField", Flags);
+            MethodInfo complete = typeof(CasinoMinigame).GetMethod("Complete", Flags);
+            MethodInfo consume = typeof(CasinoMinigame).GetMethod("ConsumeCarriedDeadline", Flags);
+            Set(game, "timeRemaining", 10f);
+            running.SetValue(game, true);
+            game.Abandon();
+            Check(misses == 0 && station.IsTaskPending && game.HasCarriedDeadline,
+                "Leaving a continuing task counted as a miss.");
+            consume.Invoke(game, new object[] { 20f });
+            running.SetValue(game, true);
+            complete.Invoke(game, new object[] { false, 0 });
+            Check(misses == 0 && game.HasCarriedDeadline,
+                "Retrying within the original deadline counted as a miss.");
+
+            consume.Invoke(game, new object[] { 20f });
+            Set(game, "timeRemaining", 0f);
+            running.SetValue(game, true);
+            complete.Invoke(game, new object[] { false, 0 });
+            Check(misses == 1 && station.IsTaskPending && station.HasRecordedMiss,
+                "An expired task did not record exactly one miss while remaining retryable.");
+            running.SetValue(game, true);
+            complete.Invoke(game, new object[] { false, 0 });
+            game.Abandon();
+            Check(misses == 1, "The same requested task counted more than once.");
+            running.SetValue(game, true);
+            complete.Invoke(game, new object[] { true, 100 });
+            Check(successes == 1 && !station.IsTaskPending && misses == 1,
+                "Recovering a failed task changed its already recorded miss.");
+
+            Check(station.RequestMinigame(CasinoMinigameType.Shuffle,
+                TableAttentionReason.ShuffleAssistanceRequired), "Could not request an away-timeout task.");
+            Set(game, "timeRemaining", 10f);
+            running.SetValue(game, true);
+            game.Abandon();
+            Check(misses == 1, "Leaving another continuing task counted as a miss.");
+            typeof(CasinoMinigame).GetField("carriedRemaining", Flags).SetValue(game, -1f);
+            typeof(CasinoMinigame).GetMethod("Update", Flags).Invoke(game, null);
+            typeof(CasinoMinigame).GetMethod("Update", Flags).Invoke(game, null);
+            Check(misses == 2 && station.HasRecordedMiss && !game.HasCarriedDeadline,
+                "A deadline expiring away from the table did not count exactly once.");
+            station.ResolveTaskAfterFatalFailure();
+
+            Check(station.RequestMinigame(CasinoMinigameType.Pack, TableAttentionReason.CashDeskPackRequired) &&
+                !station.HasRecordedMiss, "A new request inherited the previous task's miss.");
+            running.SetValue(game, true);
+            game.Abandon();
+            Check(misses == 3 && !station.IsTaskPending,
+                "Abandoning a task that is discarded did not record exactly one miss.");
+            Debug.Log("MISSED TASK ACCOUNTING PASSED: continuing exits/retries=0; expired task=1; " +
+                "repeat failures=1; recovery unchanged; away timeout=1; new discarded task=1.");
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
     }

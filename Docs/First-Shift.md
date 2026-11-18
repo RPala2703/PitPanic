@@ -70,22 +70,33 @@ Break recovery is 1.5 energy per second: about 45 seconds from the break-warning
 threshold to ready. This keeps rotating three tables with one reserve feasible.
 At zero energy a dealer stops servicing their table. Customers lose patience even
 during an interrupted round, eventually leaving and lowering satisfaction. Lost
-customers mean lost earning opportunities, and unresolved dealer-cover tasks hurt
-the shift rating. Assign cover and send the exhausted dealer on break; this is not
+customers mean lost earning opportunities. Dealer fatigue, exhaustion and
+outstanding cover warnings do not count as missed tasks. Assign cover and send the exhausted dealer on break; this is not
 an arbitrary cash fine and does not change payout accounting.
 
 The shift duration defaults to nine minutes and can be changed on the
-**First Shift Controller** in the scene. When time runs out, arrivals stop and
-the results appear after the current interaction closes.
+**First Shift Controller** in the scene. The last ten seconds show large gold
+pixel-font numbers with a brief pop and tick; the final three grow more urgent.
+Movement and tasks stay available until zero. At zero, the entire casino freezes
+immediately, including an open interaction, and the final statistics are locked
+once. A brief impact and gentle camera shake accompany **TIME'S UP!** over the
+frozen floor. After a two-second unscaled hold, it fades into the existing results
+screen. A task completed before zero, including in the final second, still counts;
+unfinished tasks use the same closing rules as before.
 Clear a shift by completing **4 assistance, delivery or staff actions**,
-keeping **at least 60% satisfaction**, and finishing with **at most 5 missed tasks
-or failed attempts combined**. These service goals replace hand-count targets
+keeping **at least 60% satisfaction**, and finishing with **at most 5 missed tasks**.
+These service goals replace hand-count targets
 in every level. Table profit and hand counts are neither displayed on the results
 screen nor used to decide a win; a lucky Roulette result cannot fail a shift.
 Satisfaction reflects the share of spawned customers who did not leave because
-their patience expired. Missed tasks include pending minigames, unfinished
-float deliveries and tables awaiting dealer cover; a float's packing prompt is
-not counted a second time. Failed or abandoned attempts are listed separately.
+their patience expired. Missed tasks include customer service timeouts, expired
+or discarded tasks, wrong security decisions, and unfinished minigames, float
+deliveries and security reviews at closing. Each requested minigame contributes
+at most one miss, even if it is retried or still pending at closing. Exiting or
+making a mistake during a continuing SHUFFLE!/COVER! countdown does not add a miss;
+letting that deadline expire does. A float's packing prompt is not counted a
+second time. Customer satisfaction and task completion are separate measures:
+100% satisfaction can still accompany genuinely missed assistance tasks.
 
 Tutorial completion, the highest unlocked level, and each level's best star
 rating are stored locally in Unity PlayerPrefs. **Continue** opens the level

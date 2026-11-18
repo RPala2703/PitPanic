@@ -261,6 +261,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (!acceptingArrivals || activeCustomers.Count >= maximumCustomers)
         {
             return;

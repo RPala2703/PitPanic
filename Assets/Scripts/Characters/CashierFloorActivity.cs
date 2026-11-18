@@ -22,6 +22,7 @@ public sealed class CashierFloorActivity : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         bool busy = desk != null && (desk.ActiveCustomer != null || desk.ActiveOrder != null);
         chip.gameObject.SetActive(busy);
         if (!busy) return;

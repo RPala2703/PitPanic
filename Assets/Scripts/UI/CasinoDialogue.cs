@@ -103,6 +103,7 @@ public sealed class CasinoDialogue : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (lines == null) return;
         float scale = Mathf.SmoothStep(.95f, 1f, Mathf.Clamp01((Time.unscaledTime - openedAt) / .16f));
         card.localScale = Vector3.one * scale;

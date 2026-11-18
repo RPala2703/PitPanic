@@ -233,6 +233,7 @@ public sealed class CasinoPerformanceDirector : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (targetCamera == null) targetCamera = Camera.main;
         Quaternion facing = targetCamera != null ? targetCamera.transform.rotation : Quaternion.identity;
 

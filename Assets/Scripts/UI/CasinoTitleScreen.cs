@@ -9,6 +9,9 @@ public sealed class CasinoTitleScreen : MonoBehaviour
 {
     public static readonly Vector2 ArtworkSize = new Vector2(1672, 941);
     public const float TransitionSeconds = 2.4f;
+    private const float PenguinHeight = 160f;
+    private const float EntranceWalkStart = .85f;
+    private const float EntranceWalkDuration = .95f;
     private RectTransform artwork;
     private Image marquee;
     private Image[] windows;
@@ -23,6 +26,8 @@ public sealed class CasinoTitleScreen : MonoBehaviour
     private CasinoDialogue remark;
     private GameObject settings;
     private Button[] menuButtons;
+    private Button handbookButton;
+    private CasinoEmployeeHandbook handbook;
     private Camera gameCamera;
     private int savedCullingMask;
     private float elapsed;
@@ -39,9 +44,12 @@ public sealed class CasinoTitleScreen : MonoBehaviour
     private Vector2 lastPointer;
     private float lastUpdateTime;
     public bool IsTransitioning => transitioning;
+    private static readonly Vector2 HandbookPoint = new Vector2(1295, 883);
+    private bool HandbookOpen => handbook != null && handbook.IsOpen;
 
-    public void Build(Action newGame, Action continueGame, bool canContinue)
+    public void Build(Action newGame, Action continueGame, bool canContinue, CasinoEmployeeHandbook employeeHandbook = null)
     {
+        handbook = employeeHandbook;
         CasinoSoundscape.SetMusicTrack(CasinoMusicTrack.Title);
         CasinoSoundscape.SetIntensity(0);
         CasinoSoundscape.SetFocus(transform);
@@ -87,7 +95,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         rightDoor.gameObject.SetActive(false);
         penguin = FindFirstObjectByType<CasinoPlayerController>()?.GetComponentInChildren<PixelCharacterVisual>();
         if (penguin == null) throw new InvalidOperationException("The title requires the existing playable Penguin.");
-        penguinImage = Art("Title Penguin", penguin.TitleFrame(0), new Vector2(834, 800), new Vector2(120, 160));
+        penguinImage = Art("Title Penguin", null, new Vector2(834, 800), Vector2.zero);
         penguinImage.rectTransform.pivot = new Vector2(.5f, 0);
         penguinImage.rectTransform.anchoredPosition = ImagePoint(new Vector2(834, 800));
 
@@ -106,6 +114,22 @@ public sealed class CasinoTitleScreen : MonoBehaviour
             button.gameObject.AddComponent<CanvasGroup>();
         }
         SetNavigation(menuButtons);
+        if (handbook != null)
+        {
+            // Optional handbook sits to the right of the menu grid, clear of the doors, planters and idle remark.
+            handbookButton = Button("Handbook", "HANDBOOK", HandbookPoint, OpenHandbook);
+            handbookButton.gameObject.AddComponent<CanvasGroup>();
+            handbook.RegisterLauncher(handbookButton);
+            foreach (int i in new[] { 1, 3 })
+            {
+                Navigation nav = menuButtons[i].navigation;
+                nav.selectOnRight = handbookButton;
+                menuButtons[i].navigation = nav;
+            }
+            Navigation handbookNav = new Navigation { mode = Navigation.Mode.Explicit };
+            handbookNav.selectOnLeft = menuButtons[1];
+            handbookButton.navigation = handbookNav;
+        }
         BuildRemark();
         BuildSettings();
         fade = Art("Entrance fade", null, ArtworkSize * .5f, ArtworkSize).gameObject.AddComponent<CanvasGroup>();
@@ -144,6 +168,12 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         {
             RectTransform rect = (RectTransform)menuButtons[i].transform;
             rect.anchoredPosition = ImagePoint(positions[i]) * scale;
+            rect.localScale = Vector3.one * scale;
+        }
+        if (handbookButton != null)
+        {
+            RectTransform rect = (RectTransform)handbookButton.transform;
+            rect.anchoredPosition = ImagePoint(HandbookPoint) * scale;
             rect.localScale = Vector3.one * scale;
         }
     }
@@ -236,6 +266,23 @@ public sealed class CasinoTitleScreen : MonoBehaviour
             EventSystem.current.SetSelectedGameObject(settings.transform.Find("Volume").gameObject);
     }
 
+    private void OpenHandbook()
+    {
+        if (transitioning || settings.activeSelf || HandbookOpen) return;
+        StopRemark();
+        idleSeconds = 0;
+        foreach (Button button in menuButtons) button.interactable = false;
+        handbookButton.interactable = false;
+        handbook.Open(CloseHandbook);
+    }
+
+    private void CloseHandbook()
+    {
+        RestoreButtons();
+        idleSeconds = 0;
+        if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(handbookButton.gameObject);
+    }
+
     private void CloseSettings()
     {
         settings.SetActive(false);
@@ -248,6 +295,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
     {
         foreach (Button button in menuButtons) button.interactable = true;
         menuButtons[1].interactable = canResume;
+        if (handbookButton != null) handbookButton.interactable = true;
     }
     private bool canResume;
 
@@ -265,7 +313,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
 
     private void BeginEntrance(Action next)
     {
-        if (transitioning || settings.activeSelf) return;
+        if (transitioning || settings.activeSelf || HandbookOpen) return;
         CasinoSoundscape.StopMusic();
         StopRemark();
         transitioning = true;
@@ -274,6 +322,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         entering = false;
         departureStart = penguinImage.rectTransform.anchoredPosition;
         foreach (Button button in menuButtons) button.interactable = false;
+        if (handbookButton != null) handbookButton.interactable = false;
         if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
         CasinoSoundscape.Play(CasinoSoundCue.Button, Vector3.zero, transform, .25f);
     }
@@ -282,7 +331,6 @@ public sealed class CasinoTitleScreen : MonoBehaviour
     {
         departure += delta;
         SetButtonAlpha(1 - Mathf.Clamp01(departure / .3f));
-        penguinImage.sprite = penguin.TitlePoseFrame(departure < .6f ? CasinoAnimationPose.Idle : CasinoAnimationPose.Walk, 1, departure);
         if (departure >= .4f && !entering)
         {
             entering = true;
@@ -293,10 +341,13 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         }
         float opening = Mathf.SmoothStep(0, 1, Mathf.Clamp01((departure - .4f) / .65f));
         leftDoor.localScale = rightDoor.localScale = new Vector3(1 - .88f * opening, 1, 1);
-        float walk = Mathf.SmoothStep(0, 1, Mathf.Clamp01((departure - .85f) / .95f));
+        float walkElapsed = departure - EntranceWalkStart;
+        bool walking = walkElapsed >= 0 && walkElapsed < EntranceWalkDuration;
+        SetPenguinSprite(penguin.TitlePenguinFrame(entering, walking, Mathf.Max(0, walkElapsed)));
+        float walk = Mathf.SmoothStep(0, 1, Mathf.Clamp01(walkElapsed / EntranceWalkDuration));
         penguinImage.rectTransform.anchoredPosition = Vector2.Lerp(departureStart, ImagePoint(new Vector2(834, 686)), walk);
         penguinImage.color = new Color(1, 1, 1, 1 - Mathf.Clamp01((departure - 1.45f) / .45f));
-        if (departure > .85f && departure < 1.7f) Footstep();
+        if (walking) Footstep();
         float opacity = Mathf.Clamp01((departure - 1.75f) / .65f);
         if (fade.alpha == 0 && opacity > 0)
             CasinoSoundscape.Play(CasinoSoundCue.Entrance, Vector3.zero, transform, .3f);
@@ -309,6 +360,14 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         }
     }
 
+    private void SetPenguinSprite(Sprite sprite)
+    {
+        if (penguinImage.sprite == sprite) return;
+        penguinImage.sprite = sprite;
+        penguinImage.rectTransform.sizeDelta =
+            new Vector2(PenguinHeight * sprite.rect.width / sprite.rect.height, PenguinHeight);
+    }
+
     private void Footstep()
     {
         if (Time.unscaledTime < nextStep) return;
@@ -319,6 +378,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
     private void SetButtonAlpha(float value)
     {
         foreach (Button button in menuButtons) button.GetComponent<CanvasGroup>().alpha = value;
+        if (handbookButton != null) handbookButton.GetComponent<CanvasGroup>().alpha = value;
     }
 
     private void ResetArrival()
@@ -341,7 +401,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         leftDoor.gameObject.SetActive(false); rightDoor.gameObject.SetActive(false);
         penguinImage.color = Color.white;
         penguinImage.rectTransform.anchoredPosition = ImagePoint(new Vector2(834, 800));
-        penguinImage.sprite = penguin.TitleFrame(0);
+        SetPenguinSprite(penguin.TitlePenguinFrame(false, false, 0));
         StopRemark();
         if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(menuButtons[0].gameObject);
     }
@@ -360,7 +420,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         float glintPhase = elapsed % 47f;
         glint.color = new Color(1, 1, 1, glintPhase > 34 && glintPhase < 34.9f ? Mathf.Sin((glintPhase - 34) / .9f * Mathf.PI) * .2f : 0);
         if (transitioning) { UpdateEntrance(delta); return; }
-        penguinImage.sprite = penguin.TitleFrame(elapsed);
+        SetPenguinSprite(penguin.TitlePenguinFrame(false, false, elapsed));
         bool input = Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame;
         if (Mouse.current != null)
         {
@@ -370,6 +430,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         }
         if (Gamepad.current != null)
             input |= Gamepad.current.buttonSouth.wasPressedThisFrame || Gamepad.current.dpad.ReadValue().sqrMagnitude > 0;
+        if (HandbookOpen) return;
         if (settings.activeSelf)
         {
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) CloseSettings();
@@ -443,6 +504,7 @@ public sealed class CasinoTitleScreen : MonoBehaviour
         CasinoSoundscape.SetFocus(transform);
         CasinoSoundscape.SetIntensity(0);
         if (artwork != null) ResetArrival();
+        if (handbook != null) handbook.RefreshLaunchers();
     }
 
     private void OnDisable()
