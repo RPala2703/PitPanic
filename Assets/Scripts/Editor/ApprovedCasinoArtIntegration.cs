@@ -21,6 +21,8 @@ public sealed class ApprovedCasinoArtImporter : AssetPostprocessor
             assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Staff/bear-walk-",
                 StringComparison.Ordinal) ||
             assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Staff/fox-walk-",
+                StringComparison.Ordinal) ||
+            assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Customers/rabbit-walk-",
                 StringComparison.Ordinal);
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
