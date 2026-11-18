@@ -1254,7 +1254,7 @@ public sealed class CasinoShiftController : MonoBehaviour
             CasinoDemoProgression.UnlockedShift > 1 || PlayerPrefs.GetInt(SaveTutorial, 0) != 0, handbook);
 
         levelSelect = Panel("Level Select", new Vector2(1040f, 640f));
-        Label(levelSelect.transform, "Level Select Title", "CHOOSE YOUR CASINO", new Vector2(0, 260),
+        Label(levelSelect.transform, "Level Select Title", "LEVEL SELECT", new Vector2(0, 260),
             new Vector2(920, 60), 34).color = CasinoHudStyle.Gold;
         Label(levelSelect.transform, "Level Select Subtitle",
             "Replay any unlocked level. Earn stars by keeping the floor running smoothly.",

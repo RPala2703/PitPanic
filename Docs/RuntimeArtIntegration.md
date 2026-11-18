@@ -68,6 +68,11 @@ generator was not run for this change**, since it regenerates legacy artwork.
 
 The approved Blackjack artwork already includes the stock chips, tray and shoe;
 the previous station illustration is replaced rather than layered beneath it.
+Both tables use the latest supplied pixel-art illustration in
+`CasinoProps/tables/BlackjackTable_Concept.png`, with only transparent outer
+padding removed. Their 6.2-unit width and gameplay anchors are unchanged.
+`Pit Panic/Art/Update Blackjack Table Artwork` updates only these visual children;
+the scene generator uses the same artwork and sizing.
 Actual round-derived cards, wagers and payouts remain live. Roulette's old
 overlaid wheel SpriteRenderer is disabled because its approved table already
 contains a wheel; the physical wheel transform and minigame references remain.

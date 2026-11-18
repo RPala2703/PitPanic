@@ -312,9 +312,10 @@ public static class ApprovedArtPlayModeValidation
             PlayerPrefs.Save();
         }
 
-        private IEnumerator Capture(string name)
+        private IEnumerator Capture(string name, bool allowPaused = false)
         {
-            Check(Application.isPlaying && Time.timeScale > 0, "Capture attempted outside active Play Mode.");
+            Check(Application.isPlaying && (allowPaused || Time.timeScale > 0),
+                "Capture attempted outside active Play Mode.");
             string path = Path.Combine(directory, name + ".png");
             if (File.Exists(path)) File.Delete(path);
             yield return new WaitForEndOfFrame();
@@ -344,6 +345,14 @@ public static class ApprovedArtPlayModeValidation
                     yield return null;
                 }
                 CasinoShiftController shift = FindFirstObjectByType<CasinoShiftController>();
+                if (level == 1)
+                {
+                    Call(shift, "OpenLevelSelect");
+                    yield return null;
+                    Check(GameObject.Find("Level Select Title").GetComponent<UnityEngine.UI.Text>().text ==
+                        "LEVEL SELECT", "The level-select heading has not been updated.");
+                    yield return Capture("level-select", true);
+                }
                 Call(shift, "BeginShift", level, false);
                 if (shift.IsLessonOpen) shift.DismissLesson();
                 Time.timeScale = 1;
@@ -719,6 +728,15 @@ public static class ApprovedArtPlayModeValidation
                 Check(renderers.Length > 0, "Missing real floor object: " + name);
                 foreach (SpriteRenderer renderer in renderers)
                 {
+                    if (name == "Pixel BlackjackV2")
+                    {
+                        Check(AssetDatabase.GetAssetPath(renderer.sprite) ==
+                            ApprovedCasinoArtIntegration.ArtRoot + "/CasinoProps/tables/BlackjackTable_Concept.png" &&
+                            renderer.sprite.texture.width == 142 && renderer.sprite.texture.height == 82,
+                            "A Blackjack table is not using the latest supplied illustration.");
+                        Check(Mathf.Abs(renderer.bounds.size.x - 6.2f) < .01f,
+                            "The replacement Blackjack artwork changed the table width.");
+                    }
                     Check(AssetDatabase.GetAssetPath(renderer.sprite).StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/"),
                         "Old floor art survived: " + name);
                     Check(renderer.sprite.pixelsPerUnit == 32 &&

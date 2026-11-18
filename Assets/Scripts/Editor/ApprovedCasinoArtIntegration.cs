@@ -282,6 +282,29 @@ public static class ApprovedCasinoArtIntegration
         BurgundyWallIntegration.ApplyToCurrentScene();
     }
 
+    [MenuItem("Pit Panic/Art/Update Blackjack Table Artwork")]
+    public static void UpdateBlackjackArtwork()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode || EditorSceneManager.GetActiveScene().isDirty)
+            throw new InvalidOperationException("Update Blackjack artwork outside Play Mode with the scene saved.");
+        AssetDatabase.Refresh();
+        Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/PitPanicPrototype.unity");
+        int count = 0;
+        foreach (SpriteRenderer renderer in Object.FindObjectsByType<SpriteRenderer>(FindObjectsInactive.Include,
+            FindObjectsSortMode.None))
+        {
+            if (renderer.name != "Pixel BlackjackV2") continue;
+            Surface(renderer, "tables/BlackjackTable_Concept", 6.2f);
+            EditorUtility.SetDirty(renderer.transform);
+            count++;
+        }
+        if (count != 2) throw new InvalidOperationException($"Expected two real Blackjack tables, found {count}.");
+        EditorSceneManager.MarkSceneDirty(scene);
+        if (!EditorSceneManager.SaveScene(scene))
+            throw new IOException("Could not save Blackjack artwork.");
+        Debug.Log("BLACKJACK ARTWORK SAVED: both real tables replaced; gameplay anchors and colliders unchanged.");
+    }
+
     [MenuItem("Pit Panic/Art/Arrange Roulette Chairs Around Betting Layout")]
     public static void ArrangeRouletteChairs()
     {
