@@ -120,11 +120,8 @@ public static class ApprovedArtPlayModeValidation
             AIDealer dealer = pixel.GetComponentInParent<AIDealer>();
             if (dealer.IsResting || dealer.IsAtStation)
             {
-                string heading = headings.Single(candidate =>
-                    sprite.name.StartsWith($"tiger-walk-{candidate}-", StringComparison.Ordinal));
-                string idleFrame = heading == "south" || heading == "north" ? "03" : "01";
-                Check(sprite == pixel.SelectedStandingArt && sprite.name.EndsWith("-" + idleFrame, StringComparison.Ordinal),
-                    $"Stationary Tiger is not holding the planted {heading} frame.");
+                Check(sprite == pixel.SelectedStandingArt && sprite.name == "tiger-walk-south-03",
+                    $"Stationary Tiger used {sprite.name} instead of the front-facing planted frame.");
             }
         }
         MaterialPropertyBlock block = new MaterialPropertyBlock();

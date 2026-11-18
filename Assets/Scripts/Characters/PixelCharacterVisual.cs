@@ -40,7 +40,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         HasPlayerWalkFrames && System.Array.IndexOf(playerWalkFrames, sprite) >= 0;
     public string PlayerFacingName => playerFacing.ToString();
     public Sprite SelectedStandingArt => UsesPlayerDirectionalArt ? PlayerFacingSprite :
-        dealerWalkArt ? DealerSprite(playerFacing, DealerIdlePhase(playerFacing)) :
+        dealerWalkArt ? DealerSprite(PlayerFacing.Front, 2) :
         vip ? approvedVipStanding : approvedStanding;
     public bool IsPlayerWalking { get; private set; }
     public int PlayerWalkFrameIndex { get; private set; } = -1;
@@ -442,10 +442,6 @@ public sealed class PixelCharacterVisual : MonoBehaviour
                 ? FacingForHeading(displacement)
                 : FacingForInput(input);
         }
-        else if (dealerWalkArt && walking)
-        {
-            playerFacing = FacingForHeading(velocity);
-        }
         bool continueWalk = isPlayerVisual ? IsPlayerWalking : !dealerWalkArt || dealerWasWalking;
         walkTime = walking && continueWalk ? walkTime + Time.deltaTime : 0f;
         dealerWasWalking = dealerWalkArt && walking;
@@ -520,7 +516,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             }
             else if (dealerWasWalking)
             {
-                selected = DealerSprite(playerFacing, PlayerWalkPhase(walkTime));
+                selected = DealerSprite(FacingForHeading(velocity), PlayerWalkPhase(walkTime));
             }
             ApplyArtSprite(selected);
         }
@@ -546,9 +542,6 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 
     private Sprite DealerSprite(PlayerFacing facing, int phase) =>
         dealerWalkFrames[(int)facing * PlayerWalkFramesPerDirection + phase];
-
-    private static int DealerIdlePhase(PlayerFacing facing) =>
-        facing == PlayerFacing.Front || facing == PlayerFacing.Back ? 2 : 0;
 
     private Sprite PlayerFacingSprite => PlayerIdleSprite(playerFacing);
 

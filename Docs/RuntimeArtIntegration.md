@@ -688,9 +688,9 @@ saved prefab in Play Mode without re-importing or reassigning its sprites.
 ### Four-frame directional Tiger walk cycle
 
 The live Tiger dealer uses all 16 supplied PNGs at the same 180 ms cadence
-as Penguin. Tiger faces the direction of travel, then holds the last facing
-when stopped: frame `03` for north and south, or frame `01` for east and west
-(the planted pose in the side views). Walking restarts at frame `01`.
+as Penguin. Tiger faces the direction of travel while walking and returns to
+the planted front-facing frame (south `03`) when stopped, matching the other
+dealers' front-facing idle. Walking restarts at frame `01`.
 Dealer movement, assignments and rest behavior are unchanged. The live art
 validation checks Tiger's prefab binding, full sprite bounds and URP texture.
 
