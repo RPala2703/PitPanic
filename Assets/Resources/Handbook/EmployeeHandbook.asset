@@ -79,14 +79,14 @@ MonoBehaviour:
   - id: guest-deer
     category: 1
     title: 'Deer'
-    description: "Deer apologises before placing a bet, after losing a bet and occasionally to the dealer for winning.\n\nShe once attempted to tip a Roulette wheel for its excellent service.\n\nThe casino accepted the money."
+    description: "Deer apologises before placing a bet, after losing a bet and occasionally to the dealer for winning.\n\nHe once attempted to tip a Roulette wheel for its excellent service.\n\nThe casino accepted the money."
     image: {fileID: 21300000, guid: 3d6fb97f22b504077a2908e615fd3642, type: 3}
     unlock: 1
     level: 0
   - id: guest-elephant
     category: 1
     title: 'Elephant'
-    description: "Elephant never forgets a winning streak, a losing streak or an occasion when the dealer accidentally short-changed him.\n\nHe does, however, regularly forget where he parked.\n\nManagement has suggested that he start remembering less important things."
+    description: "Elephant never forgets a winning streak, a losing streak or an occasion when the dealer accidentally short-changed her.\n\nShe does, however, regularly forget where she parked.\n\nManagement has suggested that she start remembering less important things."
     image: {fileID: 21300000, guid: 4a53b19fe18f44115a30f9181f219629, type: 3}
     unlock: 1
     level: 0
