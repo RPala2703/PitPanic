@@ -45,6 +45,8 @@ public sealed class RouletteRoundController : MonoBehaviour
     [SerializeField] private RouletteTableMinigame assistanceMinigame;
     [SerializeField] private Transform physicalWheel;
     [SerializeField] private Transform chipContainer;
+    [SerializeField] private SpriteRenderer tableArt;
+    [SerializeField] private Sprite[] spinFrames;
     [SerializeField, Min(0.1f)] private float bettingSeconds = 3f;
     [SerializeField, Min(0.1f)] private float spinSeconds = 3f;
     [SerializeField, Min(0.1f)] private float settlementSeconds = 1.5f;
@@ -72,6 +74,15 @@ public sealed class RouletteRoundController : MonoBehaviour
     private bool tutorialRoundRequested;
     private bool tutorialRound;
     private Transform visibleBall;
+    private Sprite idleTableSprite;
+    private Vector3 idleTableScale;
+    private PixelSpriteTextureBinding tableTextureBinding;
+
+    public Sprite SpinSprite => isActiveAndEnabled && Phase == RouletteRoundPhase.Spinning
+        ? SpinFrameAt(spinElapsed) : null;
+
+    internal Sprite SpinFrameAt(float elapsed) => spinFrames != null && spinFrames.Length > 0
+        ? spinFrames[Mathf.FloorToInt(elapsed * 12f) % spinFrames.Length] : null;
 
     public bool IsTutorialRound => tutorialRound;
     public void PrepareTutorialRound() => tutorialRoundRequested = true;
@@ -411,6 +422,14 @@ public sealed class RouletteRoundController : MonoBehaviour
         }
     }
 
+    private void Awake()
+    {
+        if (tableArt == null) return;
+        idleTableSprite = tableArt.sprite;
+        idleTableScale = tableArt.transform.localScale;
+        tableTextureBinding = tableArt.GetComponent<PixelSpriteTextureBinding>();
+    }
+
     private void Start()
     {
         if (!IsConfigured)
@@ -431,6 +450,31 @@ public sealed class RouletteRoundController : MonoBehaviour
     private void OnDisable()
     {
         UnbindTaskEvents();
+        SetTableSpinFrame(null);
+    }
+
+    private void LateUpdate()
+    {
+        Sprite frame = SpinSprite;
+        if (frame == null && assistanceMinigame != null)
+            frame = assistanceMinigame.ActiveSpinSprite;
+        SetTableSpinFrame(frame);
+    }
+
+    private void SetTableSpinFrame(Sprite frame)
+    {
+        if (tableArt == null || idleTableSprite == null) return;
+        Sprite next = frame != null ? frame : idleTableSprite;
+        if (tableArt.sprite == next) return;
+
+        // The supplied frames use a smaller canvas. Match the idle artwork's world footprint.
+        Vector3 idleSize = idleTableSprite.bounds.size;
+        Vector3 nextSize = next.bounds.size;
+        tableArt.transform.localScale = new Vector3(
+            idleTableScale.x * idleSize.x / nextSize.x,
+            idleTableScale.y * idleSize.y / nextSize.y, idleTableScale.z);
+        tableArt.sprite = next;
+        tableTextureBinding?.RefreshSprite();
     }
 
     private void Update()

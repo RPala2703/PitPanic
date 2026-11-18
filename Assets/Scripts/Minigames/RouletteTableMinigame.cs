@@ -56,6 +56,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
     private GameObject statusHeader;
     private RectTransform wheelHitArea;
     private RectTransform wheelRing;
+    private Image spinArtwork;
     private RectTransform ball;
     private RectTransform trayHitArea;
     private RectTransform payoutTray;
@@ -97,6 +98,8 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
     private bool savedCursorVisible;
 
     public bool IsConfigured => player != null && tableRoot != null && wheel != null && roundController != null;
+    internal Sprite ActiveSpinSprite => IsRunning && stage == RouletteStage.Spinning
+        ? roundController.SpinFrameAt(Mathf.Max(0.1f, spinSeconds) - spinTimer) : null;
     public override bool CanBegin => IsConfigured && Mouse.current != null &&
                                      roundController.Phase == RouletteRoundPhase.AwaitingAssistance &&
                                      roundController.AssistanceBets.Count > 0 &&
@@ -458,6 +461,11 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             new Vector2(22f, 22f), Color.white);
         CasinoPixelArt.SetSprite(ballObject.GetComponent<Image>(), CasinoPixelArt.Ball, Color.white);
         ball = ballObject.GetComponent<RectTransform>();
+        spinArtwork = CasinoMinigamePresentation.CreateImage("Roulette Spin Artwork",
+            spinStageRoot, Vector2.zero, new Vector2(620f, 340f), Color.white).GetComponent<Image>();
+        spinArtwork.preserveAspect = true;
+        spinArtwork.raycastTarget = false;
+        spinArtwork.gameObject.SetActive(false);
         CasinoMinigamePresentation.CreateText(spinStageRoot, "Wheel Drag Hint",
             "DRAG TO SPIN!", new Vector2(0f, -245f), new Vector2(360f, 36f), 19,
             new Color(1f, 0.86f, 0.36f));
@@ -1079,6 +1087,14 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         float step = 360f / EuropeanWheelOrder.Length;
         wheelTargetAngle = wheelStartAngle + 1800f + Mathf.Repeat(pocketIndex * step - wheelStartAngle, 360f);
         ballAngle = 90f;
+        Sprite frame = ActiveSpinSprite;
+        if (frame != null)
+        {
+            spinArtwork.sprite = frame;
+            spinArtwork.gameObject.SetActive(true);
+            wheelRing.gameObject.SetActive(false);
+            ball.gameObject.SetActive(false);
+        }
         SetStatus("SPINNING  •  GOOD LUCK!");
         SetInstruction("The wheel is slowing down...");
     }
@@ -1086,6 +1102,7 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
     private void UpdateSpinAnimation(float deltaTime)
     {
         spinTimer = Mathf.Max(0f, spinTimer - deltaTime);
+        if (spinArtwork.gameObject.activeSelf) spinArtwork.sprite = ActiveSpinSprite;
         float duration = Mathf.Max(0.1f, spinSeconds);
         float t = 1f - spinTimer / duration;
         float eased = 1f - Mathf.Pow(1f - t, 4f);

@@ -47,6 +47,7 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private Image dealerPortrait;
     private Text dealerName;
     private RectTransform inspectionWheel;
+    private Image spinArtwork;
     private RectTransform inspectionBall;
     private Outline winningCellOutline;
     private int highlightedNumber = -1;
@@ -118,6 +119,10 @@ public sealed class RouletteInspectionView : MonoBehaviour
         if (panelOpen)
         {
             bool spinning = roundController.Phase == RouletteRoundPhase.Spinning;
+            Sprite frame = roundController.SpinSprite;
+            spinArtwork.sprite = frame;
+            spinArtwork.gameObject.SetActive(frame != null);
+            inspectionWheel.gameObject.SetActive(frame == null);
             if (spinning)
             {
                 inspectionWheel.Rotate(0, 0, -160f * Time.deltaTime);
@@ -504,6 +509,12 @@ public sealed class RouletteInspectionView : MonoBehaviour
         SetRect(ball, new Vector2(.5f, .5f), new Vector2(0, 118), new Vector2(13, 13));
         CasinoPixelArt.SetSprite(ball.AddComponent<Image>(), CasinoPixelArt.Ball, Color.white);
         inspectionBall = ball.GetComponent<RectTransform>();
+        GameObject spin = CreateObject("Roulette Spin Artwork", parent);
+        SetRect(spin, new Vector2(.5f, .5f), Vector2.zero, new Vector2(408f, 290f));
+        spinArtwork = spin.AddComponent<Image>();
+        spinArtwork.preserveAspect = true;
+        spinArtwork.raycastTarget = false;
+        spin.SetActive(false);
     }
 
     private void CreateBettingLayout(Transform parent)

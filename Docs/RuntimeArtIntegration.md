@@ -611,9 +611,11 @@ standalone build; `Pit Panic.app` is the latest build including the glow.
   sitting, dealing and reactions retain their actual gameplay states but do not
   substitute legacy animated frames. New directional/action drawings were not
   invented.
-- The floor Roulette wheel is baked into the approved illustration. Its live
-  gameplay pivot, ball, round simulation and minigame remain; the duplicate
-  legacy wheel layer is not drawn over it.
+- The floor Roulette wheel is baked into the approved illustration. During
+  dealer and manual spins, the nine supplied frames loop at 12 fps in order,
+  starting from frame 01 on each spin. The inspection and manual spin panels
+  show the same artwork during the spin only. The gameplay pivot, ball,
+  timing and results remain unchanged; the legacy wheel layer stays hidden.
 - Other supplied chair angles and decor files remain imported and available;
   the real floor uses the selected independent chair/stool views and existing
   scenery locations rather than displaying all 30 prop files as a gallery.

@@ -451,7 +451,44 @@ public static class ApprovedArtPlayModeValidation
                 foreach (PixelCharacterVisual pixel in FindObjectsByType<PixelCharacterVisual>(FindObjectsSortMode.None))
                     ValidateActor(pixel);
                 yield return Capture($"level-{level}-live-service");
+                if (level == 1) yield return ValidateRouletteSpinArtwork();
             }
+        }
+
+        private IEnumerator ValidateRouletteSpinArtwork()
+        {
+            RouletteRoundController roulette = FindFirstObjectByType<RouletteRoundController>();
+            SpriteRenderer table = roulette.transform.Find("VisualRoot/Pixel Roulette").GetComponent<SpriteRenderer>();
+            Sprite idle = AssetDatabase.LoadAssetAtPath<Sprite>(
+                ApprovedCasinoArtIntegration.ArtRoot + "/CasinoProps/tables/RouletteTable_Concept.png");
+            float deadline = Time.realtimeSinceStartup + 20f;
+            while (roulette.Phase == RouletteRoundPhase.Spinning && Time.realtimeSinceStartup < deadline)
+                yield return null;
+            while (roulette.Phase != RouletteRoundPhase.Spinning && Time.realtimeSinceStartup < deadline)
+                yield return null;
+            Check(roulette.Phase == RouletteRoundPhase.Spinning, "No live dealer Roulette spin started.");
+
+            Bounds idleBounds = table.bounds;
+            var sequence = new List<string>();
+            var block = new MaterialPropertyBlock();
+            yield return new WaitForEndOfFrame();
+            while (roulette.Phase == RouletteRoundPhase.Spinning && Time.realtimeSinceStartup < deadline)
+            {
+                string frame = table.sprite.name;
+                if (sequence.Count == 0 || sequence[sequence.Count - 1] != frame) sequence.Add(frame);
+                table.GetPropertyBlock(block);
+                Check(table.sprite == roulette.SpinSprite && table.sprite.rect.size == new Vector2(256, 131) &&
+                    block.GetTexture("_MainTex") == table.sprite.texture &&
+                    (idleBounds.size - table.bounds.size).sqrMagnitude < .00001f,
+                    "The live Roulette sprite, texture binding or table footprint did not match the spin.");
+                yield return new WaitForEndOfFrame();
+            }
+            Check(sequence.Count > 9, "The live Roulette spin did not repeat the nine-frame loop.");
+            for (int i = 0; i < sequence.Count; i++)
+                Check(sequence[i] == $"roulette-wheel-{i % 9 + 1:00}",
+                    $"Unexpected Roulette spin sequence: {string.Join(", ", sequence)}");
+            Check(table.sprite == idle && roulette.SpinSprite == null,
+                "The Roulette table did not return to idle when the spin ended.");
         }
 
         private static bool RouletteCustomersSeated()
