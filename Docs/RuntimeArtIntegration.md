@@ -625,7 +625,7 @@ commands exited successfully, preferences/input devices were restored, and
 the protected source and carried recovery files were rechecked. Incidental
 Unity UI Text max-size reserialization was restored to the scene baseline.
 
-### Three-pose directional Penguin walk cycle
+### Original three-pose directional Penguin walk cycle (superseded)
 
 The supplied idle and two walking sheets were RGB images with a checkerboard
 baked into the pixels and no alpha channel. Each 512x768 quadrant was extracted
@@ -666,6 +666,23 @@ movement checks and restores them before interaction and freeze checks.
 opened at:
 `/Users/rahulpala/.copilot/session-state/753e4550-8d41-464b-adaf-1a9686ebf1df/files/penguin-walk-three-pose/Pit Panic Three Pose.app`
 
+### Four-frame directional Penguin walk cycle
+
+The playable Penguin uses the supplied 16 transparent PNGs unchanged. The
+prefab maps S to south, D to east, W to north and A to west, playing frames
+`01 -> 02 -> 03 -> 04 -> 01` at 200 ms per frame while moving. Stopping
+restores the original idle sprite for the last facing.
+
+The walk frames use full 256x256 bounds, a shared bottom-center pivot,
+point filtering, and no compression or mipmaps. The existing uniform
+sprite scaling and foot anchor are unchanged, preserving each frame's
+aspect ratio and offsets within its original canvas. The title entrance
+uses the same north-facing walk frames and the original title idle art.
+
+Run `PenguinDirectionalWalkPlayModeValidation.Run` in a visible Unity Editor
+with `PIT_PANIC_PENGUIN_EVIDENCE` set to a capture folder. It checks the
+saved prefab in Play Mode without re-importing or reassigning its sprites.
+
 ### Standing sprite edges and diagonal facing
 
 The 17 approved standing PNGs retain their 48x64 canvases, pivots, and
@@ -687,7 +704,7 @@ diagonal movement, and the transition to the remaining direction.
 The main menu uses the playable Penguin's front idle pose and sizes its UI
 image from the sprite's aspect ratio at a fixed height and foot anchor. After
 New Game or Continue, it turns toward the doors and plays the same
-step A / idle / step B / idle cycle during the entrance walk.
+four-frame north-facing cycle during the entrance walk.
 
 ## Employee Handbook
 

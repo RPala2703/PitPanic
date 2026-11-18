@@ -117,7 +117,9 @@ public static class ApprovedArtPlayModeValidation
         Check(pixel.GetComponentsInChildren<MeshRenderer>(true).All(mesh => !mesh.enabled),
             $"Legacy procedural character is visible beside approved {species}.");
         int pixelsPerUnit = directionalPlayer ? 256 : 32;
-        Vector2 expectedSize = directionalPlayer ? new Vector2(363, 587) : new Vector2(48, 64);
+        Vector2 expectedSize = directionalPlayer
+            ? pixel.IsPlayerWalking ? new Vector2(256, 256) : new Vector2(363, 587)
+            : new Vector2(48, 64);
         Check(sprite.pivot == new Vector2(sprite.rect.width * .5f, 0),
             "Standing/directional sprite lost its bottom-center foot pivot.");
         Check(sprite.pixelsPerUnit == pixelsPerUnit && sprite.texture.filterMode == FilterMode.Point &&

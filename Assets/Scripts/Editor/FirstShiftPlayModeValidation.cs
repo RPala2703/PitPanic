@@ -89,7 +89,7 @@ public static class FirstShiftPlayModeValidation
             float deadline = Time.realtimeSinceStartup + 5f;
             GameObject menu = (GameObject)Get(shift, "menu");
             Image hero = (Image)Get(menu.GetComponent<CasinoTitleScreen>(), "penguinImage");
-            string[] expected = { "Penguin_Walk_Back_A", "Penguin_Idle_Back", "Penguin_Walk_Back_B", "Penguin_Idle_Back" };
+            string[] expected = { "penguin-walk-north-01", "penguin-walk-north-02", "penguin-walk-north-03", "penguin-walk-north-04" };
             int phase = 0;
             float previousY = hero.rectTransform.anchoredPosition.y;
             while (menu.activeSelf && Time.realtimeSinceStartup < deadline)
@@ -108,7 +108,7 @@ public static class FirstShiftPlayModeValidation
             if (verifyPenguin)
             {
                 Check(phase == expected.Length, $"Title Penguin did not play the full walk sequence while moving toward the door (observed {phase}/4 phases).");
-                Debug.Log("TITLE PENGUIN PASSED: source aspect, back-facing step A/idle/step B/idle while moving, and entrance completion.");
+                Debug.Log("TITLE PENGUIN PASSED: source aspect, north-facing frames 01/02/03/04 while moving, and entrance completion.");
             }
         }
 

@@ -16,7 +16,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
 {
     private const string Key = "PitPanic.PenguinDirectionalWalkValidation";
     private const BindingFlags Flags = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly string[] Directions = { "Front", "Right", "Back", "Left" };
+    private static readonly string[] WalkDirections = { "south", "east", "north", "west" };
     private const string PlayerArtPath = "Assets/Art/ApprovedCasino/Characters/Player";
 
     static PenguinDirectionalWalkPlayModeValidation() => EditorApplication.update += StartTest;
@@ -24,15 +24,10 @@ public static class PenguinDirectionalWalkPlayModeValidation
     public static void ImportAndConfigure()
     {
         AssetDatabase.Refresh();
-        Sprite[] idle = new Sprite[Directions.Length];
-        Sprite[] walk = new Sprite[Directions.Length * 2];
-        for (int i = 0; i < Directions.Length; i++)
-        {
-            string direction = Directions[i];
-            idle[i] = ImportPlayerSprite($"{PlayerArtPath}/Penguin_Idle_{direction}.png");
-            walk[i * 2] = ImportPlayerSprite($"{PlayerArtPath}/Penguin_Walk_{direction}_A.png");
-            walk[i * 2 + 1] = ImportPlayerSprite($"{PlayerArtPath}/Penguin_Walk_{direction}_B.png");
-        }
+        Sprite[] walk = new Sprite[WalkDirections.Length * 4];
+        for (int direction = 0; direction < WalkDirections.Length; direction++)
+        for (int frame = 0; frame < 4; frame++)
+            walk[direction * 4 + frame] = ImportPlayerSprite($"{PlayerArtPath}/{WalkSpriteName(direction, frame)}.png");
 
         const string prefabPath = "Assets/Prefabs/Characters/Character_PenguinPixel.prefab";
         GameObject prefab = PrefabUtility.LoadPrefabContents(prefabPath);
@@ -42,14 +37,6 @@ public static class PenguinDirectionalWalkPlayModeValidation
             if (visual == null)
                 throw new InvalidOperationException("The Penguin player prefab has no PixelCharacterVisual.");
             SerializedObject serialized = new SerializedObject(visual);
-            string[] fields = { "playerFront", "playerRight", "playerBack", "playerLeft" };
-            for (int i = 0; i < fields.Length; i++)
-            {
-                SerializedProperty property = serialized.FindProperty(fields[i]);
-                if (property == null)
-                    throw new InvalidOperationException($"PixelCharacterVisual is missing {fields[i]}.");
-                property.objectReferenceValue = idle[i];
-            }
             SerializedProperty walkFrames = serialized.FindProperty("playerWalkFrames");
             if (walkFrames == null)
                 throw new InvalidOperationException("PixelCharacterVisual is missing playerWalkFrames.");
@@ -64,14 +51,17 @@ public static class PenguinDirectionalWalkPlayModeValidation
             PrefabUtility.UnloadPrefabContents(prefab);
         }
         AssetDatabase.SaveAssets();
-        Debug.Log("PENGUIN WALK ART IMPORTED: four corrected directional idle poses plus two step poses per direction for an A/idle/B/idle walking cycle, all full-bounds, point-filtered at 256 PPU with shared bottom-center pivots.");
+        Debug.Log("PENGUIN WALK ART IMPORTED: 16 full 256x256 frames, point-filtered at 256 PPU with shared bottom-center pivots. Existing idle poses were not changed.");
     }
+
+    private static string WalkSpriteName(int direction, int frame) =>
+        $"penguin-walk-{WalkDirections[direction]}-{frame + 1:00}";
 
     private static Sprite ImportPlayerSprite(string path)
     {
         TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer == null)
-            throw new FileNotFoundException("Missing extracted Penguin sprite.", path);
+            throw new FileNotFoundException("Missing Penguin walk frame.", path);
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
         importer.spritePivot = new Vector2(.5f, 0);
@@ -91,9 +81,9 @@ public static class PenguinDirectionalWalkPlayModeValidation
         importer.SetTextureSettings(settings);
         importer.SaveAndReimport();
         Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
-        if (sprite == null || sprite.rect != new Rect(0, 0, 363, 587) ||
-            sprite.pixelsPerUnit != 256 || sprite.pivot != new Vector2(181.5f, 0))
-            throw new InvalidOperationException($"Could not import the full 363x587 Penguin sprite from {path}.");
+        if (sprite == null || sprite.rect != new Rect(0, 0, 256, 256) ||
+            sprite.pixelsPerUnit != 256 || sprite.pivot != new Vector2(128, 0))
+            throw new InvalidOperationException($"Could not import the full 256x256 Penguin walk frame from {path}.");
         return sprite;
     }
 
@@ -101,7 +91,6 @@ public static class PenguinDirectionalWalkPlayModeValidation
     {
         if (Application.isBatchMode)
             throw new InvalidOperationException("Run the Penguin directional validation in a visible Editor for live Play Mode captures.");
-        ImportAndConfigure();
         foreach (string key in ApprovedArtPlayModeValidation.SaveKeys())
             SessionState.SetInt(Key + key, PlayerPrefs.GetInt(key, -1));
         ApprovedArtPlayModeValidation.PrepareGameView();
@@ -202,7 +191,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 if (current is IEnumerator nested) tests.Push(nested);
                 else yield return current;
             }
-            Debug.Log("PENGUIN WALK CYCLE PLAY MODE PASSED: all four directional idles and three-pose A/idle/B walk cycles, 0.2s phase holds, projected aspect, zoom/full-floor captures, real interaction and final-zero freeze.");
+            Debug.Log("PENGUIN WALK CYCLE PLAY MODE PASSED: all four directional idles and 01/02/03/04 walk cycles, 0.2s phase holds, projected aspect, zoom/full-floor captures, real interaction and final-zero freeze.");
             Restore();
             EditorApplication.Exit(0);
         }
@@ -225,7 +214,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
             yield return null;
             PixelCharacterVisual visual = player.GetComponentInChildren<PixelCharacterVisual>();
             Check(visual != null && visual.UsesPlayerDirectionalArt && visual.UsesPlayerWalkArt,
-                "Actual player is not wired to four directional idles and eight directional step poses.");
+                "Actual player is not wired to four directional idles and sixteen directional walk frames.");
             UnityEngine.InputSystem.Key[] keys =
             {
                 UnityEngine.InputSystem.Key.S,
@@ -253,7 +242,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                           new Vector2(player.transform.position.x, player.transform.position.z)) >= .12f &&
                       visual.IsPlayerWalking && visual.PlayerFacingName == names[i] &&
                       visual.PlayerWalkFrameIndex == i * 4 &&
-                      visual.Renderer.sprite.name == $"Penguin_Walk_{names[i]}_A",
+                      visual.Renderer.sprite.name == WalkSpriteName(i, 0),
                     $"Movement {keys[i]} did not select the first {names[i]} walk frame: " +
                     $"{visual.PlayerFacingName}/{visual.Renderer.sprite.name}, " +
                     $"start={directionStart}, now={player.transform.position}, forward={player.transform.forward}, " +
@@ -275,27 +264,23 @@ public static class PenguinDirectionalWalkPlayModeValidation
                     }
 
                     float phaseDuration = Time.realtimeSinceStartup - currentPhaseStarted;
-                    string expectedSprite = nextPhase switch
-                    {
-                        0 => $"Penguin_Walk_{names[i]}_A",
-                        1 or 3 => $"Penguin_Idle_{names[i]}",
-                        2 => $"Penguin_Walk_{names[i]}_B",
-                        _ => throw new InvalidOperationException()
-                    };
+                    string expectedSprite = WalkSpriteName(i, nextPhase);
                     Check(visual.PlayerWalkFrameIndex == i * 4 + nextPhase &&
                           visual.Renderer.sprite.name == expectedSprite &&
-                          phaseDuration >= (transition == 1 ? .05f : .08f) &&
-                          phaseDuration <= .45f,
+                          phaseDuration >= (transition == 1 ? .05f : .15f) &&
+                          phaseDuration <= .26f,
                         $"{names[i]} walk phase {transition} did not hold/select the expected pose " +
                         $"{expectedSprite} for about 0.2s: {phaseDuration:0.000}s, " +
                         $"{visual.PlayerWalkFrameIndex}/{visual.Renderer.sprite.name}.");
                     phaseDurations[(transition - 1) % 4] = phaseDuration;
                     currentPhaseStarted = Time.realtimeSinceStartup;
                     ApprovedArtPlayModeValidation.ValidateActor(visual);
+                    ValidatePlayerScreenAspect(visual.Renderer.sprite, visual.Renderer.transform, sceneCamera);
                 }
-                Check(phaseDurations.Average() >= .15f && phaseDurations.Average() <= .28f,
+                Check(phaseDurations.Average() >= .18f && phaseDurations.Average() <= .22f,
                     $"{names[i]} four-beat walk cycle averaged {phaseDurations.Average():0.000}s per pose.");
 
+                yield return Capture($"floor-{WalkDirections[i]}-walk-02");
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState());
                 deadline = Time.realtimeSinceStartup + 3;
                 while (visual.IsPlayerWalking && Time.realtimeSinceStartup < deadline) yield return null;
@@ -311,7 +296,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
                 ValidatePlayerScreenAspect(visual.Renderer.sprite, visual.Renderer.transform, sceneCamera);
                 yield return Capture($"floor-{names[i].ToLowerInvariant()}-idle");
                 if (i == 0) yield return CaptureZoomedAppearance(player.transform);
-                Debug.Log($"PENGUIN {names[i]} A/IDLE/B/IDLE/A CYCLE PASSED: " +
+                Debug.Log($"PENGUIN {WalkDirections[i].ToUpperInvariant()} 01/02/03/04/01 CYCLE PASSED: " +
                     $"{string.Join("/", phaseDurations.Select(duration => $"{duration:0.000}s"))}; " +
                     $"idle={visual.Renderer.sprite.name}, position={player.transform.position}");
             }
@@ -354,15 +339,15 @@ public static class PenguinDirectionalWalkPlayModeValidation
         {
             UnityEngine.InputSystem.Key w = UnityEngine.InputSystem.Key.W;
             UnityEngine.InputSystem.Key d = UnityEngine.InputSystem.Key.D;
-            yield return HoldFacing(visual, "Back", .1f, w);
+            yield return HoldFacing(visual, "Back", "north", .1f, w);
             Vector3 start = player.transform.position;
-            yield return HoldFacing(visual, "Back", .85f, w, d);
+            yield return HoldFacing(visual, "Back", "north", .85f, w, d);
             Vector3 travel = player.transform.position - start;
             Check(travel.x > .5f && travel.z > .5f && Mathf.Abs(travel.x - travel.z) < .05f,
                 $"Holding W+D no longer moves diagonally: {travel}.");
-            yield return HoldFacing(visual, "Right", .1f, d);
-            yield return HoldFacing(visual, "Right", .85f, w, d);
-            yield return HoldFacing(visual, "Back", .1f, w);
+            yield return HoldFacing(visual, "Right", "east", .1f, d);
+            yield return HoldFacing(visual, "Right", "east", .85f, w, d);
+            yield return HoldFacing(visual, "Back", "north", .1f, w);
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return null;
             yield return null;
@@ -371,7 +356,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
             Debug.Log("PENGUIN DIAGONAL FACING PASSED: W+D moved diagonally without switching poses in either key order; releasing one key selected the remaining direction.");
         }
 
-        private IEnumerator HoldFacing(PixelCharacterVisual visual, string expected, float duration,
+        private IEnumerator HoldFacing(PixelCharacterVisual visual, string expectedFacing, string expectedDirection, float duration,
             params UnityEngine.InputSystem.Key[] held)
         {
             KeyboardState state = new KeyboardState(held);
@@ -389,10 +374,9 @@ public static class PenguinDirectionalWalkPlayModeValidation
             do
             {
                 string spriteName = visual.Renderer.sprite.name;
-                Check(visual.IsPlayerWalking && visual.PlayerFacingName == expected &&
-                      (spriteName == $"Penguin_Idle_{expected}" ||
-                       spriteName.StartsWith($"Penguin_Walk_{expected}_", StringComparison.Ordinal)),
-                    $"Holding {string.Join("+", held)} switched away from {expected}: {spriteName}.");
+                Check(visual.IsPlayerWalking && visual.PlayerFacingName == expectedFacing &&
+                      spriteName.StartsWith($"penguin-walk-{expectedDirection}-", StringComparison.Ordinal),
+                    $"Holding {string.Join("+", held)} switched away from {expectedFacing}: {spriteName}.");
                 InputSystem.QueueStateEvent(keyboard, state);
                 yield return null;
             } while (Time.realtimeSinceStartup < until);

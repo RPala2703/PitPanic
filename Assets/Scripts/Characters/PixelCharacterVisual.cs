@@ -22,6 +22,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     [SerializeField] private Sprite playerBack;
     [SerializeField] private Sprite playerLeft;
     [SerializeField] private Sprite[] playerWalkFrames;
+    private const int PlayerWalkFramesPerDirection = 4;
     private const float PlayerWalkFrameDuration = 0.2f;
     private enum PlayerFacing { Front, Right, Back, Left }
     private PlayerFacing playerFacing = PlayerFacing.Front;
@@ -32,8 +33,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         playerFront != null && playerRight != null && playerBack != null && playerLeft != null;
     public bool UsesPlayerWalkArt => isPlayerVisual && HasPlayerWalkFrames;
     public bool IsPlayerWalkSprite(Sprite sprite) =>
-        HasPlayerWalkFrames && (System.Array.IndexOf(playerWalkFrames, sprite) >= 0 ||
-            sprite == PlayerFacingSprite);
+        HasPlayerWalkFrames && System.Array.IndexOf(playerWalkFrames, sprite) >= 0;
     public string PlayerFacingName => playerFacing.ToString();
     public Sprite SelectedStandingArt => UsesPlayerDirectionalArt ? PlayerFacingSprite :
         vip ? approvedVipStanding : approvedStanding;
@@ -69,7 +69,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     {
         get
         {
-            if (playerWalkFrames == null || playerWalkFrames.Length != 8) return false;
+            if (playerWalkFrames == null || playerWalkFrames.Length != DirectionsPerPose * PlayerWalkFramesPerDirection)
+                return false;
             for (int i = 0; i < playerWalkFrames.Length; i++)
                 if (playerWalkFrames[i] == null) return false;
             return true;
@@ -437,7 +438,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
                 ? FacingForHeading(displacement)
                 : FacingForInput(input);
         }
-        walkTime = walking ? walkTime + Time.deltaTime : 0f;
+        walkTime = walking && (!isPlayerVisual || IsPlayerWalking) ? walkTime + Time.deltaTime : 0f;
         IsPlayerWalking = isPlayerVisual && walking;
         PlayerWalkFrameIndex = -1;
         CasinoAnimationPose seatedPose = customer != null && customer.Seat != null &&
@@ -504,7 +505,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             if (isPlayerVisual && walking && HasPlayerWalkFrames)
             {
                 int phase = PlayerWalkPhase(walkTime);
-                PlayerWalkFrameIndex = (int)playerFacing * 4 + phase;
+                PlayerWalkFrameIndex = (int)playerFacing * PlayerWalkFramesPerDirection + phase;
                 selected = PlayerWalkSprite(playerFacing, phase);
             }
             ApplyArtSprite(selected);
@@ -524,14 +525,10 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     }
 
     private static int PlayerWalkPhase(float elapsed) =>
-        Mathf.FloorToInt(elapsed / PlayerWalkFrameDuration) % 4;
+        Mathf.FloorToInt(elapsed / PlayerWalkFrameDuration) % PlayerWalkFramesPerDirection;
 
-    private Sprite PlayerWalkSprite(PlayerFacing facing, int phase) => phase switch
-    {
-        0 => playerWalkFrames[(int)facing * 2],
-        2 => playerWalkFrames[(int)facing * 2 + 1],
-        _ => PlayerIdleSprite(facing)
-    };
+    private Sprite PlayerWalkSprite(PlayerFacing facing, int phase) =>
+        playerWalkFrames[(int)facing * PlayerWalkFramesPerDirection + phase];
 
     private Sprite PlayerFacingSprite => PlayerIdleSprite(playerFacing);
 

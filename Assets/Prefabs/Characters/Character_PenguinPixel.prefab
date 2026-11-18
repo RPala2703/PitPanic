@@ -481,14 +481,22 @@ MonoBehaviour:
   playerBack: {fileID: 21300000, guid: 795cd5d5052a2431a873afbb33cfe368, type: 3}
   playerLeft: {fileID: 21300000, guid: ff23110c45e0b49cc84dcd3906be03d6, type: 3}
   playerWalkFrames:
-  - {fileID: 21300000, guid: 881e06b75fa26477d9c71127759683d8, type: 3}
-  - {fileID: 21300000, guid: 93f24198771964cbab6bbf500051c747, type: 3}
-  - {fileID: 21300000, guid: 4615ec7564ef54d848022028e6536483, type: 3}
-  - {fileID: 21300000, guid: e9d60f15b96d54805976c5442cbfe712, type: 3}
-  - {fileID: 21300000, guid: ce4bb0fbf9ab1477e8f78fcf93b7cc06, type: 3}
-  - {fileID: 21300000, guid: 31d0cb087309e43318c6267fe7de6a84, type: 3}
-  - {fileID: 21300000, guid: 8458796c507494ed2bcb94c92350c220, type: 3}
-  - {fileID: 21300000, guid: 77c2384489ba74f98b2c1685301652c0, type: 3}
+  - {fileID: 21300000, guid: 07b6e7016a3af48179f577c23db3c27f, type: 3}
+  - {fileID: 21300000, guid: d0006c1d401004a7db6cea39bf9f0d6a, type: 3}
+  - {fileID: 21300000, guid: 0604a1e83f65940f3b6f72e46b1bc0f3, type: 3}
+  - {fileID: 21300000, guid: c4c7a7c84a5f34a7b92f8f915033d36e, type: 3}
+  - {fileID: 21300000, guid: 754cfc2b2e68f4775a7c1f6fe85fb375, type: 3}
+  - {fileID: 21300000, guid: 9d82ded6d3b354b20aba3fd579421a8a, type: 3}
+  - {fileID: 21300000, guid: 656afba0047824997a6ced96b1846029, type: 3}
+  - {fileID: 21300000, guid: 1591d26eaea4c46d5a5128527b3711de, type: 3}
+  - {fileID: 21300000, guid: c5c4c2fa10a25431db7d2c5da4ffdb06, type: 3}
+  - {fileID: 21300000, guid: 9dd38b54eaf1d47a39110cc2b82dc2b5, type: 3}
+  - {fileID: 21300000, guid: 94ef16c4676c748838814b55cb0e985d, type: 3}
+  - {fileID: 21300000, guid: 1ac627156cc8c4990abd49f95bb9fe4b, type: 3}
+  - {fileID: 21300000, guid: 36503a4c709b94765b18fc73c97eb1df, type: 3}
+  - {fileID: 21300000, guid: 5ae1cfd6fc2814941b8965c3ab8ee076, type: 3}
+  - {fileID: 21300000, guid: a4802d64a928e453c891624f99d6beda, type: 3}
+  - {fileID: 21300000, guid: 9124756ac3d9041e4b1c7d93d0d10959, type: 3}
 --- !u!114 &1203281550964981775
 MonoBehaviour:
   m_ObjectHideFlags: 0
