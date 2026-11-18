@@ -221,7 +221,7 @@ public static class ApprovedCasinoArtIntegration
                     Surface(renderer, "tables/BlackjackTable_Concept", 6.2f);
                     break;
                 case "Pixel Roulette":
-                    Surface(renderer, "tables/RouletteTable_Concept", 6f);
+                    Surface(renderer, "tables/roulette-table-idle", 6f);
                     BindRouletteSpinArtwork(renderer);
                     break;
                 case "Pixel CashDesk":

@@ -460,7 +460,7 @@ public static class ApprovedArtPlayModeValidation
             RouletteRoundController roulette = FindFirstObjectByType<RouletteRoundController>();
             SpriteRenderer table = roulette.transform.Find("VisualRoot/Pixel Roulette").GetComponent<SpriteRenderer>();
             Sprite idle = AssetDatabase.LoadAssetAtPath<Sprite>(
-                ApprovedCasinoArtIntegration.ArtRoot + "/CasinoProps/tables/RouletteTable_Concept.png");
+                ApprovedCasinoArtIntegration.ArtRoot + "/CasinoProps/tables/roulette-table-idle.png");
             float deadline = Time.realtimeSinceStartup + 20f;
             while (roulette.Phase == RouletteRoundPhase.Spinning && Time.realtimeSinceStartup < deadline)
                 yield return null;
@@ -487,7 +487,8 @@ public static class ApprovedArtPlayModeValidation
             for (int i = 0; i < sequence.Count; i++)
                 Check(sequence[i] == $"roulette-wheel-{i % 9 + 1:00}",
                     $"Unexpected Roulette spin sequence: {string.Join(", ", sequence)}");
-            Check(table.sprite == idle && roulette.SpinSprite == null,
+            Check(idle != null && table.sprite == idle && roulette.SpinSprite == null &&
+                Mathf.Abs(table.bounds.size.x - 6f) < .001f,
                 "The Roulette table did not return to idle when the spin ended.");
         }
 
