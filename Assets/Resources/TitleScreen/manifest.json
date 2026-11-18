@@ -1,0 +1,100 @@
+{
+  "source_image": "image(20261115-195154).png",
+  "original_canvas_px": [
+    1672,
+    941
+  ],
+  "portraits": {
+    "Penguin": {
+      "Neutral": "Portraits/Penguin_Neutral.png",
+      "Happy": "Portraits/Penguin_Happy.png",
+      "Determined": "Portraits/Penguin_Determined.png",
+      "Shocked": "Portraits/Penguin_Shocked.png",
+      "Angry": "Portraits/Penguin_Angry.png",
+      "Smug": "Portraits/Penguin_Smug.png"
+    },
+    "Tiger": {
+      "Neutral": "Portraits/Tiger_Neutral.png",
+      "Happy": "Portraits/Tiger_Happy.png",
+      "Determined": "Portraits/Tiger_Determined.png",
+      "Shocked": "Portraits/Tiger_Shocked.png",
+      "Angry": "Portraits/Tiger_Angry.png",
+      "Smug": "Portraits/Tiger_Smug.png"
+    },
+    "Bear": {
+      "Neutral": "Portraits/Bear_Neutral.png",
+      "Happy": "Portraits/Bear_Happy.png",
+      "Determined": "Portraits/Bear_Determined.png",
+      "Shocked": "Portraits/Bear_Shocked.png",
+      "Angry": "Portraits/Bear_Angry.png",
+      "Smug": "Portraits/Bear_Smug.png"
+    },
+    "Fox": {
+      "Neutral": "Portraits/Fox_Neutral.png",
+      "Happy": "Portraits/Fox_Happy.png",
+      "Determined": "Portraits/Fox_Determined.png",
+      "Shocked": "Portraits/Fox_Shocked.png",
+      "Angry": "Portraits/Fox_Angry.png",
+      "Smug": "Portraits/Fox_Smug.png"
+    },
+    "Pig": {
+      "Neutral": "Portraits/Pig_Neutral.png",
+      "Happy": "Portraits/Pig_Happy.png",
+      "Determined": "Portraits/Pig_Determined.png",
+      "Shocked": "Portraits/Pig_Shocked.png",
+      "Angry": "Portraits/Pig_Angry.png",
+      "Smug": "Portraits/Pig_Smug.png"
+    }
+  },
+  "doors": {
+    "warm_reveal": {
+      "path": "Door/Doorway_Warm_Reveal_FullCanvas.png",
+      "canvas_size": [
+        1672,
+        941
+      ],
+      "bounds": [
+        661,
+        482,
+        1004,
+        786
+      ]
+    },
+    "left": {
+      "path_fullcanvas": "Door/Door_Left_Closed_FullCanvas.png",
+      "path_tight": "Door/Door_Left_Closed_Tight.png",
+      "bounds_xyxy": [
+        660,
+        482,
+        831,
+        786
+      ],
+      "pivot": "left"
+    },
+    "right": {
+      "path_fullcanvas": "Door/Door_Right_Closed_FullCanvas.png",
+      "path_tight": "Door/Door_Right_Closed_Tight.png",
+      "bounds_xyxy": [
+        832,
+        482,
+        1005,
+        786
+      ],
+      "pivot": "right"
+    }
+  },
+  "layers": "Background -> doorway reveal -> left/right doors -> player -> UI -> dialogue",
+  "marquee_mask": {
+    "path": "FX/Marquee_Light_Pulse_FullCanvas.png",
+    "canvas_size": [
+      1672,
+      941
+    ],
+    "suggested_alpha_range": [
+      0.0,
+      0.28
+    ],
+    "suggested_seconds_per_cycle": 2.8
+  },
+  "sparkles": "FX/Sparkle_01_48px.png ... FX/Sparkle_08_64px.png"
+}

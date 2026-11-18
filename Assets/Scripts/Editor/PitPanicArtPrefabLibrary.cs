@@ -21,7 +21,8 @@ public static class PitPanicArtPrefabLibrary
         CasinoAnimalSpecies.Dog,
         CasinoAnimalSpecies.Cat,
         CasinoAnimalSpecies.Raccoon,
-        CasinoAnimalSpecies.Elephant
+        CasinoAnimalSpecies.Elephant,
+        CasinoAnimalSpecies.Deer
     };
 
     private static readonly Color[] FurColors =
@@ -35,7 +36,8 @@ public static class PitPanicArtPrefabLibrary
         new Color(0.72f, 0.47f, 0.27f),
         new Color(0.92f, 0.81f, 0.62f),
         new Color(0.52f, 0.49f, 0.46f),
-        new Color(0.56f, 0.66f, 0.68f)
+        new Color(0.56f, 0.66f, 0.68f),
+        new Color(0.62f, 0.36f, 0.22f)
     };
 
     private static readonly Color[] DealerOutfits =
@@ -144,11 +146,12 @@ public static class PitPanicArtPrefabLibrary
 
     public static GameObject[] GetCustomerCharacterPrefabs()
     {
-        GameObject[] prefabs = new GameObject[Species.Length];
-        for (int i = 0; i < Species.Length; i++)
+        CasinoAnimalSpecies[] customers = { CasinoAnimalSpecies.Rabbit, CasinoAnimalSpecies.Dog,
+            CasinoAnimalSpecies.Cat, CasinoAnimalSpecies.Raccoon, CasinoAnimalSpecies.Deer, CasinoAnimalSpecies.Elephant };
+        GameObject[] prefabs = new GameObject[customers.Length];
+        for (int i = 0; i < customers.Length; i++)
         {
-            prefabs[i] = AssetDatabase.LoadAssetAtPath<GameObject>(
-                $"{CharacterFolder}/Character_{Species[i]}Pixel.prefab");
+            prefabs[i] = GetCharacterPrefab(customers[i]);
         }
 
         return prefabs;
@@ -292,6 +295,7 @@ public static class PitPanicArtPrefabLibrary
         CasinoCharacterVisual visual = root.AddComponent<CasinoCharacterVisual>();
         visual.Configure(species, bodyRig, animatedHead, tailRig, sprite);
         visual.ConfigureArms(leftArm, rightArm);
+        ApprovedCasinoArtIntegration.ConfigureCharacter(pixel);
     }
 
     private static float EllipsoidFront(float x, float y, Vector3 radii, Vector3 centre)
@@ -458,6 +462,25 @@ public static class PitPanicArtPrefabLibrary
                         new Vector3(0f, 0.58f, -0.35f - i * 0.16f),
                         new Vector3(0.27f, 0.28f, 0.09f), i % 2 == 0 ? dark : cream);
                 }
+                break;
+            case CasinoAnimalSpecies.Deer:
+                Ears(head, fur, cream, 0.24f, 0.20f);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    Part(PrimitiveType.Cube, side < 0 ? "Deer Antler Stem L" : "Deer Antler Stem R", head,
+                        new Vector3(side * 0.24f, 2.00f, 0.10f), new Vector3(0.07f, 0.42f, 0.08f),
+                        brown, Quaternion.Euler(0f, 0f, -side * 8f));
+                    Part(PrimitiveType.Cube, side < 0 ? "Deer Antler Branch L" : "Deer Antler Branch R", head,
+                        new Vector3(side * 0.39f, 2.10f, 0.10f), new Vector3(0.07f, 0.25f, 0.08f),
+                        brown, Quaternion.Euler(0f, 0f, side * 35f));
+                    Part(PrimitiveType.Cube, side < 0 ? "Deer Antler Tip L" : "Deer Antler Tip R", head,
+                        new Vector3(side * 0.18f, 2.23f, 0.10f), new Vector3(0.06f, 0.22f, 0.07f),
+                        brown, Quaternion.Euler(0f, 0f, side * 32f));
+                }
+                Part(PrimitiveType.Sphere, "Deer Muzzle", head, new Vector3(0f, 1.46f, 0.60f),
+                    new Vector3(0.24f, 0.15f, 0.15f), cream);
+                Part(PrimitiveType.Sphere, "Deer Nose", head, new Vector3(0f, 1.50f, 0.73f),
+                    new Vector3(0.08f, 0.055f, 0.04f), dark);
                 break;
             case CasinoAnimalSpecies.Elephant:
                 Ears(head, fur, fur, 0.42f, 0.40f);

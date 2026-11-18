@@ -82,6 +82,7 @@ public sealed class CasinoAttentionIndicator : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (indicatorCanvas == null || attention == null) return;
         if (!attention.HasVisibleTasks)
         {

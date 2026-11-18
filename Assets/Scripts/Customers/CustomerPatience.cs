@@ -37,6 +37,7 @@ public sealed class CustomerPatience : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (!IsWaiting)
         {
             return;

@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public static class PitPanicRichPixelArt
 {
@@ -40,7 +42,15 @@ public static class PitPanicRichPixelArt
         E(rug, 96, 48, 94, 44, new Color32(141, 74, 101, 255));
         E(rug, 96, 48, 91, 41, new Color32(84, 39, 73, 255));
         E(rug, 96, 48, 84, 35, new Color32(119, 50, 87, 255));
+        EllipseRing(rug, 96, 48, 88, 39, 1, Gold);
+        Diamond(rug, 96, 48, 8, new Color32(235, 174, 89, 255));
+        Diamond(rug, 96, 48, 4, new Color32(255, 225, 148, 255));
         for (int x = 36; x <= 156; x += 24) R(rug, x, 20, 3, 3, Gold);
+        for (int x = 24; x <= 168; x += 12)
+        {
+            R(rug, x, 10, 3, 1, Gold);
+            R(rug, x, 85, 3, 1, Gold);
+        }
         Save(rug, "TableRug", new Vector2(.5f, .5f), 24);
         foreach (string kind in new[] { "Plant", "Lamp", "Sofa", "Chair", "Window", "Curtain", "Column", "Arch" })
         {
@@ -54,12 +64,78 @@ public static class PitPanicRichPixelArt
         Debug.Log("Rich pixel artwork rebuilt with original GUIDs and point filtering.");
     }
 
+    [MenuItem("Pit Panic/Generate High Roller Guest Art")]
+    public static void GenerateHighRollerGuestArt()
+    {
+        PitPanicArtPrefabLibrary.EnsureStarterAssets();
+        GenerateCharacters(new[]
+        {
+            CasinoAnimalSpecies.Rabbit,
+            CasinoAnimalSpecies.Deer,
+            CasinoAnimalSpecies.Cat,
+            CasinoAnimalSpecies.Raccoon
+        });
+        AssetDatabase.SaveAssets();
+        EnsureDeerInPrototypeSpawner();
+    }
+
+    private static void EnsureDeerInPrototypeSpawner()
+    {
+        const string scenePath = "Assets/Scenes/PitPanicPrototype.unity";
+        Scene scene = SceneManager.GetSceneByPath(scenePath);
+        bool openedHere = !scene.IsValid() || !scene.isLoaded;
+        if (openedHere)
+            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+
+        try
+        {
+            CasinoCustomerSpawner spawner = null;
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                spawner = root.GetComponentInChildren<CasinoCustomerSpawner>(true);
+                if (spawner != null) break;
+            }
+            if (spawner == null)
+                throw new InvalidOperationException($"No customer spawner exists in {scenePath}.");
+
+            GameObject deerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Prefabs/Characters/Character_DeerPixel.prefab");
+            if (deerPrefab == null)
+                throw new FileNotFoundException("The generated Deer customer prefab is missing.");
+
+            SerializedObject serializedSpawner = new SerializedObject(spawner);
+            SerializedProperty prefabs = serializedSpawner.FindProperty("customerCharacterPrefabs");
+            if (prefabs == null || !prefabs.isArray)
+                throw new InvalidOperationException("The customer spawner has no character prefab list.");
+            for (int i = 0; i < prefabs.arraySize; i++)
+                if (prefabs.GetArrayElementAtIndex(i).objectReferenceValue == deerPrefab)
+                    return;
+
+            prefabs.InsertArrayElementAtIndex(prefabs.arraySize);
+            prefabs.GetArrayElementAtIndex(prefabs.arraySize - 1).objectReferenceValue = deerPrefab;
+            serializedSpawner.ApplyModifiedPropertiesWithoutUndo();
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (!EditorSceneManager.SaveScene(scene))
+                throw new InvalidOperationException($"Could not save the Deer prefab reference in {scenePath}.");
+        }
+        finally
+        {
+            if (openedHere) EditorSceneManager.CloseScene(scene, true);
+        }
+    }
+
     public static void GeneratePenguinAndTables()
     {
         GenerateCharacters(new[] { CasinoAnimalSpecies.Penguin });
         GenerateStation("Blackjack");
         GenerateStation("BlackjackV2");
         GenerateStation("Roulette");
+        AssetDatabase.SaveAssets();
+    }
+
+    public static void GenerateBearUniform()
+    {
+        GenerateCharacters(new[] { CasinoAnimalSpecies.Bear });
         AssetDatabase.SaveAssets();
     }
 
@@ -93,7 +169,7 @@ public static class PitPanicRichPixelArt
                 customerAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
                 drawing.SetPixels32(new Color32[48 * 64]);
                 Character(drawing, species, direction, 0);
-                DressVip(drawing, direction);
+                DressVip(drawing, direction, species);
                 AnimatePose(drawing, species, (CasinoAnimationPose)pose, direction, frame, true, true);
                 vipAtlas.SetPixels(frame * 48, (pose * 4 + direction) * 64, 48, 64, drawing.GetPixels());
                 UnityEngine.Object.DestroyImmediate(drawing);
@@ -216,9 +292,76 @@ public static class PitPanicRichPixelArt
         if ((int)species % 2 == 0) R(t, 14, 26, 20, 2, Shade(shirt, .75f));
     }
 
-    private static void DressVip(Texture2D t, int direction)
+    private static void DressVip(Texture2D t, int direction, CasinoAnimalSpecies species)
     {
         Color32 velvet = new Color32(47, 42, 69, 255);
+        if (species == CasinoAnimalSpecies.Rabbit)
+        {
+            R(t, 11, 19, 28, 16, Cream);
+            R(t, 12, 19, 2, 15, new Color32(218, 198, 155, 255));
+            R(t, 35, 19, 3, 14, new Color32(218, 198, 155, 255));
+            if (direction != 1)
+            {
+                R(t, 19, 20, 10, 13, Ink);
+                for (int i = 0; i < 6; i++)
+                {
+                    R(t, 17 + i, 32 - i, 2, 2, Ink);
+                    R(t, 29 - i, 32 - i, 2, 2, Ink);
+                }
+                R(t, 21, 29, 3, 3, Ink); R(t, 26, 29, 3, 3, Ink);
+                R(t, 23, 24, 2, 2, Gold); R(t, 23, 21, 2, 2, Gold);
+            }
+            return;
+        }
+        if (species == CasinoAnimalSpecies.Deer || species == CasinoAnimalSpecies.Cat)
+        {
+            Color32 dress = species == CasinoAnimalSpecies.Deer
+                ? new Color32(105, 34, 67, 255)
+                : new Color32(23, 105, 66, 255);
+            Color32 highlight = species == CasinoAnimalSpecies.Deer
+                ? new Color32(155, 50, 86, 255)
+                : new Color32(38, 147, 91, 255);
+            R(t, 11, 19, 28, 16, dress);
+            R(t, 12, 19, 2, 15, Gold); R(t, 36, 19, 2, 14, Gold);
+            R(t, 15, 19, 18, 2, Gold);
+            if (direction != 1)
+            {
+                R(t, 20, 21, 8, 11, highlight);
+                R(t, 19, 29, 10, 2, Gold);
+                if (species == CasinoAnimalSpecies.Deer)
+                {
+                    E(t, 34, 53, 5, 5, new Color32(196, 49, 88, 255));
+                    E(t, 34, 53, 2, 2, Gold);
+                    R(t, 12, 42, 2, 4, Gold); R(t, 35, 42, 2, 4, Gold);
+                }
+                else
+                {
+                    R(t, 16, 33, 2, 3, Gold); R(t, 32, 33, 2, 3, Gold);
+                    R(t, 22, 30, 5, 2, Gold);
+                    E(t, 24, 20, 4, 4, Gold);
+                }
+            }
+            return;
+        }
+        if (species == CasinoAnimalSpecies.Raccoon)
+        {
+            Color32 charcoal = new Color32(38, 35, 49, 255);
+            R(t, 11, 19, 28, 16, charcoal);
+            R(t, 12, 19, 2, 15, Gold); R(t, 36, 19, 2, 14, Gold);
+            R(t, 14, 19, 20, 2, Gold);
+            if (direction != 1)
+            {
+                R(t, 20, 21, 8, 13, Cream);
+                for (int i = 0; i < 7; i++)
+                {
+                    R(t, 14 + i, 33 - i, 3, 2, Gold);
+                    R(t, 32 - i, 33 - i, 3, 2, Gold);
+                }
+                R(t, 21, 30, 3, 3, Ink); R(t, 26, 30, 3, 3, Ink);
+                R(t, 24, 24, 2, 2, Gold);
+            }
+            return;
+        }
         R(t, 11, 19, 28, 16, velvet);
         R(t, 12, 19, 2, 15, Gold); R(t, 36, 19, 2, 15, Gold);
         R(t, 14, 19, 22, 2, Gold);
@@ -238,6 +381,32 @@ public static class PitPanicRichPixelArt
         R(t, 16, 57, 18, 7, velvet);
         R(t, 15, 57, 20, 2, Gold);
         R(t, 17, 60, 2, 4, Cream);
+    }
+
+    private static void DrawFormalDressSkirt(Texture2D t, CasinoAnimalSpecies species, int bodyY, int lean)
+    {
+        Color32 dress = species == CasinoAnimalSpecies.Deer
+            ? new Color32(105, 34, 67, 255)
+            : new Color32(23, 105, 66, 255);
+        Color32 fold = species == CasinoAnimalSpecies.Deer
+            ? new Color32(155, 50, 86, 255)
+            : new Color32(38, 147, 91, 255);
+        int top = 22 + bodyY;
+        const int hem = 6;
+        for (int y = hem; y <= top; y++)
+        {
+            float flare = Mathf.InverseLerp(top, hem, y);
+            int halfWidth = Mathf.RoundToInt(Mathf.Lerp(7, 16, flare));
+            int x = 24 + lean - halfWidth;
+            int width = halfWidth * 2;
+            R(t, x, y, width, 1, y % 3 == 0 ? fold : dress);
+            R(t, x, y, 2, 1, Gold);
+            R(t, x + width - 2, y, 2, 1, Gold);
+            if (width > 20)
+                R(t, 23 + lean, y, 2, 1, fold);
+        }
+        int hemWidth = 34;
+        R(t, 24 + lean - hemWidth / 2, hem - 1, hemWidth, 2, Gold);
     }
 
     private static void AnimatePose(Texture2D t, CasinoAnimalSpecies species, CasinoAnimationPose pose, int direction, int frame, bool customer = false, bool vip = false)
@@ -373,6 +542,8 @@ public static class PitPanicRichPixelArt
         R(t, Mathf.RoundToInt(rightFoot.x) - 4, Mathf.RoundToInt(rightFoot.y) - 2, 9, 4, Ink);
         R(t, Mathf.RoundToInt(leftFoot.x) - 3, Mathf.RoundToInt(leftFoot.y), 7, 2, shoe);
         R(t, Mathf.RoundToInt(rightFoot.x) - 3, Mathf.RoundToInt(rightFoot.y), 7, 2, shoe);
+        if (vip && (species == CasinoAnimalSpecies.Deer || species == CasinoAnimalSpecies.Cat))
+            DrawFormalDressSkirt(t, species, bodyY, lean);
         R(t, 13 + lean, 18 + bodyY, 24, 5, trousers);
         for (int y = 19; y < 35; y++)
         for (int x = 11; x <= 38; x++)
@@ -498,18 +669,19 @@ public static class PitPanicRichPixelArt
             new Color32(241, 163, 179, 255), new Color32(232, 132, 57, 255),
             new Color32(218, 221, 229, 255), new Color32(165, 118, 87, 255),
             new Color32(184, 151, 118, 255), new Color32(221, 173, 106, 255),
-            new Color32(147, 139, 163, 255), new Color32(160, 179, 190, 255)
+            new Color32(147, 139, 163, 255), new Color32(160, 179, 190, 255),
+            new Color32(192, 126, 77, 255)
         };
         Color32 fur = furs[(int)species % furs.Length];
         Color32 shadow = Shade(fur, .7f);
         Color32 coat = species switch
         {
             CasinoAnimalSpecies.Rabbit => new Color32(55, 119, 119, 255),
-            CasinoAnimalSpecies.Bear => new Color32(67, 89, 144, 255),
             CasinoAnimalSpecies.Cat => new Color32(140, 78, 157, 255),
             CasinoAnimalSpecies.Dog => new Color32(159, 95, 44, 255),
             CasinoAnimalSpecies.Raccoon => new Color32(49, 114, 82, 255),
             CasinoAnimalSpecies.Elephant => new Color32(62, 109, 147, 255),
+            CasinoAnimalSpecies.Deer => new Color32(111, 40, 73, 255),
             _ => new Color32(137, 42, 81, 255)
         };
         R(t, 9, 2 + step * 2, 13, 8, Ink); R(t, 28, 4 - step * 2, 12, 8, Ink);
@@ -521,6 +693,19 @@ public static class PitPanicRichPixelArt
         R(t, 5, 18 + step, 7, 15, Ink); R(t, 39, 18 - step, 6, 15, Ink);
         R(t, 7, 20 + step, 4, 5, fur); R(t, 40, 20 - step, 3, 5, fur);
         R(t, 7, 26, 4, 6, Cream); R(t, 40, 25, 3, 7, Cream);
+        if (species == CasinoAnimalSpecies.Deer)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int x = side < 0 ? 11 : 34;
+                R(t, x, 52, 3, 12, Ink);
+                R(t, x + (side < 0 ? -3 : 3), 55, 3, 2, Ink);
+                R(t, x + (side < 0 ? -4 : 4), 59, 3, 2, Ink);
+                R(t, x + (side < 0 ? -2 : 2), 54, 1, 8, new Color32(117, 75, 52, 255));
+                R(t, x + (side < 0 ? -3 : 3), 56, 1, 2, new Color32(117, 75, 52, 255));
+                R(t, x + (side < 0 ? -4 : 4), 60, 1, 2, new Color32(117, 75, 52, 255));
+            }
+        }
         if (dir != 1)
         {
             R(t, 20, 20, 8, 14, Cream);
@@ -610,10 +795,233 @@ public static class PitPanicRichPixelArt
             R(t, 12, 56, 3, 6, new Color32(229, 151, 172, 255));
             R(t, 34, 56, 3, 6, new Color32(229, 151, 172, 255));
         }
+        if (species == CasinoAnimalSpecies.Deer && dir == 0)
+        {
+            R(t, 16, 44, 5, 6, Cream); R(t, 27, 44, 5, 6, Cream);
+            R(t, 17, 46, 2, 3, Ink); R(t, 29, 46, 2, 3, Ink);
+            R(t, 21, 39, 6, 3, new Color32(117, 75, 52, 255));
+        }
         if (species == CasinoAnimalSpecies.Bear)
         {
             E(t, 13, 56, 5, 5, Ink); E(t, 13, 56, 3, 3, shadow);
             E(t, 35, 56, 5, 5, Ink); E(t, 35, 56, 3, 3, shadow);
+        }
+
+        DrawSpeciesSilhouette(t, species, fur, shadow, dir);
+        DrawUniformEmbroidery(t, coat, dir, step);
+        DrawFaceFinish(t, species, fur, shadow, dir);
+    }
+
+    private static void DrawSpeciesSilhouette(Texture2D t, CasinoAnimalSpecies species, Color32 fur,
+        Color32 shadow, int direction)
+    {
+        Color32 innerEar = species == CasinoAnimalSpecies.Penguin
+            ? new Color32(0, 0, 0, 0) : new Color32(224, 120, 144, 255);
+        switch (species)
+        {
+            case CasinoAnimalSpecies.Rabbit:
+                // Long, tapered ears remain unmistakable even in the tiny floor-scale sprite.
+                Triangle(t, 8, 52, 18, 52, 13, 63, Ink);
+                Triangle(t, 30, 52, 40, 52, 35, 63, Ink);
+                Triangle(t, 10, 54, 16, 54, 13, 61, fur);
+                Triangle(t, 32, 54, 38, 54, 35, 61, fur);
+                R(t, 12, 56, 2, 4, innerEar); R(t, 34, 56, 2, 4, innerEar);
+                break;
+            case CasinoAnimalSpecies.Cat:
+            case CasinoAnimalSpecies.Fox:
+            case CasinoAnimalSpecies.Tiger:
+                Triangle(t, 8, 50, 20, 52, 13, 63, Ink);
+                Triangle(t, 28, 52, 40, 50, 35, 63, Ink);
+                Triangle(t, 11, 53, 18, 54, 14, 60, fur);
+                Triangle(t, 30, 54, 37, 53, 34, 60, fur);
+                R(t, 13, 55, 2, 3, innerEar); R(t, 34, 55, 2, 3, innerEar);
+                break;
+            case CasinoAnimalSpecies.Dog:
+                E(t, 9, 48, 7, 11, Ink); E(t, 38, 48, 7, 11, Ink);
+                E(t, 9, 48, 4, 8, shadow); E(t, 38, 48, 4, 8, shadow);
+                R(t, 7, 45, 4, 8, fur); R(t, 38, 45, 4, 8, fur);
+                break;
+            case CasinoAnimalSpecies.Elephant:
+                E(t, 7, 44, 9, 12, Ink); E(t, 40, 44, 9, 12, Ink);
+                E(t, 8, 45, 6, 9, Shade(fur, .82f)); E(t, 39, 45, 6, 9, Shade(fur, .82f));
+                R(t, 11, 54, 2, 4, Shade(fur, 1.18f)); R(t, 36, 54, 2, 4, Shade(fur, 1.18f));
+                break;
+            case CasinoAnimalSpecies.Deer:
+                Triangle(t, 8, 49, 18, 52, 12, 60, Ink);
+                Triangle(t, 30, 52, 40, 49, 36, 60, Ink);
+                Triangle(t, 11, 52, 16, 54, 12, 58, fur);
+                Triangle(t, 32, 54, 37, 52, 36, 58, fur);
+                Antler(t, 14, 59, -1); Antler(t, 34, 59, 1);
+                break;
+            case CasinoAnimalSpecies.Penguin:
+                E(t, 12, 54, 6, 6, Ink); E(t, 36, 54, 6, 6, Ink);
+                E(t, 12, 55, 4, 4, new Color32(56, 70, 98, 255));
+                E(t, 36, 55, 4, 4, new Color32(56, 70, 98, 255));
+                break;
+            case CasinoAnimalSpecies.Pig:
+                Triangle(t, 8, 50, 20, 51, 15, 61, Ink);
+                Triangle(t, 28, 51, 40, 50, 33, 61, Ink);
+                Triangle(t, 11, 53, 17, 54, 14, 59, fur);
+                Triangle(t, 31, 54, 37, 53, 34, 59, fur);
+                R(t, 13, 54, 2, 3, innerEar); R(t, 34, 54, 2, 3, innerEar);
+                break;
+            default:
+                E(t, 13, 56, 6, 6, Ink); E(t, 35, 56, 6, 6, Ink);
+                E(t, 13, 57, 4, 4, fur); E(t, 35, 57, 4, 4, fur);
+                break;
+        }
+
+        if (direction == 1)
+        {
+            R(t, 21, 51, 6, 2, Shade(fur, 1.18f));
+            R(t, 23, 49, 3, 2, Shade(fur, 1.28f));
+        }
+    }
+
+    private static void DrawUniformEmbroidery(Texture2D t, Color32 coat, int direction, int step)
+    {
+        Color32 darkCoat = Shade(coat, .62f);
+        Color32 lightCoat = Shade(coat, 1.24f);
+        Color32 burgundy = new Color32(108, 38, 57, 255);
+        // Tailored jacket seams, folded lapels, satin shirt and a small house crest.
+        R(t, 11, 19, 3, 15, darkCoat);
+        R(t, 36, 20, 3, 13, darkCoat);
+        R(t, 14, 20, 2, 12, lightCoat);
+        R(t, 33, 20, 2, 10, Shade(coat, .82f));
+        if (direction != 1)
+        {
+            Triangle(t, 18, 33, 22, 33, 20, 25, Cream);
+            Triangle(t, 30, 33, 26, 33, 28, 25, Cream);
+            Triangle(t, 19, 34, 24, 34, 23, 27, burgundy);
+            Triangle(t, 29, 34, 24, 34, 25, 27, Shade(burgundy, 1.2f));
+            R(t, 23, 31, 3, 4, Gold);
+            R(t, 24, 32, 1, 2, Cream);
+            for (int y = 22; y <= 29; y += 4)
+            {
+                R(t, 27, y, 1, 1, Gold);
+                R(t, 28, y, 1, 1, Cream);
+            }
+            // Stitched cuff and chest seams add consistent tailoring across the roster.
+            R(t, 8, 27 + step, 4, 2, Cream);
+            R(t, 37, 27 - step, 4, 2, Cream);
+            R(t, 16, 22, 1, 9, darkCoat);
+            R(t, 32, 22, 1, 8, darkCoat);
+            R(t, 31, 22, 3, 1, Gold);
+            R(t, 32, 23, 1, 3, Gold);
+        }
+        else
+        {
+            R(t, 14, 20, 20, 2, lightCoat);
+            R(t, 20, 23, 8, 2, Cream);
+            R(t, 23, 24, 3, 7, burgundy);
+            R(t, 24, 25, 1, 4, Gold);
+        }
+    }
+
+    private static void DrawFaceFinish(Texture2D t, CasinoAnimalSpecies species, Color32 fur,
+        Color32 shadow, int direction)
+    {
+        if (direction == 0)
+        {
+            Color32 muzzle = species == CasinoAnimalSpecies.Penguin
+                ? new Color32(245, 207, 123, 255)
+                : species == CasinoAnimalSpecies.Pig
+                    ? new Color32(238, 137, 165, 255)
+                    : Shade(fur, 1.16f);
+            // Bright eye-glass, ink pupils, catchlights and cheek warmth.
+            E(t, 15, 44, 4, 6, Ink); E(t, 32, 44, 4, 6, Ink);
+            E(t, 15, 45, 2, 4, new Color32(54, 35, 44, 255));
+            E(t, 32, 45, 2, 4, new Color32(54, 35, 44, 255));
+            R(t, 15, 47, 1, 1, Cream); R(t, 32, 47, 1, 1, Cream);
+            E(t, 10, 42, 3, 2, new Color32(228, 107, 126, 150));
+            E(t, 37, 42, 3, 2, new Color32(228, 107, 126, 150));
+
+            if (species == CasinoAnimalSpecies.Pig)
+            {
+                E(t, 24, 40, 7, 4, Ink);
+                E(t, 24, 40, 5, 3, muzzle);
+                R(t, 22, 40, 1, 2, new Color32(145, 69, 96, 255));
+                R(t, 26, 40, 1, 2, new Color32(145, 69, 96, 255));
+            }
+            else if (species == CasinoAnimalSpecies.Elephant)
+            {
+                R(t, 21, 39, 7, 3, Shade(fur, 1.25f));
+                R(t, 23, 37, 4, 5, shadow);
+                R(t, 24, 37, 2, 5, Shade(fur, .82f));
+                R(t, 22, 37, 1, 2, Cream);
+            }
+            else if (species == CasinoAnimalSpecies.Raccoon)
+            {
+                R(t, 10, 43, 10, 6, Shade(fur, .48f));
+                R(t, 28, 43, 10, 6, Shade(fur, .48f));
+                E(t, 24, 39, 3, 2, Ink);
+                R(t, 23, 41, 3, 1, Cream);
+            }
+            else if (species == CasinoAnimalSpecies.Deer)
+            {
+                E(t, 24, 39, 4, 2, new Color32(82, 50, 43, 255));
+                R(t, 23, 36, 2, 2, Cream);
+                R(t, 17, 42, 1, 1, new Color32(248, 219, 170, 255));
+                R(t, 30, 42, 1, 1, new Color32(248, 219, 170, 255));
+            }
+            else if (species == CasinoAnimalSpecies.Cat || species == CasinoAnimalSpecies.Tiger ||
+                     species == CasinoAnimalSpecies.Fox)
+            {
+                R(t, 14, 50, 5, 1, shadow);
+                R(t, 29, 50, 5, 1, shadow);
+                E(t, 24, 40, 3, 2, new Color32(60, 39, 46, 255));
+                R(t, 23, 38, 3, 1, Cream);
+            }
+            else
+            {
+                E(t, 24, 40, 3, 2, new Color32(60, 39, 46, 255));
+                R(t, 23, 38, 3, 1, Cream);
+            }
+            R(t, 22, 36, 4, 1, Shade(fur, 1.35f));
+        }
+        else if (direction == 2 || direction == 3)
+        {
+            int eyeX = direction == 2 ? 15 : 31;
+            R(t, eyeX, 46, 2, 4, Ink);
+            R(t, eyeX, 47, 1, 1, Cream);
+            int muzzleX = direction == 2 ? 10 : 36;
+            E(t, muzzleX, 40, 3, 2, Shade(fur, 1.18f));
+            R(t, muzzleX, 40, 2, 1, Ink);
+        }
+    }
+
+    private static void Triangle(Texture2D t, int x0, int y0, int x1, int y1, int apexX, int apexY, Color32 color)
+    {
+        float baseY = (y0 + y1) * .5f;
+        float baseCenter = (x0 + x1) * .5f;
+        float baseHalfWidth = Mathf.Abs(x1 - x0) * .5f;
+        float apexDistance = Mathf.Max(.001f, Mathf.Abs(apexY - baseY));
+        int bottom = Mathf.FloorToInt(Mathf.Min(baseY, apexY));
+        int top = Mathf.CeilToInt(Mathf.Max(baseY, apexY));
+        for (int y = bottom; y <= top; y++)
+        {
+            float amount = Mathf.Clamp01(Mathf.Abs(y - baseY) / apexDistance);
+            float center = Mathf.Lerp(baseCenter, apexX, amount);
+            float halfWidth = baseHalfWidth * (1f - amount);
+            R(t, Mathf.RoundToInt(center - halfWidth), y, Mathf.Max(1, Mathf.RoundToInt(halfWidth * 2 + 1)), 1, color);
+        }
+    }
+
+    private static void Antler(Texture2D t, int x, int y, int side)
+    {
+        Color32 antler = new Color32(151, 105, 66, 255);
+        R(t, x, y, 2, 4, antler);
+        if (side < 0)
+        {
+            R(t, x - 3, y + 2, 4, 2, antler);
+            R(t, x - 5, y, 2, 4, antler);
+            R(t, x - 2, y + 4, 3, 2, Shade(antler, 1.2f));
+        }
+        else
+        {
+            R(t, x + 1, y + 2, 4, 2, antler);
+            R(t, x + 4, y, 2, 4, antler);
+            R(t, x + 1, y + 4, 3, 2, Shade(antler, 1.2f));
         }
     }
 
@@ -651,6 +1059,35 @@ public static class PitPanicRichPixelArt
                 Sofa(t, 14, 48, 52); Sofa(t, 125, 48, 52);
                 R(t, 78, 49, 33, 24, Ink); R(t, 80, 52, 29, 19, Gold);
                 R(t, 88, 57, 8, 7, Cream); R(t, 96, 59, 3, 3, Cream);
+            }
+            R(t, 13, 9, 166, 1, new Color32(255, 222, 129, 255));
+            R(t, 13, 80, 166, 1, new Color32(181, 111, 58, 255));
+            for (int x = 20; x < 178; x += 24)
+            {
+                E(t, x, 42, 2, 2, Cream);
+                R(t, x - 1, 76, 3, 1, Gold);
+            }
+            if (kind == "CashDesk")
+            {
+                R(t, 58, 55, 25, 1, new Color32(192, 223, 201, 255));
+                R(t, 60, 58, 20, 1, new Color32(123, 194, 165, 255));
+                R(t, 59, 71, 23, 2, new Color32(51, 84, 75, 255));
+                Diamond(t, 96, 22, 5, Gold);
+                Diamond(t, 96, 22, 2, Cream);
+            }
+            else if (kind == "PitDesk")
+            {
+                R(t, 112, 50, 22, 2, new Color32(184, 67, 83, 255));
+                R(t, 112, 72, 22, 2, new Color32(184, 67, 83, 255));
+                Diamond(t, 86, 24, 5, Gold);
+                Diamond(t, 86, 24, 2, Cream);
+                R(t, 154, 52, 4, 7, new Color32(183, 58, 77, 255));
+            }
+            else
+            {
+                Diamond(t, 96, 22, 5, Gold);
+                Diamond(t, 96, 22, 2, Cream);
+                R(t, 80, 72, 31, 2, new Color32(154, 76, 84, 255));
             }
             return;
         }
@@ -704,6 +1141,48 @@ public static class PitPanicRichPixelArt
             ChipStack(t, 83, 44, new Color32(213, 59, 73, 255), 4);
             ChipStack(t, 167, 51, new Color32(75, 145, 207, 255), 4);
         }
+
+        // A polished brass rail, inset felt piping and carved walnut fascia unify every table.
+        EllipseRing(t, 96, 54, 84, 29, 1, new Color32(255, 226, 151, 255));
+        EllipseRing(t, 96, 54, 80, 25, 1, new Color32(184, 116, 49, 255));
+        for (int x = 26; x <= 166; x += 8)
+        {
+            int dx = x - 96;
+            int y = 54 + Mathf.RoundToInt(27 * Mathf.Sqrt(Mathf.Max(0, 1f - dx * dx / (84f * 84f))));
+            R(t, x, y, 2, 1, x % 16 == 2 ? Cream : new Color32(191, 131, 46, 255));
+        }
+        R(t, 35, 35, 122, 1, new Color32(217, 168, 88, 255));
+        R(t, 38, 32, 116, 1, new Color32(77, 36, 46, 255));
+        for (int x = 46; x <= 146; x += 25)
+        {
+            R(t, x, 34, 2, 2, Gold);
+            R(t, x + 1, 35, 1, 1, Cream);
+        }
+        if (kind.StartsWith("Blackjack"))
+        {
+            // Inlaid shoe and card-suit markers; the live dealt cards remain unobstructed.
+            R(t, 84, 60, 28, 1, new Color32(71, 151, 111, 255));
+            for (int x = 90; x < 111; x += 6)
+            {
+                Diamond(t, x, 60, 2, new Color32(243, 197, 100, 255));
+                R(t, x, 60, 1, 1, Cream);
+            }
+            R(t, 164, 64, 10, 1, Cream);
+            R(t, 164, 61, 2, 4, new Color32(184, 67, 83, 255));
+        }
+        else
+        {
+            // Art-deco number-board separators and visible roulette pockets.
+            int gridX = CasinoFloorLayout.RouletteGridX, gridY = CasinoFloorLayout.RouletteGridY;
+            R(t, gridX - 6, gridY, 1, 30, Cream);
+            for (int i = 0; i <= 12; i++)
+                R(t, gridX + i * CasinoFloorLayout.RouletteCellWidth, gridY, 1, 30, Gold);
+            for (int i = 0; i <= 3; i++)
+                R(t, gridX, gridY + i * CasinoFloorLayout.RouletteCellHeight, 72, 1, Cream);
+            E(t, 51, 58, 13, 13, new Color32(246, 198, 102, 255));
+            E(t, 51, 58, 9, 9, new Color32(105, 46, 50, 255));
+            E(t, 51, 58, 5, 5, new Color32(237, 177, 82, 255));
+        }
     }
 
     private static void Floor(Texture2D t)
@@ -728,7 +1207,25 @@ public static class PitPanicRichPixelArt
         R(t, 230, 5, 2, 76, Gold); R(t, 280, 5, 2, 76, Gold);
         R(t, 4, 4, 504, 2, Gold); R(t, 4, 346, 504, 2, Gold);
         R(t, 4, 4, 2, 344, Gold); R(t, 506, 4, 2, 344, Gold);
-        for (int x = 18; x < 500; x += 32) R(t, x, 8, 3, 1, Cream);
+        // Damask repeats with an offset row and hand-set brass thread highlights.
+        for (int x = 18; x < 500; x += 32)
+        {
+            R(t, x, 8, 3, 1, Cream);
+            int cx = x + 10;
+            int cy = 132 + (x / 32 % 2) * 12;
+            Diamond(t, cx, cy, 5, new Color32(101, 43, 87, 255));
+            Diamond(t, cx, cy, 3, new Color32(132, 51, 94, 255));
+            R(t, cx, cy, 1, 1, new Color32(237, 183, 107, 255));
+            R(t, cx - 1, cy + 6, 3, 1, new Color32(160, 82, 103, 255));
+            R(t, cx - 1, cy - 6, 3, 1, new Color32(160, 82, 103, 255));
+        }
+        for (int y = 17; y < 276; y += 32)
+        {
+            R(t, 9, y, 494, 1, new Color32(95, 48, 86, 255));
+            R(t, 9, y + 1, 494, 1, new Color32(54, 31, 68, 255));
+        }
+        R(t, 6, 281, 500, 1, Cream);
+        R(t, 7, 276, 498, 1, new Color32(201, 111, 107, 255));
     }
 
     private static void Prop(Texture2D t, string kind)
@@ -740,8 +1237,14 @@ public static class PitPanicRichPixelArt
             R(t, 10, 22, 44, 30, Ink); R(t, 13, 24, 38, 26, Gold);
             R(t, 15, 26, 34, 22, new Color32(119, 32, 75, 255));
             R(t, 17, 44, 30, 2, new Color32(204, 86, 132, 255));
+            R(t, 18, 30, 26, 1, new Color32(233, 121, 145, 255));
+            R(t, 20, 33, 22, 1, new Color32(165, 52, 94, 255));
+            R(t, 20, 41, 22, 1, new Color32(165, 52, 94, 255));
+            E(t, 31, 36, 4, 4, Gold); E(t, 31, 36, 2, 2, Cream);
             R(t, 4, 15, 56, 9, Ink); R(t, 7, 17, 50, 5, new Color32(180, 59, 108, 255));
             R(t, 3, 22, 8, 4, Gold); R(t, 53, 22, 8, 4, Gold);
+            R(t, 7, 4, 2, 10, new Color32(232, 175, 91, 255));
+            R(t, 55, 4, 2, 10, new Color32(232, 175, 91, 255));
             return;
         }
         if (kind == "Plant")
@@ -754,7 +1257,13 @@ public static class PitPanicRichPixelArt
                 int y = 31 + i * 7;
                 E(t, x, y, 14, 5, Ink); E(t, x, y + 1, 12, 4, new Color32((byte)(46 + i * 4), (byte)(113 + i * 4), 80, 255));
                 R(t, Mathf.Min(x, 32), y, Mathf.Abs(x - 32) + 2, 2, new Color32(99, 166, 93, 255));
+                R(t, x - 3, y + 2, 6, 1, new Color32(143, 190, 108, 255));
             }
+            R(t, 31, 29, 2, 28, new Color32(121, 83, 51, 255));
+            R(t, 24, 50, 9, 2, new Color32(135, 192, 119, 255));
+            R(t, 32, 38, 10, 2, new Color32(135, 192, 119, 255));
+            R(t, 21, 64, 22, 1, new Color32(219, 155, 80, 255));
+            E(t, 32, 66, 3, 2, new Color32(179, 216, 119, 255));
         }
         else if (kind == "Sofa") Sofa(t, 3, 10, 58);
         else if (kind == "Lamp")
@@ -764,6 +1273,10 @@ public static class PitPanicRichPixelArt
             E(t, 32, 69, 23, 16, new Color32(124, 59, 75, 120));
             E(t, 32, 68, 17, 11, Gold); E(t, 32, 69, 12, 8, Cream);
             R(t, 24, 76, 16, 3, Gold); R(t, 24, 59, 16, 3, Gold);
+            E(t, 32, 69, 8, 6, new Color32(255, 238, 170, 255));
+            R(t, 29, 62, 6, 2, new Color32(255, 212, 111, 255));
+            R(t, 31, 17, 2, 34, new Color32(248, 208, 112, 255));
+            E(t, 32, 7, 4, 2, Cream);
         }
         else if (kind == "Window")
         {
@@ -777,6 +1290,10 @@ public static class PitPanicRichPixelArt
             }
             R(t, 30, 16, 4, 61, Wood); R(t, 8, 45, 48, 4, Wood);
             R(t, 3, 9, 59, 4, Gold); R(t, 13, 65, 2, 2, Cream); R(t, 43, 72, 1, 1, Cream);
+            R(t, 6, 14, 52, 1, new Color32(255, 221, 130, 255));
+            R(t, 6, 79, 52, 2, Gold);
+            Diamond(t, 32, 13, 5, Cream);
+            for (int x = 12; x < 56; x += 9) R(t, x, 76, 1, 3, new Color32(244, 179, 78, 255));
         }
         else if (kind == "Curtain")
         {
@@ -787,6 +1304,10 @@ public static class PitPanicRichPixelArt
                 for (int x = 4; x < w; x += 10) R(t, x, y, 3, 1, new Color32(158, 38, 79, 255));
             }
             R(t, 0, 94, 62, 2, Gold); R(t, 1, 24, 17, 3, Gold);
+            R(t, 0, 15, 54, 2, new Color32(240, 178, 76, 255));
+            R(t, 43, 42, 8, 3, Gold); R(t, 44, 45, 6, 7, new Color32(234, 176, 88, 255));
+            Diamond(t, 47, 45, 3, Cream);
+            for (int x = 3; x < 51; x += 8) R(t, x, 90, 2, 3, new Color32(235, 174, 64, 255));
         }
         else
         {
@@ -796,6 +1317,15 @@ public static class PitPanicRichPixelArt
             R(t, 3, 4, 23, 4, Gold); R(t, w - 26, 4, 23, 4, Gold);
             R(t, 2, 82, w - 4, 12, Ink); R(t, 4, 84, w - 8, 8, Gold);
             R(t, 9, 86, w - 18, 4, Wood);
+            R(t, 12, 9, 2, 68, new Color32(217, 153, 85, 255));
+            R(t, w - 15, 9, 2, 68, new Color32(217, 153, 85, 255));
+            for (int y = 16; y < 78; y += 12)
+            {
+                R(t, 8, y, 13, 1, Cream);
+                R(t, w - 21, y, 13, 1, Cream);
+            }
+            Diamond(t, w / 2, 89, 5, Cream);
+            R(t, 25, 3, w - 50, 2, new Color32(255, 224, 138, 255));
         }
     }
 
@@ -807,6 +1337,8 @@ public static class PitPanicRichPixelArt
         R(t, x + w / 2, y + 5, 2, 20, Shade(Wood, .7f));
         R(t, x, y + 2, 5, 16, Gold); R(t, x + w - 5, y + 2, 5, 16, Gold);
         R(t, x + 5, y - 4, 4, 4, Ink); R(t, x + w - 9, y - 4, 4, 4, Ink);
+        Diamond(t, x + w / 2, y + 15, 4, new Color32(244, 184, 93, 255));
+        R(t, x + 8, y + 10, 2, 2, Cream); R(t, x + w - 10, y + 10, 2, 2, Cream);
     }
 
     private static void ChipStack(Texture2D t, int x, int y, Color32 color, int count)
@@ -835,6 +1367,28 @@ public static class PitPanicRichPixelArt
             }
         R(t, cx - 2, cy - 2, 5, 9, Gold); R(t, cx - 1, cy + 5, 3, 3, Cream);
         R(t, cx + r - 8, cy + 4, 3, 3, Cream);
+    }
+
+    private static void EllipseRing(Texture2D t, int cx, int cy, int rx, int ry, int thickness, Color32 color)
+    {
+        float inner = 1f - thickness / (float)Mathf.Min(rx, ry);
+        for (int x = cx - rx; x <= cx + rx; x++)
+        for (int y = cy - ry; y <= cy + ry; y++)
+        {
+            float dx = (x - cx) / (float)rx;
+            float dy = (y - cy) / (float)ry;
+            float distance = Mathf.Sqrt(dx * dx + dy * dy);
+            if (distance <= 1f && distance >= inner) R(t, x, y, 1, 1, color);
+        }
+    }
+
+    private static void Diamond(Texture2D t, int cx, int cy, int radius, Color32 color)
+    {
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            int width = radius - Mathf.Abs(dy);
+            R(t, cx - width, cy + dy, width * 2 + 1, 1, color);
+        }
     }
 
     private static Color32 Shade(Color32 c, float scale) => new Color32(

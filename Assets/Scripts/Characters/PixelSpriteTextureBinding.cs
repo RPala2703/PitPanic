@@ -22,6 +22,12 @@ public sealed class PixelSpriteTextureBinding : MonoBehaviour
         UpdateTexture();
     }
 
+    public void RefreshSprite()
+    {
+        if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+        UpdateTexture();
+    }
+
     private void UpdateTexture()
     {
         if (spriteRenderer == null || spriteRenderer.sprite == null)

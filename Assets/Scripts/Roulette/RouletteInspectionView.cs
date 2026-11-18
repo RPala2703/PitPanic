@@ -16,6 +16,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
     private Canvas canvas;
     private GameObject prompt;
     private GameObject board;
+    private GameObject interactionBackdrop;
+    private GameObject backdropShade;
     private Text dealerText;
     private Text phaseText;
     private Text participantsText;
@@ -89,6 +91,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         player.SetMovementEnabled(false);
+        interactionBackdrop.SetActive(true);
+        backdropShade.SetActive(true);
         prompt.SetActive(false);
         Refresh();
         board.SetActive(true);
@@ -166,6 +170,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
         {
             board.SetActive(false);
         }
+        if (interactionBackdrop != null) interactionBackdrop.SetActive(false);
+        if (backdropShade != null) backdropShade.SetActive(false);
 
         if (player != null)
         {
@@ -185,7 +191,13 @@ public sealed class RouletteInspectionView : MonoBehaviour
             Refresh();
             return;
         }
-        if (!roundController.RunManualSpin()) return;
+        if (!roundController.RunManualSpin())
+        {
+            summaryHint.text = roundController.ParticipantCount == 0
+                ? "WAIT FOR A CUSTOMER TO PLACE A BET."
+                : "THE ROUND IS NOT READY TO SPIN YET.";
+            return;
+        }
         keepTakeoverOnClose = true;
         Close();
         if (!roundController.GetComponent<CasinoMinigameStation>().TryBegin())
@@ -226,6 +238,17 @@ public sealed class RouletteInspectionView : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
+        interactionBackdrop = CasinoPixelArt.AddInteractionBackdrop(canvas.transform);
+        backdropShade = CasinoMinigamePresentation.CreateImage(
+            "Velvet backdrop shade", canvas.transform, Vector2.zero, Vector2.zero,
+            new Color(0.055f, 0.025f, 0.05f, 0.18f));
+        RectTransform shadeRect = backdropShade.GetComponent<RectTransform>();
+        shadeRect.anchorMin = Vector2.zero;
+        shadeRect.anchorMax = Vector2.one;
+        shadeRect.offsetMin = Vector2.zero;
+        shadeRect.offsetMax = Vector2.zero;
+        interactionBackdrop.SetActive(false);
+        backdropShade.SetActive(false);
         prompt = CreateObject("Roulette Inspection Prompt", canvas.transform);
         SetRect(prompt, new Vector2(0.5f, 0f), new Vector2(0f, 104f), new Vector2(480f, 48f));
         Image promptBackground = prompt.AddComponent<Image>();
@@ -504,8 +527,9 @@ public sealed class RouletteInspectionView : MonoBehaviour
                 : EuropeanRouletteRules.IsRed(number)
                     ? new Color(0.68f, 0.12f, 0.12f)
                     : new Color(0.04f, 0.05f, 0.055f);
-            CreateText(cell.transform, "Number", number.ToString(), Vector2.zero,
-                new Vector2(number == 0 ? 80f : 90f, 32f), 20, Color.white);
+            CreateText(cell.transform, "Number", number.ToString(),
+                number == 0 ? Vector2.zero : new Vector2(-15f, 0f),
+                new Vector2(number == 0 ? 80f : 64f, 32f), 20, Color.white);
             numberCells[number] = cell.GetComponent<RectTransform>();
         }
 
@@ -530,8 +554,8 @@ public sealed class RouletteInspectionView : MonoBehaviour
                 : types[i] == RouletteBetType.Black
                     ? new Color(0.04f, 0.05f, 0.055f)
                     : new Color(0.11f, 0.37f, 0.24f);
-            CreateText(area.transform, "Outside Bet Label", labels[i], Vector2.zero,
-                new Vector2(116f, 36f), 17, Color.white);
+            CreateText(area.transform, "Outside Bet Label", labels[i], new Vector2(-16f, 0f),
+                new Vector2(76f, 36f), 17, Color.white);
             outsideBetCells[types[i]] = area.GetComponent<RectTransform>();
         }
     }
@@ -571,13 +595,16 @@ public sealed class RouletteInspectionView : MonoBehaviour
         foreach (RouletteCustomerBet bet in bets)
         {
             Vector2 betPosition;
+            float markerOffset;
             if (bet.Bet.Type == RouletteBetType.StraightUp)
             {
                 betPosition = numberCells[bet.Bet.Number].anchoredPosition;
+                markerOffset = 30f;
             }
             else if (RouletteBettingLayout.IsOutsideBet(bet.Bet.Type))
             {
                 betPosition = outsideBetCells[bet.Bet.Type].anchoredPosition;
+                markerOffset = 40f;
             }
             else
             {
@@ -585,10 +612,11 @@ public sealed class RouletteInspectionView : MonoBehaviour
                 foreach (int number in bet.Bet.Numbers)
                     betPosition += numberCells[number].anchoredPosition;
                 betPosition /= bet.Bet.Numbers.Length;
+                markerOffset = 30f;
             }
             GameObject marker = CreateObject($"Current Bet Marker {bet.BetId}", bettingMarkerRoot);
             SetRect(marker, new Vector2(0.5f, 0.5f),
-                betPosition + new Vector2(14f, 0f), new Vector2(30f, 18f));
+                betPosition + new Vector2(markerOffset, 0f), new Vector2(30f, 18f));
             Image image = marker.AddComponent<Image>();
             CasinoPixelArt.SetSprite(image, CasinoPixelArt.ChipForAmount(bet.Bet.StakePence), Color.white);
             if (bet.IsWinning)

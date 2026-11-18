@@ -103,14 +103,14 @@ public sealed partial class RouletteTableMinigame
                     if (other.BetId < betId) duplicateIndex++;
                     duplicateCount++;
                 }
-            chipPosition.x += (duplicateIndex - (duplicateCount - 1) * .5f) * 22;
+            chipPosition.x += (duplicateIndex - (duplicateCount - 1) * .5f) * 10;
             Button chip = CreatePayButton(gameArea, $"COVER Chip {betId}", (i + 1).ToString(),
-                chipPosition, new Vector2(32, 32), () => SelectCoverBet(betId));
+                chipPosition, new Vector2(24, 24), () => SelectCoverBet(betId));
             CasinoPixelArt.SetSprite(chip.GetComponent<Image>(), CasinoPixelArt.ChipForAmount(bet.Bet.StakePence), Color.white);
             Outline customerRim = chip.gameObject.AddComponent<Outline>();
             customerRim.effectColor = customerColor;
             customerRim.effectDistance = new Vector2(2, -2);
-            chip.GetComponentInChildren<Text>().fontSize = 16;
+            chip.GetComponentInChildren<Text>().fontSize = 12;
             chip.GetComponentInChildren<Text>().raycastTarget = false;
             coverButtons[betId] = new List<Button> { entry, chip };
         }
@@ -215,13 +215,15 @@ public sealed partial class RouletteTableMinigame
         Dictionary<int, RectTransform> numbers, Dictionary<RouletteBetType, RectTransform> outside)
     {
         if (outside.TryGetValue(bet.Type, out RectTransform cell))
-            return GetGameAreaPosition(cell);
-        if (bet.Type == RouletteBetType.StraightUp) return GetGameAreaPosition(numbers[bet.Number]);
+            return GetGameAreaPosition(cell) + GetChipDisplayOffset(cell);
+        if (bet.Type == RouletteBetType.StraightUp)
+            return GetGameAreaPosition(numbers[bet.Number]) + GetChipDisplayOffset(numbers[bet.Number]);
         if (bet.Type == RouletteBetType.Split && (bet.Numbers[0] == 0 || bet.Numbers[1] == 0))
         {
             int other = bet.Numbers[0] == 0 ? bet.Numbers[1] : bet.Numbers[0];
             Vector2 numberPosition = GetGameAreaPosition(numbers[other]);
-            return new Vector2(numberPosition.x, (numberPosition.y + GetGameAreaPosition(numbers[0]).y) * .5f);
+            return new Vector2(numberPosition.x, (numberPosition.y + GetGameAreaPosition(numbers[0]).y) * .5f) +
+                   GetChipDisplayOffset(numbers[other]);
         }
         Vector2 center = Vector2.zero;
         foreach (int number in bet.Numbers) center += GetGameAreaPosition(numbers[number]);
@@ -229,6 +231,9 @@ public sealed partial class RouletteTableMinigame
         if (bet.Type == RouletteBetType.Street || bet.Type == RouletteBetType.SixLine)
             center.x = GetGameAreaPosition(numbers[bet.Numbers[0]]).x -
                 numbers[bet.Numbers[0]].sizeDelta.x * .5f - 1.5f;
-        return center;
+        return center + GetChipDisplayOffset(numbers[bet.Numbers[0]]);
     }
+
+    private static Vector2 GetChipDisplayOffset(RectTransform cell) =>
+        new Vector2(Mathf.Max(18f, cell.sizeDelta.x * .26f), 0f);
 }

@@ -14,6 +14,7 @@ public sealed class CasinoPropFlight : MonoBehaviour
     }
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         elapsed += Time.deltaTime;
         float t = Mathf.Clamp01(elapsed / duration);
         transform.localPosition = Vector3.Lerp(origin, destination, t * t * (3 - 2 * t))

@@ -1,0 +1,178 @@
+[
+  {
+    "asset": "WallPanel_BurgundyOrnate_A",
+    "file": "PNG_Transparent/WallPanel_BurgundyOrnate_A.png",
+    "width_px": 428,
+    "height_px": 310,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "47,49,424,306"
+  },
+  {
+    "asset": "WallPanel_SpadeBannerWithLamps_B",
+    "file": "PNG_Transparent/WallPanel_SpadeBannerWithLamps_B.png",
+    "width_px": 446,
+    "height_px": 310,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "506,49,442,306"
+  },
+  {
+    "asset": "WallPanel_BurgundyOrnate_C",
+    "file": "PNG_Transparent/WallPanel_BurgundyOrnate_C.png",
+    "width_px": 425,
+    "height_px": 310,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "982,49,421,306"
+  },
+  {
+    "asset": "Wainscot_WoodGold_A",
+    "file": "PNG_Transparent/Wainscot_WoodGold_A.png",
+    "width_px": 417,
+    "height_px": 137,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "49,395,413,133"
+  },
+  {
+    "asset": "Wainscot_WoodGold_B",
+    "file": "PNG_Transparent/Wainscot_WoodGold_B.png",
+    "width_px": 456,
+    "height_px": 137,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "500,395,452,132"
+  },
+  {
+    "asset": "Wainscot_WoodGold_C",
+    "file": "PNG_Transparent/Wainscot_WoodGold_C.png",
+    "width_px": 411,
+    "height_px": 137,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "991,395,407,132"
+  },
+  {
+    "asset": "BreakRoom_Doorway_Complete",
+    "file": "PNG_Transparent/BreakRoom_Doorway_Complete.png",
+    "width_px": 331,
+    "height_px": 357,
+    "suggested_pivot": "Bottom Center",
+    "source_atlas_box": "48,553,327,353"
+  },
+  {
+    "asset": "Window_NightCurtains_Wide",
+    "file": "PNG_Transparent/Window_NightCurtains_Wide.png",
+    "width_px": 210,
+    "height_px": 222,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "415,570,206,218"
+  },
+  {
+    "asset": "Window_NightCurtains_Narrow",
+    "file": "PNG_Transparent/Window_NightCurtains_Narrow.png",
+    "width_px": 168,
+    "height_px": 209,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "649,574,164,205"
+  },
+  {
+    "asset": "WallSconce_Gold_A",
+    "file": "PNG_Transparent/WallSconce_Gold_A.png",
+    "width_px": 83,
+    "height_px": 126,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "858,601,79,121"
+  },
+  {
+    "asset": "WallSconce_Gold_B",
+    "file": "PNG_Transparent/WallSconce_Gold_B.png",
+    "width_px": 82,
+    "height_px": 132,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "959,601,78,128"
+  },
+  {
+    "asset": "Painting_FramedCasinoCity",
+    "file": "PNG_Transparent/Painting_FramedCasinoCity.png",
+    "width_px": 179,
+    "height_px": 149,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "1085,600,173,145"
+  },
+  {
+    "asset": "WallPillar_GoldSpade",
+    "file": "PNG_Transparent/WallPillar_GoldSpade.png",
+    "width_px": 110,
+    "height_px": 381,
+    "suggested_pivot": "Bottom Center",
+    "source_atlas_box": "1294,564,106,377"
+  },
+  {
+    "asset": "SideTable_WithLamp",
+    "file": "PNG_Transparent/SideTable_WithLamp.png",
+    "width_px": 124,
+    "height_px": 165,
+    "suggested_pivot": "Bottom Center",
+    "source_atlas_box": "450,792,119,160"
+  },
+  {
+    "asset": "Sofa_RedVelvet",
+    "file": "PNG_Transparent/Sofa_RedVelvet.png",
+    "width_px": 340,
+    "height_px": 157,
+    "suggested_pivot": "Bottom Center",
+    "source_atlas_box": "614,798,336,153"
+  },
+  {
+    "asset": "Plant_PalmInGoldPot",
+    "file": "PNG_Transparent/Plant_PalmInGoldPot.png",
+    "width_px": 138,
+    "height_px": 178,
+    "suggested_pivot": "Bottom Center",
+    "source_atlas_box": "971,769,133,174"
+  },
+  {
+    "asset": "Moulding_LongGoldTrim",
+    "file": "PNG_Transparent/Moulding_LongGoldTrim.png",
+    "width_px": 200,
+    "height_px": 52,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "81,988,196,48"
+  },
+  {
+    "asset": "Moulding_ShortGoldTrim",
+    "file": "PNG_Transparent/Moulding_ShortGoldTrim.png",
+    "width_px": 152,
+    "height_px": 31,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "337,998,148,27"
+  },
+  {
+    "asset": "TrimCorner_Left",
+    "file": "PNG_Transparent/TrimCorner_Left.png",
+    "width_px": 72,
+    "height_px": 69,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "536,980,68,65"
+  },
+  {
+    "asset": "TrimCorner_Right",
+    "file": "PNG_Transparent/TrimCorner_Right.png",
+    "width_px": 72,
+    "height_px": 69,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "661,981,68,63"
+  },
+  {
+    "asset": "TrimCrest_GoldSpade",
+    "file": "PNG_Transparent/TrimCrest_GoldSpade.png",
+    "width_px": 165,
+    "height_px": 57,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "782,983,161,52"
+  },
+  {
+    "asset": "TrimBorder_OrnateGold",
+    "file": "PNG_Transparent/TrimBorder_OrnateGold.png",
+    "width_px": 334,
+    "height_px": 41,
+    "suggested_pivot": "Center",
+    "source_atlas_box": "998,996,330,37"
+  }
+]

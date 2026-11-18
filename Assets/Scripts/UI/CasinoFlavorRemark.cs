@@ -37,6 +37,7 @@ public sealed class CasinoFlavorRemark : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (group == null) return;
         bool show = Time.timeScale > 0 && !AudioListener.pause && Time.unscaledTime < expires &&
                     !CasinoMinigamePresentation.IsOpen && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen();

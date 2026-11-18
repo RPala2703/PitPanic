@@ -49,6 +49,7 @@ public sealed class CasinoTipJarProp : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (CasinoTipJar.TotalPence != shownPence) Redraw(CasinoTipJar.TotalPence);
         if (targetCamera == null) targetCamera = Camera.main;
         if (targetCamera != null) jar.transform.rotation = targetCamera.transform.rotation;

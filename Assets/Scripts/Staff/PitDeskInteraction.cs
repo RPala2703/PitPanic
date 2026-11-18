@@ -75,6 +75,7 @@ public sealed class PitDeskInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (reviewPanel != null && reviewPanel.activeSelf)
         {
             TickReview();

@@ -25,7 +25,7 @@ public sealed class DealerAssignmentManager : MonoBehaviour
     public void SetPaused(bool value)
     {
         paused = value;
-        Time.timeScale = paused ? 0f : simulationTimeScale;
+        Time.timeScale = paused || CasinoShiftController.GameplayFrozen ? 0f : simulationTimeScale;
     }
 
     public IReadOnlyList<AIDealer> Dealers => dealers;
@@ -87,7 +87,8 @@ public sealed class DealerAssignmentManager : MonoBehaviour
 
     private void Update()
     {
-        Time.timeScale = paused ? 0f : simulationTimeScale;
+        Time.timeScale = paused || CasinoShiftController.GameplayFrozen ? 0f : simulationTimeScale;
+        if (CasinoShiftController.GameplayFrozen) return;
         foreach (AIDealer dealer in dealers)
         {
             if (dealer == null || !IsRetryReady(dealer))

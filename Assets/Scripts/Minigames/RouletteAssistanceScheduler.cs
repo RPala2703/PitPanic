@@ -19,6 +19,7 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
     private int eligibleRoundsSinceTask;
     private bool subscribed;
     private bool tutorialRequest;
+    public bool HasTutorialRequest => tutorialRequest;
 
     public void RequestTutorialAssistance()
     {
@@ -101,6 +102,7 @@ public sealed class RouletteAssistanceScheduler : MonoBehaviour
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (roundController != null && roundController.HasActiveCustomersAndDealer)
         {
             activePlaySeconds += Time.deltaTime;

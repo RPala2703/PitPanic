@@ -15,10 +15,92 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     [SerializeField] private Texture2D animationAtlas;
     [SerializeField] private Texture2D customerAnimationAtlas;
     [SerializeField] private Texture2D vipAnimationAtlas;
+    [SerializeField] private Sprite approvedStanding;
+    [SerializeField] private Sprite approvedVipStanding;
+    [SerializeField] private Sprite playerFront;
+    [SerializeField] private Sprite playerRight;
+    [SerializeField] private Sprite playerBack;
+    [SerializeField] private Sprite playerLeft;
+    [SerializeField] private Sprite[] playerWalkFrames;
+    private const float PlayerWalkFrameDuration = 0.2f;
+    private enum PlayerFacing { Front, Right, Back, Left }
+    private PlayerFacing playerFacing = PlayerFacing.Front;
+    private CasinoPlayerController playerController;
+    private bool isPlayerVisual => playerController != null;
+    public bool UsesApprovedStandingArt => approvedStanding != null;
+    public bool UsesPlayerDirectionalArt => isPlayerVisual &&
+        playerFront != null && playerRight != null && playerBack != null && playerLeft != null;
+    public bool UsesPlayerWalkArt => isPlayerVisual && HasPlayerWalkFrames;
+    public bool IsPlayerWalkSprite(Sprite sprite) =>
+        HasPlayerWalkFrames && (System.Array.IndexOf(playerWalkFrames, sprite) >= 0 ||
+            sprite == PlayerFacingSprite);
+    public string PlayerFacingName => playerFacing.ToString();
+    public Sprite SelectedStandingArt => UsesPlayerDirectionalArt ? PlayerFacingSprite :
+        vip ? approvedVipStanding : approvedStanding;
+    public bool IsPlayerWalking { get; private set; }
+    public int PlayerWalkFrameIndex { get; private set; } = -1;
+    public SpriteRenderer Renderer => spriteRenderer;
+    public static float StandingHeight(CasinoAnimalSpecies species) => species switch
+    {
+        CasinoAnimalSpecies.Penguin => 2.2f,
+        CasinoAnimalSpecies.Tiger => 2.2f,
+        CasinoAnimalSpecies.Bear => 2.24f,
+        CasinoAnimalSpecies.Fox => 2.2f,
+        CasinoAnimalSpecies.Pig => 2.357143f,
+        CasinoAnimalSpecies.Rabbit => 2.4f,
+        CasinoAnimalSpecies.Dog => 2.5f,
+        CasinoAnimalSpecies.Cat => 2.3f,
+        CasinoAnimalSpecies.Raccoon => 2.5f,
+        CasinoAnimalSpecies.Deer => 2.7f,
+        CasinoAnimalSpecies.Elephant => 3.15f,
+        _ => throw new System.ArgumentOutOfRangeException(nameof(species))
+    };
+
+    public void ConfigureApprovedArt(Sprite standingSprite, Sprite vipSprite)
+    {
+        if (standingSprite == null) throw new System.ArgumentNullException(nameof(standingSprite));
+        approvedStanding = standingSprite;
+        approvedVipStanding = vipSprite;
+        BindAnimationFrames();
+        ApplyStandingArt();
+    }
+
+    private bool HasPlayerWalkFrames
+    {
+        get
+        {
+            if (playerWalkFrames == null || playerWalkFrames.Length != 8) return false;
+            for (int i = 0; i < playerWalkFrames.Length; i++)
+                if (playerWalkFrames[i] == null) return false;
+            return true;
+        }
+    }
+
+    private void ApplyStandingArt() => ApplyArtSprite(SelectedStandingArt);
+
+    private void ApplyArtSprite(Sprite selected)
+    {
+        if (selected == null)
+            throw new System.InvalidOperationException($"Missing approved {(vip ? "VIP" : "standing")} art on {name}.");
+        if (spriteRenderer.sprite != selected)
+        {
+            spriteRenderer.sprite = selected;
+            spriteRenderer.GetComponent<PixelSpriteTextureBinding>()?.RefreshSprite();
+        }
+        float scale = StandingHeight(GetComponent<CasinoCharacterVisual>().Species) / selected.bounds.size.y;
+        Transform parent = spriteRenderer.transform.parent;
+        Vector3 parentScale = parent != null ? parent.lossyScale : Vector3.one;
+        spriteRenderer.transform.localScale = new Vector3(
+            scale / Mathf.Max(.0001f, Mathf.Abs(parentScale.x)),
+            scale / Mathf.Max(.0001f, Mathf.Abs(parentScale.y)),
+            scale / Mathf.Max(.0001f, Mathf.Abs(parentScale.z)));
+    }
     public void ConfigureVipAnimation(Texture2D texture) => vipAnimationAtlas = texture;
     public void ConfigureCustomerAnimation(Texture2D texture) => customerAnimationAtlas = texture;
     public bool UsesCustomerAnimation => customer != null && (animationAtlas == customerAnimationAtlas || animationAtlas == vipAnimationAtlas);
+    public bool UsesVipAnimation => vip && vipAnimationAtlas != null && animationAtlas == vipAnimationAtlas;
     private static readonly Dictionary<Texture2D, Sprite[]> AnimationCache = new Dictionary<Texture2D, Sprite[]>();
+    private static readonly Dictionary<Sprite, Sprite> StandingAuraCache = new Dictionary<Sprite, Sprite>();
     private static Sprite vipAura;
     private SpriteRenderer auraRenderer;
     private Color spriteColor = Color.white;
@@ -48,18 +130,20 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public void ConfigureExpressions(Sprite[] sprites) => expressions = sprites;
     public void SetVip(bool value)
     {
+        if (value && (UsesApprovedStandingArt ? approvedVipStanding == null : vipAnimationAtlas == null))
+            throw new System.InvalidOperationException("VIP customers require their formalwear artwork.");
         vip = value;
         if (spriteRenderer == null) return;
-        if (value && vipAnimationAtlas == null)
-            throw new System.InvalidOperationException("VIP customers require their formalwear animation atlas.");
         if (value) EnsureVipAccessories();
         if (auraRenderer != null) auraRenderer.enabled = value;
         animationAtlas = value ? vipAnimationAtlas : customerAnimationAtlas;
         BindAnimationFrames();
+        if (UsesApprovedStandingArt) ApplyStandingArt();
         spriteRenderer.color = spriteColor;
     }
     public Sprite TitleFrame(float elapsed)
     {
+        if (UsesApprovedStandingArt) return SelectedStandingArt;
         if (animationFrames != null)
             return AnimationSprite(CasinoAnimationPose.Idle, 0,
                 PlaybackFrame(elapsed, 3.2f, true));
@@ -70,6 +154,20 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         animationFrames != null
             ? AnimationSprite(pose, 0, Mathf.Clamp(frame, 0, AnimationFramesPerDirection - 1))
             : TitleFrame(frame / 60f);
+    public Sprite TitlePenguinFrame(bool facingDoor, bool walking, float elapsed)
+    {
+        if (UsesPlayerDirectionalArt)
+        {
+            PlayerFacing facing = facingDoor ? PlayerFacing.Back : PlayerFacing.Front;
+            return walking && HasPlayerWalkFrames
+                ? PlayerWalkSprite(facing, PlayerWalkPhase(elapsed))
+                : PlayerIdleSprite(facing);
+        }
+        return facingDoor && animationFrames != null
+            ? AnimationSprite(walking ? CasinoAnimationPose.Walk : CasinoAnimationPose.Idle, 1,
+                PlaybackFrame(elapsed, walking ? .9f : 3.2f, true))
+            : TitleFrame(elapsed);
+    }
     public void React(bool winning)
     {
         reaction = winning ? 0 : 1;
@@ -167,16 +265,24 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         agent = GetComponentInParent<NavMeshAgent>();
         dealer = GetComponentInParent<AIDealer>();
         customer = GetComponentInParent<CasinoCustomerAI>();
+        playerController = GetComponentInParent<CasinoPlayerController>();
         if (customer != null && customerAnimationAtlas != null) animationAtlas = customerAnimationAtlas;
         carrier = GetComponentInParent<CasinoPlayerFloatCarrier>();
         restScale = spriteRenderer != null ? spriteRenderer.transform.localScale : Vector3.one;
         if (spriteRenderer != null) spriteColor = spriteRenderer.color;
         previousPosition = transform.position;
         BindAnimationFrames();
+        if (spriteRenderer != null && UsesPlayerDirectionalArt && UsesApprovedStandingArt)
+            ApplyStandingArt();
     }
 
     private void BindAnimationFrames()
     {
+        if (UsesApprovedStandingArt)
+        {
+            animationFrames = null;
+            return;
+        }
         if (animationAtlas != null)
         {
             if (!AnimationCache.TryGetValue(animationAtlas, out animationFrames))
@@ -189,9 +295,70 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 
     private void EnsureVipAccessories()
     {
+        if (UsesApprovedStandingArt)
+        {
+            if (!StandingAuraCache.TryGetValue(approvedVipStanding, out Sprite outline))
+            {
+                outline = CreateStandingAura(approvedVipStanding);
+                StandingAuraCache.Add(approvedVipStanding, outline);
+            }
+            if (auraRenderer == null)
+                auraRenderer = CreateAccessory("VIP Golden Aura", outline, new Vector3(0, 0, .01f), -1);
+            else
+                auraRenderer.sprite = outline;
+            auraRenderer.sharedMaterial = spriteRenderer.sharedMaterial;
+            PixelSpriteTextureBinding binding = auraRenderer.GetComponent<PixelSpriteTextureBinding>();
+            if (binding == null) binding = auraRenderer.gameObject.AddComponent<PixelSpriteTextureBinding>();
+            binding.RefreshSprite();
+            return;
+        }
         if (vipAura == null) CreateVipSprites();
         if (auraRenderer == null)
             auraRenderer = CreateAccessory("VIP Golden Aura", vipAura, new Vector3(0, 1f, .03f), -1);
+    }
+
+    private static Sprite CreateStandingAura(Sprite standingSprite)
+    {
+        const int radius = 4;
+        Rect rect = standingSprite.rect;
+        int sourceWidth = (int)rect.width, sourceHeight = (int)rect.height;
+        int width = sourceWidth + radius * 2, height = sourceHeight + radius * 2;
+        Color[] source = standingSprite.texture.GetPixels((int)rect.x, (int)rect.y, sourceWidth, sourceHeight);
+        Color[] pixels = new Color[width * height];
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            int sx = x - radius, sy = y - radius;
+            float alpha = 0;
+            for (int dy = -radius; dy <= radius; dy++)
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                int px = sx + dx, py = sy + dy;
+                if (px < 0 || px >= sourceWidth || py < 0 || py >= sourceHeight) continue;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+                float falloff = Mathf.Clamp01(1 - distance / (radius + .5f));
+                alpha = Mathf.Max(alpha, source[py * sourceWidth + px].a * falloff * falloff);
+            }
+            float inside = sx >= 0 && sx < sourceWidth && sy >= 0 && sy < sourceHeight
+                ? source[sy * sourceWidth + sx].a : 0;
+            pixels[y * width + x] = new Color(1f, .72f, .12f, alpha * (1 - inside));
+        }
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        {
+            name = standingSprite.name + " Golden Glow",
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp,
+            hideFlags = HideFlags.HideAndDontSave
+        };
+        texture.SetPixels(pixels);
+        texture.Apply();
+        Sprite aura = Sprite.Create(texture, new Rect(0, 0, width, height),
+            new Vector2((standingSprite.pivot.x + radius) / width,
+                (standingSprite.pivot.y + radius) / height),
+            standingSprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+        aura.name = texture.name;
+        aura.hideFlags = HideFlags.HideAndDontSave;
+        return aura;
     }
 
     private SpriteRenderer CreateAccessory(string objectName, Sprite sprite, Vector3 localPosition, int orderOffset)
@@ -252,15 +419,27 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         }
 
         Transform actor = transform.parent != null ? transform.parent : transform;
+        Vector3 displacement = actor.position - previousPosition;
+        float distance = isPlayerVisual
+            ? new Vector2(displacement.x, displacement.z).magnitude
+            : displacement.magnitude;
         float speed = agent != null && agent.enabled && agent.isOnNavMesh
             ? agent.velocity.magnitude
-            : hasPreviousPosition && Time.deltaTime > 0f
-                ? Vector3.Distance(actor.position, previousPosition) / Time.deltaTime : 0f;
+            : hasPreviousPosition && Time.deltaTime > 0f ? distance / Time.deltaTime : 0f;
         previousPosition = actor.position;
         hasPreviousPosition = true;
         bool seated = customer != null && customer.IsSeated || dealer != null && dealer.IsResting;
         bool walking = speed > 0.12f && !seated;
+        if (UsesPlayerDirectionalArt && walking)
+        {
+            Vector2 input = playerController.MoveInput;
+            playerFacing = input == Vector2.zero
+                ? FacingForHeading(displacement)
+                : FacingForInput(input);
+        }
         walkTime = walking ? walkTime + Time.deltaTime : 0f;
+        IsPlayerWalking = isPlayerVisual && walking;
+        PlayerWalkFrameIndex = -1;
         CasinoAnimationPose seatedPose = customer != null && customer.Seat != null &&
             customer.Seat.GameType == CasinoCustomerGame.Roulette ? CasinoAnimationPose.SeatedIdle : CasinoAnimationPose.Examine;
         CasinoAnimationPose gesturePose = gesture == CasinoGesture.Deal ? CasinoAnimationPose.Deal :
@@ -289,9 +468,10 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             CasinoSoundscape.Play(CasinoSoundCue.Step, actor.position);
         }
 
-        spriteRenderer.sprite = frames[FrameIndex(actor.forward, walking, walkTime)];
+        if (!UsesApprovedStandingArt)
+            spriteRenderer.sprite = frames[FrameIndex(actor.forward, walking, walkTime)];
         reactionRemaining = Mathf.Max(0, reactionRemaining - Time.deltaTime);
-        if (!walking && expressions != null && expressions.Length == 4)
+        if (!UsesApprovedStandingArt && !walking && expressions != null && expressions.Length == 4)
         {
             int index = reactionRemaining > 0 ? reaction : dealer != null && (dealer.NeedsBreak || dealer.IsResting) ? 2 :
                 gestureRemaining > 0 ? 3 : -1;
@@ -317,15 +497,67 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         }
         spriteRenderer.transform.rotation = camera.transform.rotation;
         spriteRenderer.transform.localScale = restScale;
+        // Select before PixelSpriteTextureBinding.LateUpdate, including after VIP/action changes.
+        if (UsesApprovedStandingArt)
+        {
+            Sprite selected = SelectedStandingArt;
+            if (isPlayerVisual && walking && HasPlayerWalkFrames)
+            {
+                int phase = PlayerWalkPhase(walkTime);
+                PlayerWalkFrameIndex = (int)playerFacing * 4 + phase;
+                selected = PlayerWalkSprite(playerFacing, phase);
+            }
+            ApplyArtSprite(selected);
+        }
         if (auraRenderer != null && vip)
         {
-            auraRenderer.transform.localScale = Vector3.one * (1f + .035f * Mathf.Sin(Time.time * 2f));
+            auraRenderer.transform.localScale = UsesApprovedStandingArt ? Vector3.one :
+                Vector3.one * (1f + .035f * Mathf.Sin(Time.time * 2f));
             auraRenderer.sortingOrder = spriteRenderer.sortingOrder - 1;
-            auraRenderer.color = new Color(1, 1, 1, .8f + .2f * Mathf.Sin(Time.time * 2f));
+            auraRenderer.color = new Color(1, 1, 1, UsesApprovedStandingArt ?
+                .9f + .06f * Mathf.Sin(Time.time * 2f) : .8f + .2f * Mathf.Sin(Time.time * 2f));
         }
         poseElapsed += Time.deltaTime;
         gestureRemaining = Mathf.Max(0, gestureRemaining - Time.deltaTime);
         actionRemaining = Mathf.Max(0, actionRemaining - Time.deltaTime);
         spriteRenderer.transform.localPosition = new Vector3(0, .04f, 0);
+    }
+
+    private static int PlayerWalkPhase(float elapsed) =>
+        Mathf.FloorToInt(elapsed / PlayerWalkFrameDuration) % 4;
+
+    private Sprite PlayerWalkSprite(PlayerFacing facing, int phase) => phase switch
+    {
+        0 => playerWalkFrames[(int)facing * 2],
+        2 => playerWalkFrames[(int)facing * 2 + 1],
+        _ => PlayerIdleSprite(facing)
+    };
+
+    private Sprite PlayerFacingSprite => PlayerIdleSprite(playerFacing);
+
+    private Sprite PlayerIdleSprite(PlayerFacing facing) => facing switch
+    {
+        PlayerFacing.Front => playerFront,
+        PlayerFacing.Right => playerRight,
+        PlayerFacing.Back => playerBack,
+        PlayerFacing.Left => playerLeft,
+        _ => playerFront
+    };
+
+    private PlayerFacing FacingForInput(Vector2 input)
+    {
+        if (input.x == 0) return input.y > 0 ? PlayerFacing.Back : PlayerFacing.Front;
+        if (input.y == 0) return input.x > 0 ? PlayerFacing.Right : PlayerFacing.Left;
+        // Keep the current facing if it is one of the held directions.
+        PlayerFacing horizontal = input.x > 0 ? PlayerFacing.Right : PlayerFacing.Left;
+        PlayerFacing vertical = input.y > 0 ? PlayerFacing.Back : PlayerFacing.Front;
+        return playerFacing == horizontal ? horizontal : vertical;
+    }
+
+    private static PlayerFacing FacingForHeading(Vector3 heading)
+    {
+        if (Mathf.Abs(heading.x) > Mathf.Abs(heading.z))
+            return heading.x > 0 ? PlayerFacing.Right : PlayerFacing.Left;
+        return heading.z > 0 ? PlayerFacing.Back : PlayerFacing.Front;
     }
 }

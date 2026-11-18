@@ -66,6 +66,7 @@ public sealed class CustomerPatienceMeter : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (canvas == null) return;
         bool show = patience.IsWaiting && (customer.IsVip || patience.Normalized <= .5f) && Time.timeScale > 0 && !CasinoMinigamePresentation.IsOpen &&
             !CasinoPlayerInteractionRouter.IsAnyInspectionOpen();

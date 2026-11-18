@@ -9,5 +9,6 @@ public enum CasinoAnimalSpecies
     Dog,
     Cat,
     Raccoon,
-    Elephant
+    Elephant,
+    Deer
 }

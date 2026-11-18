@@ -266,6 +266,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
 
         serviceActive = true;
+        CustomerSatisfaction.RecordServiceStart(this);
         // A long wait before being served lowers the mood; quick service lifts it.
         satisfaction = Mathf.Clamp01(Mathf.Lerp(satisfaction, .35f + .65f * patience.Normalized, .4f));
         if (roundsRemaining == 0)

@@ -85,6 +85,8 @@ public sealed class CasinoCharacterVisual : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
+        if (GetComponent<PixelCharacterVisual>()?.UsesApprovedStandingArt == true) return;
         if (animatedBody == null)
         {
             return;

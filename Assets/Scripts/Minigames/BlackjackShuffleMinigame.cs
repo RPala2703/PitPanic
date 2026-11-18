@@ -289,6 +289,7 @@ public sealed class BlackjackShuffleMinigame : CasinoMinigame
 
     public bool SelectStack(int stackIndex)
     {
+        if (CasinoShiftController.GameplayFrozen || Time.timeScale == 0) return false;
         if (!IsRunning || waitingForFlight || stackIndex < 0 || stackIndex > 1)
             return false;
 

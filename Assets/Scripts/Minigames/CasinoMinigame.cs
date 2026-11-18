@@ -70,6 +70,7 @@ public abstract class CasinoMinigame : MonoBehaviour
 
     public void Begin()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (IsRunning)
         {
             throw new InvalidOperationException($"{GetType().Name} is already running.");
@@ -97,6 +98,7 @@ public abstract class CasinoMinigame : MonoBehaviour
 
     public void Abandon()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (!IsRunning)
         {
             return;
@@ -124,6 +126,7 @@ public abstract class CasinoMinigame : MonoBehaviour
 
     protected void Complete(bool success, int score)
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (!IsRunning)
         {
             return;

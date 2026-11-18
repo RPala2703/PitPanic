@@ -5,6 +5,14 @@ using UnityEngine.AI;
 [DisallowMultipleComponent]
 public sealed class CasinoCustomerSpawner : MonoBehaviour
 {
+    private static readonly CasinoAnimalSpecies[] HighRollerOpeningGuests =
+    {
+        CasinoAnimalSpecies.Rabbit,
+        CasinoAnimalSpecies.Deer,
+        CasinoAnimalSpecies.Cat,
+        CasinoAnimalSpecies.Raccoon
+    };
+
     [SerializeField, Min(0)] private int initialCustomerCount = 4;
     [SerializeField, Min(1)] private int maximumCustomers = 8;
     [SerializeField, Min(1f)] private float patienceSeconds = 45f;
@@ -15,13 +23,42 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     private float difficulty = 1;
     private float vipSpawnChance;
     private int vipSpawnedThisShift;
+    private bool openingArrivalsQueuedForShift;
     public void ConfigureShift(int number, bool patienceUpgrade)
     {
+        shiftNumber = Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift);
         difficulty = 1 + .12f * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1);
         patienceSeconds = 55 - 5 * (Mathf.Clamp(number, 1, CasinoDemoProgression.LastShift) - 1) +
             (patienceUpgrade ? 5 : 0);
         vipSpawnChance = number < 2 ? 0f : number == 2 ? .35f : .45f;
         vipSpawnedThisShift = 0;
+        pendingOpeningArrivals = 0;
+        arrivalTimer = 0f;
+        openingArrivalsQueuedForShift = false;
+    }
+
+    private bool SpawnHighRollerVip(int index)
+    {
+        if (index < 0 || index >= HighRollerOpeningGuests.Length)
+            return false;
+        CasinoCustomerGame game = index < 2 ? CasinoCustomerGame.Blackjack1 : CasinoCustomerGame.Blackjack2;
+        CasinoAnimalSpecies species = HighRollerOpeningGuests[index];
+        CasinoSeat seat = null;
+        foreach (CasinoSeat candidate in seats)
+            if (candidate != null && candidate.GameType == game && candidate.IsAvailable && candidate.IsGameAvailable)
+            {
+                seat = candidate;
+                break;
+            }
+        if (seat == null) return false;
+
+        CasinoCustomerAI vip = SpawnCustomer(0, species);
+        if (vip == null) return false;
+        vip.SetVip();
+        vipSpawnedThisShift++;
+        if (!vip.TryVisitSeat(seat))
+            Debug.LogWarning($"High Roller VIP {species} could not reach {game}; normal seat selection will retry.", vip);
+        return true;
     }
     public void SetShiftProgress(float progress) => shiftProgress = Mathf.Clamp01(progress);
     private float CurrentSpawnInterval => Mathf.Max(6f, spawnInterval * Mathf.Lerp(1.4f, .75f, shiftProgress) * (finale ? .75f : 1f) / difficulty);
@@ -76,6 +113,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         return true;
     }
     private int nextCustomerNumber = 1;
+    private int shiftNumber = 1;
     private bool acceptingArrivals = true;
     private bool finale;
 
@@ -107,6 +145,12 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
     public void SetAcceptingArrivals(bool accepting)
     {
         acceptingArrivals = accepting;
+        if (accepting && !openingArrivalsQueuedForShift)
+        {
+            pendingOpeningArrivals = initialCustomerCount;
+            arrivalTimer = 0f;
+            openingArrivalsQueuedForShift = true;
+        }
     }
 
     public void SetFinale(bool active) => finale = active;
@@ -206,14 +250,18 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
             return;
         }
 
-        // Opening customers stroll in one at a time instead of popping into the doorway together.
-        pendingOpeningArrivals = acceptingArrivals ? initialCustomerCount : 0;
+        if (acceptingArrivals && !openingArrivalsQueuedForShift)
+        {
+            pendingOpeningArrivals = initialCustomerCount;
+            openingArrivalsQueuedForShift = true;
+        }
         arrivalTimer = 0f;
         spawnTimer = CurrentSpawnInterval;
     }
 
     private void Update()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (!acceptingArrivals || activeCustomers.Count >= maximumCustomers)
         {
             return;
@@ -223,7 +271,10 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         {
             arrivalTimer -= Time.deltaTime;
             if (arrivalTimer > 0f || !EntranceReady()) return;
-            if (SpawnCustomer(0) != null) pendingOpeningArrivals--;
+            bool spawned = shiftNumber == 2 && vipSpawnedThisShift < HighRollerOpeningGuests.Length
+                ? SpawnHighRollerVip(vipSpawnedThisShift)
+                : SpawnCustomer(0) != null;
+            if (spawned) pendingOpeningArrivals--;
             arrivalTimer = Random.Range(MinimumArrivalGap, MaximumArrivalGap);
             return;
         }
@@ -293,7 +344,7 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         return false;
     }
 
-    private CasinoCustomerAI SpawnCustomer(int entranceOffset)
+    private CasinoCustomerAI SpawnCustomer(int entranceOffset, CasinoAnimalSpecies? preferredSpecies = null)
     {
         Vector3 requestedPosition = entrance.position + new Vector3((entranceOffset % 4) * 0.52f, 0f, (entranceOffset / 4) * 0.55f);
         if (!NavMesh.SamplePosition(requestedPosition, out NavMeshHit spawnHit, 2f, NavMesh.AllAreas))
@@ -310,8 +361,22 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
         CustomerPatience patience = customerObject.AddComponent<CustomerPatience>();
         CasinoCustomerAI customer = customerObject.AddComponent<CasinoCustomerAI>();
 
-        GameObject characterPrefab = customerCharacterPrefabs[
-            Random.Range(0, customerCharacterPrefabs.Length)];
+        GameObject characterPrefab = null;
+        if (preferredSpecies.HasValue)
+            foreach (GameObject candidate in customerCharacterPrefabs)
+                if (candidate != null &&
+                    candidate.GetComponent<CasinoCharacterVisual>()?.Species == preferredSpecies.Value)
+                {
+                    characterPrefab = candidate;
+                    break;
+                }
+        if (preferredSpecies.HasValue && characterPrefab == null)
+        {
+            Debug.LogError($"The required {preferredSpecies.Value} customer prefab is missing.", this);
+            return null;
+        }
+        if (characterPrefab == null)
+            characterPrefab = customerCharacterPrefabs[Random.Range(0, customerCharacterPrefabs.Length)];
         CasinoCharacterVisual characterTemplate = characterPrefab != null
             ? characterPrefab.GetComponent<CasinoCharacterVisual>()
             : null;
@@ -347,7 +412,8 @@ public sealed class CasinoCustomerSpawner : MonoBehaviour
 
         customer.Configure(this, seats, exit, cashierWaypoint, visual.transform, bodyRenderer,
             color, wanderRadius, seatChoiceChance);
-        if (vipSpawnChance > 0 && (vipSpawnedThisShift == 0 || Random.value < vipSpawnChance))
+        if (!preferredSpecies.HasValue && vipSpawnChance > 0 &&
+            (vipSpawnedThisShift == 0 || Random.value < vipSpawnChance))
         {
             customer.SetVip();
             vipSpawnedThisShift++;

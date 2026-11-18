@@ -44,10 +44,10 @@ public static class CasinoHudStyle
     {
         if (panelSprite != null)
             return panelSprite;
-        const int size = 16;
+        const int size = 24;
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
-            name = "Pixel HUD panel",
+            name = "Original casino velvet enamel frame",
             filterMode = FilterMode.Point,
             wrapMode = TextureWrapMode.Clamp
         };
@@ -56,18 +56,48 @@ public static class CasinoHudStyle
         {
             for (int x = 0; x < size; x++)
             {
-                int edge = Mathf.Min(x, y, size - 1 - x, size - 1 - y);
-                bool cutCorner = (x < 2 || x >= size - 2) && (y < 2 || y >= size - 2);
-                byte shade = edge == 0 ? (byte)80 : edge == 1 ? (byte)190 : (byte)255;
+                int left = x, right = size - 1 - x, bottom = y, top = size - 1 - y;
+                int edge = Mathf.Min(left, right, bottom, top);
+                bool cutCorner = left + bottom < 3 || right + bottom < 3 ||
+                    left + top < 3 || right + top < 3;
+                byte shade = edge switch
+                {
+                    0 => 48,
+                    1 => 104,
+                    2 => 222,
+                    3 => 171,
+                    4 => 255,
+                    _ => 255
+                };
                 pixels[y * size + x] = cutCorner
                     ? new Color32(0, 0, 0, 0)
                     : new Color32(shade, shade, shade, 255);
             }
         }
+
+        DrawDiamond(pixels, size, 3, 3, 1, 150);
+        DrawDiamond(pixels, size, size - 4, 3, 1, 150);
+        DrawDiamond(pixels, size, 3, size - 4, 1, 150);
+        DrawDiamond(pixels, size, size - 4, size - 4, 1, 150);
         texture.SetPixels32(pixels);
         texture.Apply();
         panelSprite = Sprite.Create(texture, new Rect(0, 0, size, size),
-            new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(4, 4, 4, 4));
+            new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(6, 6, 6, 6));
         return panelSprite;
+    }
+
+    private static void DrawDiamond(Color32[] pixels, int size, int cx, int cy, int radius, byte shade)
+    {
+        for (int y = -radius; y <= radius; y++)
+        {
+            int width = radius - Mathf.Abs(y);
+            for (int x = -width; x <= width; x++)
+            {
+                int px = cx + x;
+                int py = cy + y;
+                if (px >= 0 && px < size && py >= 0 && py < size)
+                    pixels[py * size + px] = new Color32(shade, shade, shade, 255);
+            }
+        }
     }
 }

@@ -49,6 +49,7 @@ public sealed class CasinoSpeechBubble : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (canvas == null) return;
         bool floorVisible = Time.timeScale > 0 && !AudioListener.pause &&
             !CasinoMinigamePresentation.IsOpen && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen();

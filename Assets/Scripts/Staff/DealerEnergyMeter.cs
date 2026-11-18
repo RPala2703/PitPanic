@@ -65,6 +65,7 @@ public sealed class DealerEnergyMeter : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (CasinoShiftController.GameplayFrozen) return;
         if (canvas == null) return;
         bool show = dealer.IsAtStation && dealer.Energy > 0 && Time.timeScale > 0 && !AudioListener.pause &&
             !CasinoMinigamePresentation.IsOpen && !CasinoPlayerInteractionRouter.IsAnyInspectionOpen();

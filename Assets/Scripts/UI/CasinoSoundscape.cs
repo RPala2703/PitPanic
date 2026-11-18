@@ -1,18 +1,20 @@
 using System;
 using UnityEngine;
 
-public enum CasinoSoundCue { Card, Chip, Step, Celebrate, Disappointed, Success, Mistake, Warning, Roulette, Button, TaskFailed, Tip }
-public enum CasinoMusicTrack { Title, Casino }
+public enum CasinoSoundCue { Card, Chip, Step, Celebrate, Disappointed, Success, Mistake, Warning, Roulette, Button, TaskFailed, Tip, Door, Entrance, FinalTick, TimeUp }
+public enum CasinoMusicTrack { Title, Casino, ResultsPassed, ResultsFailed }
 
 [DefaultExecutionOrder(-110)]
 public sealed class CasinoSoundscape : MonoBehaviour
 {
     private static CasinoSoundscape instance;
-    private readonly AudioClip[] cues = new AudioClip[12];
-    private readonly float[] lastPlayed = new float[12];
+    private readonly AudioClip[] cues = new AudioClip[16];
+    private readonly float[] lastPlayed = new float[16];
     private AudioSource music;
     private AudioClip titleTrack;
     private AudioClip casinoTrack;
+    private AudioClip resultsPassedTrack;
+    private AudioClip resultsFailedTrack;
     private AudioSource ambience;
     private AudioSource[] voices;
     private int voice;
@@ -21,6 +23,7 @@ public sealed class CasinoSoundscape : MonoBehaviour
     private CasinoMusicTrack currentMusicTrack;
     private const float TitleMusicGain = .72f;
     private const float CasinoMusicGain = .12f;
+    private const float ResultsMusicGain = .72f;
     public static CasinoMusicTrack CurrentMusicTrack => instance != null ? instance.currentMusicTrack : CasinoMusicTrack.Title;
     public static Transform Focus => instance != null ? instance.focus : null;
     public static void SetFocus(Transform owner)
@@ -56,8 +59,10 @@ public sealed class CasinoSoundscape : MonoBehaviour
         for (int i = 0; i < voices.Length; i++) voices[i] = Source(false);
         titleTrack = Resources.Load<AudioClip>("Audio/Music/PitPanicWelcome");
         casinoTrack = Resources.Load<AudioClip>("Audio/Music/PixelatedRoulette");
-        if (titleTrack == null || casinoTrack == null)
-            throw new InvalidOperationException("The title and casino music clips must be present in Resources/Audio/Music.");
+        resultsPassedTrack = Resources.Load<AudioClip>("Audio/Music/LevelComplete");
+        resultsFailedTrack = Resources.Load<AudioClip>("Audio/Music/TheFinalSpin");
+        if (titleTrack == null || casinoTrack == null || resultsPassedTrack == null || resultsFailedTrack == null)
+            throw new InvalidOperationException("The title, casino, and results music clips must be present in Resources/Audio/Music.");
         music.loop = true;
         music.clip = titleTrack;
         ambience.clip = ComposeAmbience();
@@ -87,7 +92,13 @@ public sealed class CasinoSoundscape : MonoBehaviour
 
     private void ApplyVolumes()
     {
-        music.volume = MusicVolume * (currentMusicTrack == CasinoMusicTrack.Title ? TitleMusicGain : CasinoMusicGain);
+        float gain = currentMusicTrack switch
+        {
+            CasinoMusicTrack.Title => TitleMusicGain,
+            CasinoMusicTrack.Casino => CasinoMusicGain,
+            _ => ResultsMusicGain
+        };
+        music.volume = MusicVolume * gain;
         ambience.volume = AmbienceVolume;
         foreach (AudioSource source in voices) source.volume = EffectsVolume;
     }
@@ -97,12 +108,33 @@ public sealed class CasinoSoundscape : MonoBehaviour
         if (instance == null || instance.currentMusicTrack == track && instance.music.isPlaying) return;
         instance.currentMusicTrack = track;
         instance.music.Stop();
-        instance.music.clip = track == CasinoMusicTrack.Title ? instance.titleTrack : instance.casinoTrack;
+        instance.music.clip = track switch
+        {
+            CasinoMusicTrack.Title => instance.titleTrack,
+            CasinoMusicTrack.Casino => instance.casinoTrack,
+            CasinoMusicTrack.ResultsPassed => instance.resultsPassedTrack,
+            CasinoMusicTrack.ResultsFailed => instance.resultsFailedTrack,
+            _ => throw new ArgumentOutOfRangeException(nameof(track), track, "Unknown casino music track.")
+        };
+        instance.music.loop = track == CasinoMusicTrack.Title || track == CasinoMusicTrack.Casino;
         instance.ApplyVolumes();
         instance.music.Play();
     }
 
-    public static void Play(CasinoSoundCue cue, Vector3 position, Transform owner = null)
+    public static void PlayResultsMusic(bool passed) =>
+        SetMusicTrack(passed ? CasinoMusicTrack.ResultsPassed : CasinoMusicTrack.ResultsFailed);
+
+    public static void StopMusic()
+    {
+        if (instance != null) instance.music.Stop();
+    }
+
+    public static void SetDialogueMusic(bool active)
+    {
+        if (instance != null) instance.music.ignoreListenerPause = active;
+    }
+
+    public static void Play(CasinoSoundCue cue, Vector3 position, Transform owner = null, float gain = 1f)
     {
         if (instance == null || !AllowsEffect(owner)) return;
         int index = (int)cue;
@@ -113,13 +145,24 @@ public sealed class CasinoSoundscape : MonoBehaviour
         source.pitch = 1;
         source.panStereo = Camera.main != null ? Mathf.Clamp((Camera.main.WorldToViewportPoint(position).x - .5f) * 1.3f, -.7f, .7f) : 0;
         float distance = Camera.main != null ? Vector3.Distance(position, Camera.main.transform.position) : 10;
-        source.PlayOneShot(instance.cues[index], cue == CasinoSoundCue.Step ? .15f :
-            Mathf.Clamp01(20 / Mathf.Max(20, distance)));
+        source.PlayOneShot(instance.cues[index], Mathf.Clamp01(gain) * (cue == CasinoSoundCue.Step ? .15f :
+            Mathf.Clamp01(20 / Mathf.Max(20, distance))));
     }
 
     public static void SetIntensity(float value)
     {
         if (instance != null) instance.intensity = Mathf.Clamp01(value);
+    }
+
+    public static void PlayShiftFinale(bool impact, bool urgent)
+    {
+        if (instance == null || AudioListener.pause) return;
+        // The global shift cue must remain audible while a minigame owns audio focus.
+        AudioSource source = instance.voices[instance.voice++ % instance.voices.Length];
+        source.pitch = urgent ? 1.18f : 1;
+        source.panStereo = 0;
+        source.PlayOneShot(instance.cues[(int)(impact ? CasinoSoundCue.TimeUp : CasinoSoundCue.FinalTick)],
+            impact ? 1 : urgent ? .9f : .65f);
     }
 
     private void Update()
@@ -153,7 +196,9 @@ public sealed class CasinoSoundscape : MonoBehaviour
     private static AudioClip ComposeCue(CasinoSoundCue cue)
     {
         float length = cue == CasinoSoundCue.Roulette ? 2 : cue == CasinoSoundCue.Success || cue == CasinoSoundCue.Celebrate ? .6f :
-            cue == CasinoSoundCue.TaskFailed ? .7f : cue == CasinoSoundCue.Tip ? .45f : .2f;
+            cue == CasinoSoundCue.TaskFailed ? .7f : cue == CasinoSoundCue.Door ? 1.15f :
+            cue == CasinoSoundCue.TimeUp ? .85f : cue == CasinoSoundCue.FinalTick ? .12f :
+            cue == CasinoSoundCue.Entrance ? .55f : cue == CasinoSoundCue.Tip ? .45f : .2f;
         float[] samples = new float[Mathf.CeilToInt(22050 * length)];
         System.Random random = new System.Random((int)cue + 91);
         for (int i = 0; i < samples.Length; i++)
@@ -168,6 +213,10 @@ public sealed class CasinoSoundscape : MonoBehaviour
                 CasinoSoundCue.Mistake => 220,
                 CasinoSoundCue.Warning => 660,
                 CasinoSoundCue.Button => 880,
+                CasinoSoundCue.Door => 130 + 14 * Mathf.Sin(t * 6),
+                CasinoSoundCue.Entrance => 440,
+                CasinoSoundCue.FinalTick => 960,
+                CasinoSoundCue.TimeUp => 110 - t * 65,
                 // The success jingle climbs; a failed or missed task falls in low, buzzy steps.
                 CasinoSoundCue.TaskFailed => 330 * Mathf.Pow(.8f, Mathf.Floor(t * 6)),
                 // A tip is a bright two-note coin "ding-ding".
@@ -175,10 +224,35 @@ public sealed class CasinoSoundscape : MonoBehaviour
                 _ => 520 * Mathf.Pow(1.25f, Mathf.Floor(t * 10))
             };
             float tone = Mathf.Sin(t * frequency * Mathf.PI * 2);
+            if (cue == CasinoSoundCue.TimeUp)
+                tone = tone * .8f + Mathf.Sin(t * 2 * Mathf.PI * 220) * Mathf.Exp(-t * 12) * .5f;
+            if (cue == CasinoSoundCue.Door)
+            {
+                float noise = (float)(random.NextDouble() * 2 - 1);
+                float latch = Mathf.Exp(-t * 40) * (noise * .65f + Mathf.Sin(t * 2300) * .35f);
+                float hingeEnvelope = Mathf.Sin(Mathf.PI * t / length);
+                float hingePhase = 2 * Mathf.PI * (72 * t - 18 * t * t + .12f * Mathf.Sin(t * 31));
+                float hinge = Mathf.Sin(hingePhase) * .45f + Mathf.Sin(hingePhase * 3) * .18f;
+                float thud = Mathf.Sin(2 * Mathf.PI * 58 * t) * Mathf.Exp(-t * 8) * .7f;
+                float stopTime = Mathf.Max(0, t - .62f);
+                float doorStop = t >= .62f
+                    ? Mathf.Sin(2 * Mathf.PI * 82 * stopTime) * Mathf.Exp(-stopTime * 13) * .6f : 0;
+                tone = latch + thud + doorStop + hingeEnvelope * (hinge + noise * .12f);
+                samples[i] = Mathf.Min(1, t * 300) * Mathf.Clamp01((length - t) / .12f) * tone;
+                continue;
+            }
+            if (cue == CasinoSoundCue.Entrance) tone *= .25f;
             if (cue == CasinoSoundCue.TaskFailed) tone = Mathf.Sign(tone) * .55f + tone * .45f;
             if (cue == CasinoSoundCue.Card) tone = (float)(random.NextDouble() * 2 - 1);
             if (cue == CasinoSoundCue.Roulette) tone = Mathf.Sin(t * 4000) * Mathf.Pow(Mathf.Max(0, Mathf.Sin(t * (100 - 30 * t))), 8);
             samples[i] = .22f * envelope * tone;
+        }
+        if (cue == CasinoSoundCue.Door)
+        {
+            float peak = 0;
+            foreach (float sample in samples) peak = Mathf.Max(peak, Mathf.Abs(sample));
+            for (int i = 0; i < samples.Length; i++)
+                samples[i] *= .9f / peak;
         }
         return Clip("Original casino " + cue, samples);
     }
