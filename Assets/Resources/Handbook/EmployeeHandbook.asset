@@ -132,6 +132,14 @@ MonoBehaviour:
     image: {fileID: 21300000, guid: c3687923017cf4d2caa82f471b1976e9, type: 3}
     unlock: 1
     level: 0
+  - id: equipment-lucky-seven
+    category: 2
+    title: 'Lucky Seven Chip'
+    description: "The Lucky Seven was introduced as part of a short-lived promotional campaign.\n\nSeveral customers insisted the chips brought them extraordinary good fortune. Management attributed this to effective marketing.\n\nThe entire batch was recalled following a manufacturing irregularity.\n\nRequests for replacement chips are still received occasionally."
+    image: {fileID: 0}
+    useCasinoChipArt: 1
+    unlock: 3
+    level: 2
   - id: rules-passing-a-shift
     category: 3
     title: 'Passing a Shift'
@@ -159,4 +167,11 @@ MonoBehaviour:
     description: "When suspicious activity is reported, review the footage at the Pit Desk and watch the hand and chip carefully.\n\nChoose CHEATING if the evidence shows improper chip movement. Otherwise, choose CLEAR.\n\nGuessing is not an approved security procedure, regardless of what Fox says."
     image: {fileID: 21300000, guid: e7b32108aa31f4150af811ce2c0bf0fc, type: 3}
     unlock: 2
+    level: 3
+  - id: archive-trial-12
+    category: 4
+    title: 'Trial 12 — Follow-Up'
+    description: "Sample 07-B: Secured\nRecipient: Released\nSource: No follow-up scheduled\n\n[Handwritten note]\n\n\"He came back asking for it.\"\n\n[Reply — different handwriting]\n\n\"How does he know we took anything?\""
+    image: {fileID: 21300000, guid: e7b32108aa31f4150af811ce2c0bf0fc, type: 3}
+    unlock: 3
     level: 3

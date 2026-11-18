@@ -13,7 +13,8 @@ using UnityEngine.UI;
 public sealed class CasinoEmployeeHandbook : MonoBehaviour
 {
     private static readonly HandbookCategory[] Categories =
-        { HandbookCategory.Staff, HandbookCategory.Guests, HandbookCategory.Equipment, HandbookCategory.HouseRules };
+        { HandbookCategory.Staff, HandbookCategory.Guests, HandbookCategory.Equipment, HandbookCategory.HouseRules,
+          HandbookCategory.Archives };
     private static readonly Color TabIdle = new Color(.30f, .09f, .22f);
     private static readonly Color TabSelected = new Color(.62f, .18f, .36f);
     private const float ImageBox = 128f;
@@ -83,8 +84,9 @@ public sealed class CasinoEmployeeHandbook : MonoBehaviour
         {
             HandbookCategory category = Categories[i];
             tabs[i] = MakeButton(root, "Tab " + category, CasinoHandbookContent.CategoryLabel(category),
-                new Vector2(-435 + i * 290, 250), new Vector2(260, 52), () => SelectCategory(category));
-            tabBadges[i] = Badge(tabs[i].transform, new Vector2(104, 26));
+                new Vector2((i - (Categories.Length - 1) * .5f) * 234, 250),
+                new Vector2(218, 52), () => SelectCategory(category));
+            tabBadges[i] = Badge(tabs[i].transform, new Vector2(80, 26));
         }
 
         GameObject frame = CasinoMinigamePresentation.CreateImage("Entry picture frame", root, new Vector2(515, 115),
@@ -104,10 +106,9 @@ public sealed class CasinoEmployeeHandbook : MonoBehaviour
         previous = MakeButton(root, "Previous entry", "PREV", new Vector2(-330, -315), new Vector2(240, 52), Previous);
         close = MakeButton(root, "Close handbook", "CLOSE", new Vector2(0, -315), new Vector2(240, 52), Close);
         next = MakeButton(root, "Next entry", "NEXT", new Vector2(330, -315), new Vector2(240, 52), Next);
-        ConfigureNavigation();
     }
 
-    private void ConfigureNavigation()
+    private void ConfigureNavigation(bool canPage)
     {
         Button[] bottom = { previous, close, next };
         for (int i = 0; i < tabs.Length; i++)
@@ -115,7 +116,7 @@ public sealed class CasinoEmployeeHandbook : MonoBehaviour
             Navigation nav = new Navigation { mode = Navigation.Mode.Explicit };
             nav.selectOnLeft = tabs[(i + tabs.Length - 1) % tabs.Length];
             nav.selectOnRight = tabs[(i + 1) % tabs.Length];
-            nav.selectOnDown = i < 2 ? previous : next;
+            nav.selectOnDown = !canPage || i == 2 ? close : i < 2 ? previous : next;
             tabs[i].navigation = nav;
         }
         for (int i = 0; i < bottom.Length; i++)
@@ -123,7 +124,8 @@ public sealed class CasinoEmployeeHandbook : MonoBehaviour
             Navigation nav = new Navigation { mode = Navigation.Mode.Explicit };
             nav.selectOnLeft = bottom[(i + bottom.Length - 1) % bottom.Length];
             nav.selectOnRight = bottom[(i + 1) % bottom.Length];
-            nav.selectOnUp = tabs[Mathf.Min(i * 2, tabs.Length - 1)];
+            nav.selectOnUp = tabs[Array.IndexOf(Categories, CurrentCategory)];
+            if (!canPage) nav.selectOnLeft = nav.selectOnRight = null;
             bottom[i].navigation = nav;
         }
     }
@@ -203,6 +205,7 @@ public sealed class CasinoEmployeeHandbook : MonoBehaviour
         HandbookEntry entry = CurrentEntry;
         int count = byCategory[CurrentCategory].Count;
         previous.interactable = next.interactable = count > 1;
+        ConfigureNavigation(count > 1);
         if (entry == null)
         {
             CurrentEntryLocked = true;
@@ -217,7 +220,7 @@ public sealed class CasinoEmployeeHandbook : MonoBehaviour
         bool unlocked = CasinoHandbookProgress.IsUnlocked(entry);
         bool unread = CasinoHandbookProgress.IsUnread(entry);
         CurrentEntryLocked = !unlocked;
-        SetImage(entry.image, unlocked);
+        SetImage(entry.DisplayImage, unlocked);
         entryTitle.text = unlocked ? entry.title : "LOCKED";
         entryDescription.text = unlocked ? entry.description : CasinoHandbookProgress.LockedHint(entry);
         entryCounter.text = $"{CasinoHandbookContent.CategoryLabel(CurrentCategory)}  •  ENTRY {CurrentIndex + 1} / {count}";

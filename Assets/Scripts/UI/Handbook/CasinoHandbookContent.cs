@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-public enum HandbookCategory { Staff, Guests, Equipment, HouseRules }
+public enum HandbookCategory { Staff, Guests, Equipment, HouseRules, Archives }
 
 public enum HandbookUnlock
 {
@@ -21,6 +21,9 @@ public sealed class HandbookEntry
     [TextArea(3, 8)] public string description;
     [Tooltip("Existing character, prop or UI sprite shown beside the entry.")]
     public Sprite image;
+    [Tooltip("Use the existing casino chip art instead of an assigned sprite.")]
+    public bool useCasinoChipArt;
+    public Sprite DisplayImage => useCasinoChipArt ? CasinoPixelArt.Chip : image;
     public HandbookUnlock unlock;
     [Tooltip("Campaign level for LevelUnlocked and LevelCleared rules.")]
     public int level;
@@ -48,6 +51,8 @@ public sealed class CasinoHandbookContent : ScriptableObject
         HandbookCategory.Staff => "STAFF",
         HandbookCategory.Guests => "GUESTS",
         HandbookCategory.Equipment => "EQUIPMENT",
-        _ => "HOUSE RULES"
+        HandbookCategory.HouseRules => "HOUSE RULES",
+        HandbookCategory.Archives => "ARCHIVES",
+        _ => throw new ArgumentOutOfRangeException(nameof(category), category, null)
     };
 }

@@ -110,7 +110,7 @@ public static class EmployeeHandbookPlayModeValidation
                 else yield return current;
             }
             Debug.Log("EMPLOYEE HANDBOOK PLAY MODE PASSED: opens/closes from main menu and level select, " +
-                      "navigates all four categories, NEW markers clear on reading, read and unlock state persist " +
+                      "navigates all five categories, NEW markers clear on reading, read and unlock state persist " +
                       "across scene reloads and New Game, progression unlocks Guests/Equipment/House Rules.");
             Restore();
             EditorApplication.Exit(0);
@@ -120,12 +120,12 @@ public static class EmployeeHandbookPlayModeValidation
         {
             CasinoHandbookContent content = CasinoHandbookContent.Load();
             HandbookEntry[] entries = content.entries;
-            Check(entries.Length >= 4 && entries.Select(e => e.id).Distinct().Count() == entries.Length,
-                "Handbook content must have unique entry ids.");
+            Check(entries.Length == 23 && entries.Select(e => e.id).Distinct().Count() == entries.Length,
+                "Handbook must have 23 unique entries.");
             foreach (HandbookCategory category in Enum.GetValues(typeof(HandbookCategory)))
                 Check(entries.Any(e => e.category == category), $"Handbook has no {category} entries.");
             foreach (HandbookEntry entry in entries)
-                Check(entry.image != null && !string.IsNullOrWhiteSpace(entry.title) &&
+                Check(entry.DisplayImage != null && !string.IsNullOrWhiteSpace(entry.title) &&
                       !string.IsNullOrWhiteSpace(entry.description), $"Handbook entry {entry.id} is incomplete.");
             HandbookEntry[] staff = entries.Where(e => e.category == HandbookCategory.Staff).ToArray();
             Check(staff.All(e => e.unlock == HandbookUnlock.Always), "Staff entries must be available immediately.");
@@ -161,7 +161,8 @@ public static class EmployeeHandbookPlayModeValidation
                   handbook.CurrentDescriptionText == staff[0].description,
                 "First Staff entry should display its image, title, description and NEW marker.");
             Check(handbook.CategoryShowsNew(HandbookCategory.Staff), "Staff tab should show NEW with unread entries.");
-            foreach (HandbookCategory category in new[] { HandbookCategory.Guests, HandbookCategory.Equipment, HandbookCategory.HouseRules })
+            foreach (HandbookCategory category in new[] { HandbookCategory.Guests, HandbookCategory.Equipment,
+                         HandbookCategory.HouseRules, HandbookCategory.Archives })
                 Check(!handbook.CategoryShowsNew(category), $"Locked {category} tab must not show NEW.");
             yield return Capture("02-handbook-staff-new");
 
@@ -184,7 +185,8 @@ public static class EmployeeHandbookPlayModeValidation
             yield return null;
             Check(handbook.CurrentEntry.id == staff[staff.Length - 1].id, "PREV should wrap to the last Staff entry.");
 
-            foreach (HandbookCategory category in new[] { HandbookCategory.Guests, HandbookCategory.Equipment, HandbookCategory.HouseRules })
+            foreach (HandbookCategory category in new[] { HandbookCategory.Guests, HandbookCategory.Equipment,
+                         HandbookCategory.HouseRules, HandbookCategory.Archives })
             {
                 Click(Find(handbook, "Tab " + category));
                 yield return null;
@@ -193,6 +195,14 @@ public static class EmployeeHandbookPlayModeValidation
                     $"{category} entries should be locked on a fresh profile.");
                 if (category == HandbookCategory.Guests) yield return Capture("04-handbook-guests-locked");
             }
+            Button archivesTab = Find(handbook, "Tab Archives");
+            Button staffTab = Find(handbook, "Tab Staff");
+            Button closeButton = Find(handbook, "Close handbook");
+            Check(handbook.CurrentEntry.id == "archive-trial-12" &&
+                  !nextButton.interactable && !previousButton.interactable &&
+                  archivesTab.FindSelectableOnRight() == staffTab && staffTab.FindSelectableOnLeft() == archivesTab &&
+                  archivesTab.FindSelectableOnDown() == closeButton && closeButton.FindSelectableOnUp() == archivesTab,
+                "Archives must be initially visible and navigable even with only one locked entry.");
 
             yield return PressEscape();
             Check(!handbook.IsOpen, "Escape did not close the handbook.");
@@ -252,9 +262,9 @@ public static class EmployeeHandbookPlayModeValidation
             foreach (HandbookEntry entry in entries)
                 Check(CasinoHandbookProgress.IsUnlocked(entry) == CasinoHandbookProgress.ConditionMet(entry),
                     $"Unlock state for {entry.id} does not follow demo progression.");
-            HandbookEntry lockedLater = entries.FirstOrDefault(e => !CasinoHandbookProgress.IsUnlocked(e));
-            Check(lockedLater != null && lockedLater.unlock == HandbookUnlock.LevelUnlocked && lockedLater.level == 3,
-                "Level 3 content should stay locked until Level 3 is unlocked.");
+            HandbookEntry footage = entries.Single(e => e.id == "rules-footage-review");
+            Check(!CasinoHandbookProgress.IsUnlocked(footage),
+                "Footage Review should stay locked until Level 3 is unlocked.");
 
             Click(Find(handbook, "Tab " + HandbookCategory.Equipment));
             yield return null;
@@ -295,11 +305,22 @@ public static class EmployeeHandbookPlayModeValidation
 
         private IEnumerator VerifyDescriptions(CasinoTitleScreen title, HandbookEntry[] entries)
         {
+            HandbookEntry chip = entries.Single(e => e.id == "equipment-lucky-seven");
+            HandbookEntry trial = entries.Single(e => e.id == "archive-trial-12");
             CasinoDemoProgression.AwardShift(1, 2);
+            Check(!CasinoHandbookProgress.IsUnlocked(chip) && !CasinoHandbookProgress.IsUnlocked(trial),
+                "Opening Level 2 should not unlock either new entry.");
             CasinoDemoProgression.AwardShift(2, 2);
-            Click(title.transform.Find("Handbook").GetComponent<Button>());
+            Check(CasinoHandbookProgress.IsUnread(chip) && !CasinoHandbookProgress.IsUnlocked(trial),
+                "Clearing Level 2 should unlock the chip only, even after Level 3 becomes available.");
+            CasinoDemoProgression.AwardShift(3, 2);
+            Button launcher = title.transform.Find("Handbook").GetComponent<Button>();
+            Check(CasinoHandbookProgress.IsUnread(trial), "Clearing Level 3 should mark Trial 12 unread.");
+            Click(launcher);
             yield return null;
             CasinoEmployeeHandbook handbook = FindHandbook();
+            Check(handbook.CategoryShowsNew(HandbookCategory.Archives) && handbook.CategoryShowsNew(HandbookCategory.Equipment),
+                "New discoveries should mark both category tabs NEW.");
             Text description = handbook.GetComponentsInChildren<Text>()
                 .Single(text => text.name == "Entry description");
             using (var unbounded = new TextGenerator())
@@ -324,12 +345,34 @@ public static class EmployeeHandbookPlayModeValidation
                         Check(unbounded.Populate(description.text, settings) &&
                               rendered.characterCountVisible == unbounded.characterCountVisible,
                             $"Handbook description is clipped for {entry.id}.");
-                        if (entry.id == "rules-vip-service") yield return Capture("09-handbook-long-description");
-                        Click(Find(handbook, "Next entry"));
+                        if (entry == chip) yield return Capture("09-handbook-lucky-seven");
+                        if (entry == trial)
+                        {
+                            Check(handbook.CurrentEntryShowsNew && !handbook.CategoryShowsNew(HandbookCategory.Archives),
+                                "Opening Trial 12 should show its NEW indicator and clear the category badge.");
+                            yield return Capture("10-handbook-trial-12");
+                        }
+                        if (count > 1) Click(Find(handbook, "Next entry"));
                     }
                 }
             }
             Debug.Log($"HANDBOOK DESCRIPTIONS PASSED: all {entries.Length} entries displayed without clipping.");
+            yield return PressEscape();
+            Check(!Badge(launcher), "Reading every entry should clear the handbook's launcher badge.");
+            CasinoDemoProgression.StartNewGame();
+            yield return ReloadScene();
+            yield return WaitForTitle(t => title = t);
+            Click(title.transform.Find("Handbook").GetComponent<Button>());
+            yield return null;
+            handbook = FindHandbook();
+            Click(Find(handbook, "Tab Archives"));
+            yield return null;
+            Check(!handbook.CurrentEntryLocked && handbook.CurrentEntry == trial &&
+                  !handbook.CurrentEntryShowsNew && CasinoDemoProgression.UnlockedShift == 1 &&
+                  CasinoDemoProgression.BestStars(2) == 0 && CasinoDemoProgression.BestStars(3) == 0 &&
+                  CasinoHandbookProgress.IsUnlocked(chip) && !CasinoHandbookProgress.IsUnread(chip),
+                "Both new entries and their read state must survive a campaign reset and scene reload.");
+            Debug.Log("HANDBOOK DISCOVERIES PASSED: required level clears, NEW indicators, and persistent unlock/read state.");
             yield return PressEscape();
         }
 
