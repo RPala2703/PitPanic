@@ -12,11 +12,13 @@ public sealed class ApprovedCasinoArtImporter : AssetPostprocessor
     {
         if (!assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/", StringComparison.Ordinal)) return;
         TextureImporter importer = (TextureImporter)assetImporter;
-        bool playerDirectionalArt = assetPath.StartsWith(
-            ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Player/", StringComparison.Ordinal);
+        bool directionalArt = assetPath.StartsWith(
+            ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Player/", StringComparison.Ordinal) ||
+            assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Staff/tiger-walk-",
+                StringComparison.Ordinal);
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
-        importer.spritePixelsPerUnit = playerDirectionalArt ? 256 : 32;
+        importer.spritePixelsPerUnit = directionalArt ? 256 : 32;
         TextureImporterSettings settings = new TextureImporterSettings();
         importer.ReadTextureSettings(settings);
         settings.spriteAlignment = (int)SpriteAlignment.Custom;
@@ -30,7 +32,7 @@ public sealed class ApprovedCasinoArtImporter : AssetPostprocessor
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.isReadable = true;
         importer.maxTextureSize = 2048;
-        if (!playerDirectionalArt &&
+        if (!directionalArt &&
             assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/", StringComparison.Ordinal))
             ApprovedCasinoArtIntegration.ConfigureStandingImport(importer);
     }

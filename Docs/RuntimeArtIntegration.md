@@ -685,6 +685,15 @@ Run `PenguinDirectionalWalkPlayModeValidation.Run` in a visible Unity Editor
 with `PIT_PANIC_PENGUIN_EVIDENCE` set to a capture folder. It checks the
 saved prefab in Play Mode without re-importing or reassigning its sprites.
 
+### Four-frame directional Tiger walk cycle
+
+The live Tiger dealer uses all 16 supplied PNGs at the same 180 ms cadence
+as Penguin. Tiger faces the direction of travel, then holds the last facing
+when stopped: frame `03` for north and south, or frame `01` for east and west
+(the planted pose in the side views). Walking restarts at frame `01`.
+Dealer movement, assignments and rest behavior are unchanged. The live art
+validation checks Tiger's prefab binding, full sprite bounds and URP texture.
+
 ### Standing sprite edges and diagonal facing
 
 The 17 approved standing PNGs retain their 48x64 canvases, pivots, and

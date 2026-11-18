@@ -22,20 +22,25 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     [SerializeField] private Sprite playerBack;
     [SerializeField] private Sprite playerLeft;
     [SerializeField] private Sprite[] playerWalkFrames;
+    [SerializeField] private Sprite[] dealerWalkFrames;
     private const int PlayerWalkFramesPerDirection = 4;
     private const float PlayerWalkFrameDuration = 0.18f;
     private enum PlayerFacing { Front, Right, Back, Left }
     private PlayerFacing playerFacing = PlayerFacing.Front;
     private CasinoPlayerController playerController;
+    private bool dealerWalkArt;
+    private bool dealerWasWalking;
     private bool isPlayerVisual => playerController != null;
     public bool UsesApprovedStandingArt => approvedStanding != null;
     public bool UsesPlayerDirectionalArt => isPlayerVisual &&
         playerFront != null && playerRight != null && playerBack != null && playerLeft != null;
     public bool UsesPlayerWalkArt => isPlayerVisual && HasPlayerWalkFrames;
+    public bool UsesDealerWalkArt => dealerWalkArt;
     public bool IsPlayerWalkSprite(Sprite sprite) =>
         HasPlayerWalkFrames && System.Array.IndexOf(playerWalkFrames, sprite) >= 0;
     public string PlayerFacingName => playerFacing.ToString();
     public Sprite SelectedStandingArt => UsesPlayerDirectionalArt ? PlayerFacingSprite :
+        dealerWalkArt ? DealerSprite(playerFacing, DealerIdlePhase(playerFacing)) :
         vip ? approvedVipStanding : approvedStanding;
     public bool IsPlayerWalking { get; private set; }
     public int PlayerWalkFrameIndex { get; private set; } = -1;
@@ -65,16 +70,15 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         ApplyStandingArt();
     }
 
-    private bool HasPlayerWalkFrames
+    private bool HasPlayerWalkFrames => HasCompleteWalkCycle(playerWalkFrames);
+
+    private static bool HasCompleteWalkCycle(Sprite[] sprites)
     {
-        get
-        {
-            if (playerWalkFrames == null || playerWalkFrames.Length != DirectionsPerPose * PlayerWalkFramesPerDirection)
-                return false;
-            for (int i = 0; i < playerWalkFrames.Length; i++)
-                if (playerWalkFrames[i] == null) return false;
-            return true;
-        }
+        if (sprites == null || sprites.Length != DirectionsPerPose * PlayerWalkFramesPerDirection)
+            return false;
+        foreach (Sprite sprite in sprites)
+            if (sprite == null) return false;
+        return true;
     }
 
     private void ApplyStandingArt() => ApplyArtSprite(SelectedStandingArt);
@@ -265,6 +269,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     {
         agent = GetComponentInParent<NavMeshAgent>();
         dealer = GetComponentInParent<AIDealer>();
+        dealerWalkArt = dealer != null && HasCompleteWalkCycle(dealerWalkFrames);
         customer = GetComponentInParent<CasinoCustomerAI>();
         playerController = GetComponentInParent<CasinoPlayerController>();
         if (customer != null && customerAnimationAtlas != null) animationAtlas = customerAnimationAtlas;
@@ -273,7 +278,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         if (spriteRenderer != null) spriteColor = spriteRenderer.color;
         previousPosition = transform.position;
         BindAnimationFrames();
-        if (spriteRenderer != null && UsesPlayerDirectionalArt && UsesApprovedStandingArt)
+        if (spriteRenderer != null && (UsesPlayerDirectionalArt || dealerWalkArt) && UsesApprovedStandingArt)
             ApplyStandingArt();
     }
 
@@ -421,12 +426,11 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 
         Transform actor = transform.parent != null ? transform.parent : transform;
         Vector3 displacement = actor.position - previousPosition;
-        float distance = isPlayerVisual
-            ? new Vector2(displacement.x, displacement.z).magnitude
-            : displacement.magnitude;
-        float speed = agent != null && agent.enabled && agent.isOnNavMesh
-            ? agent.velocity.magnitude
-            : hasPreviousPosition && Time.deltaTime > 0f ? distance / Time.deltaTime : 0f;
+        Vector3 velocity = agent != null && agent.enabled && agent.isOnNavMesh
+            ? agent.velocity
+            : hasPreviousPosition && Time.deltaTime > 0f ? displacement / Time.deltaTime : Vector3.zero;
+        if (isPlayerVisual || dealerWalkArt) velocity.y = 0f;
+        float speed = velocity.magnitude;
         previousPosition = actor.position;
         hasPreviousPosition = true;
         bool seated = customer != null && customer.IsSeated || dealer != null && dealer.IsResting;
@@ -438,7 +442,13 @@ public sealed class PixelCharacterVisual : MonoBehaviour
                 ? FacingForHeading(displacement)
                 : FacingForInput(input);
         }
-        walkTime = walking && (!isPlayerVisual || IsPlayerWalking) ? walkTime + Time.deltaTime : 0f;
+        else if (dealerWalkArt && walking)
+        {
+            playerFacing = FacingForHeading(velocity);
+        }
+        bool continueWalk = isPlayerVisual ? IsPlayerWalking : !dealerWalkArt || dealerWasWalking;
+        walkTime = walking && continueWalk ? walkTime + Time.deltaTime : 0f;
+        dealerWasWalking = dealerWalkArt && walking;
         IsPlayerWalking = isPlayerVisual && walking;
         PlayerWalkFrameIndex = -1;
         CasinoAnimationPose seatedPose = customer != null && customer.Seat != null &&
@@ -508,6 +518,10 @@ public sealed class PixelCharacterVisual : MonoBehaviour
                 PlayerWalkFrameIndex = (int)playerFacing * PlayerWalkFramesPerDirection + phase;
                 selected = PlayerWalkSprite(playerFacing, phase);
             }
+            else if (dealerWasWalking)
+            {
+                selected = DealerSprite(playerFacing, PlayerWalkPhase(walkTime));
+            }
             ApplyArtSprite(selected);
         }
         if (auraRenderer != null && vip)
@@ -529,6 +543,12 @@ public sealed class PixelCharacterVisual : MonoBehaviour
 
     private Sprite PlayerWalkSprite(PlayerFacing facing, int phase) =>
         playerWalkFrames[(int)facing * PlayerWalkFramesPerDirection + phase];
+
+    private Sprite DealerSprite(PlayerFacing facing, int phase) =>
+        dealerWalkFrames[(int)facing * PlayerWalkFramesPerDirection + phase];
+
+    private static int DealerIdlePhase(PlayerFacing facing) =>
+        facing == PlayerFacing.Front || facing == PlayerFacing.Back ? 2 : 0;
 
     private Sprite PlayerFacingSprite => PlayerIdleSprite(playerFacing);
 
