@@ -96,7 +96,8 @@ public static class ApprovedArtPlayModeValidation
         bool directionalDealer = species is CasinoAnimalSpecies.Tiger or CasinoAnimalSpecies.Pig or CasinoAnimalSpecies.Bear
             or CasinoAnimalSpecies.Fox;
         bool directionalCustomer = !pixel.IsVip &&
-            species is CasinoAnimalSpecies.Rabbit or CasinoAnimalSpecies.Dog or CasinoAnimalSpecies.Cat;
+            species is CasinoAnimalSpecies.Rabbit or CasinoAnimalSpecies.Dog or CasinoAnimalSpecies.Cat
+                or CasinoAnimalSpecies.Raccoon;
         Check(pixel.UsesCustomerWalkArt == directionalCustomer, $"Unexpected customer walk bindings for {species}.");
         string dealerWalkPrefix = $"{species.ToString().ToLowerInvariant()}-walk-";
         Check(pixel.UsesDealerWalkArt == directionalDealer, $"Unexpected dealer walk bindings for {species}.");
@@ -390,6 +391,7 @@ public static class ApprovedArtPlayModeValidation
                     yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Rabbit);
                     yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Dog);
                     yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Cat);
+                    yield return ValidateCustomerWalk(spawner, CasinoAnimalSpecies.Raccoon);
                 }
                 foreach (AIDealer dealer in FindObjectsByType<AIDealer>(FindObjectsSortMode.None))
                     dealer.TrainingProtected = true;
@@ -540,7 +542,6 @@ public static class ApprovedArtPlayModeValidation
                             changes.Add(Time.time);
                         }
                         ValidateActor(visual);
-                        yield return null;
                     }
                     Check(Vector3.Dot(customer.transform.position - origin, directions[direction]) > .8f,
                         $"{species} animation must follow actual NavMesh movement.");

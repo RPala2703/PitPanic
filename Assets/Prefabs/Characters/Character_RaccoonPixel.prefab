@@ -1620,6 +1620,23 @@ MonoBehaviour:
   vipAnimationAtlas: {fileID: 2800000, guid: 37532aa21dacc4f18a9048f12d91c4a9, type: 3}
   approvedStanding: {fileID: 21300000, guid: 5a37edabd55754eb489d18d4d73d20b3, type: 3}
   approvedVipStanding: {fileID: 21300000, guid: 88386fdb611304dd3a31ee74f1ddc717, type: 3}
+  customerWalkFrames:
+  - {fileID: 21300000, guid: f7b066d9fb9c42049e444e6e8a9145a1, type: 3}
+  - {fileID: 21300000, guid: 84b1c6107dab48469e8f670ea335b90e, type: 3}
+  - {fileID: 21300000, guid: 3c6c8d7a56b5417ea36c427a8b6352f5, type: 3}
+  - {fileID: 21300000, guid: bf771327dd55427fb8b195f36e5085a9, type: 3}
+  - {fileID: 21300000, guid: 59577424c2ff48e0b9724f3bdb9bf01d, type: 3}
+  - {fileID: 21300000, guid: 2c44860c10494430b3c43d38ccbf3104, type: 3}
+  - {fileID: 21300000, guid: 372c874dcc504847a791d81c9c2110e5, type: 3}
+  - {fileID: 21300000, guid: 760c2fa8e98a4f96b7ef03a05f4b2c46, type: 3}
+  - {fileID: 21300000, guid: 67354a79fa2648b0b30cad9926305fea, type: 3}
+  - {fileID: 21300000, guid: dd833faf4fe6431cb290c96cdea108ee, type: 3}
+  - {fileID: 21300000, guid: f4605d850a824c07ab78903ce48db610, type: 3}
+  - {fileID: 21300000, guid: a158da74dae4428fb74d70e805a34c5c, type: 3}
+  - {fileID: 21300000, guid: c096ab7d72434fdd8a5c0fbec52aa436, type: 3}
+  - {fileID: 21300000, guid: 497ab08a09c44f51a651cddd0e6fa448, type: 3}
+  - {fileID: 21300000, guid: ce931be9824b4c1baf7b7b3a3658cead, type: 3}
+  - {fileID: 21300000, guid: 3dfffb9bc3344aef94141cf3827b041e, type: 3}
 --- !u!114 &4429270032834549984
 MonoBehaviour:
   m_ObjectHideFlags: 0

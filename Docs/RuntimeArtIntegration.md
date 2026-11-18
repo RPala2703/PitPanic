@@ -698,12 +698,12 @@ Tiger, Pig, Bear and Fox each use their 16 supplied PNGs at the same 180 ms cade
 Penguin. They face the direction of travel while walking and return to the
 planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
-Regular Rabbit, Dog and Cat customers each use their supplied 16 transparent 256x256 PNGs with
+Regular Rabbit, Dog, Cat and Raccoon customers each use their supplied 16 transparent 256x256 PNGs with
 the same 180 ms cadence, directional walking and front-facing frame `03` idle.
 Customers stop walking at their assigned table positions. They use the planted
 frame facing their table, while idle customers elsewhere face front.
 Customer navigation and reservation/service behaviour are unchanged.
-VIP Rabbits, Dogs and Cats retain their existing formalwear and gold outline because
+VIP Rabbits, Dogs, Cats and Raccoons retain their existing formalwear and gold outline because
 these packs supply only the regular outfits.
 At staffed tables, the dealer's sprite sits slightly toward the table so the
 table edge occludes their feet; the ground anchor and NavMesh are unchanged.
@@ -726,7 +726,7 @@ Approach/NavMesh positions, betting points and reservation/service references
 are retained. The existing `CasinoSeat`/`IsSeated` names continue to mean an
 occupied gameplay slot; customers are visually standing, not sitting.
 
-Regular Rabbit, Dog and Cat use their supplied north/west planted frame 03
+Regular Rabbit, Dog, Cat and Raccoon use their supplied north/west planted frame 03
 at the table and return to front frame 03 when idle elsewhere. The remaining
 regular species and all VIPs currently have front-only approved artwork.
 Their world facing is aligned with the table, but their existing front-facing
