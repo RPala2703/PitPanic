@@ -403,26 +403,12 @@ public static class PenguinDirectionalWalkPlayModeValidation
             Check(maxX >= minX && maxY >= minY, $"Sprite {sprite.name} has no opaque artwork.");
             float sourceAspect = (maxX - minX + 1f) / (maxY - minY + 1f);
             float ppu = sprite.pixelsPerUnit;
-            Vector3[] sourceCorners =
-            {
-                new Vector3((minX - sprite.pivot.x) / ppu, (minY - sprite.pivot.y) / ppu, 0),
-                new Vector3((maxX + 1 - sprite.pivot.x) / ppu, (minY - sprite.pivot.y) / ppu, 0),
-                new Vector3((minX - sprite.pivot.x) / ppu, (maxY + 1 - sprite.pivot.y) / ppu, 0),
-                new Vector3((maxX + 1 - sprite.pivot.x) / ppu, (maxY + 1 - sprite.pivot.y) / ppu, 0)
-            };
-            Vector3 first = camera.WorldToScreenPoint(spriteTransform.TransformPoint(sourceCorners[0]));
-            float screenMinX = first.x, screenMaxX = first.x;
-            float screenMinY = first.y, screenMaxY = first.y;
-            for (int i = 1; i < sourceCorners.Length; i++)
-            {
-                Vector3 projected = camera.WorldToScreenPoint(spriteTransform.TransformPoint(sourceCorners[i]));
-                screenMinX = Mathf.Min(screenMinX, projected.x);
-                screenMaxX = Mathf.Max(screenMaxX, projected.x);
-                screenMinY = Mathf.Min(screenMinY, projected.y);
-                screenMaxY = Mathf.Max(screenMaxY, projected.y);
-            }
-            float screenWidth = screenMaxX - screenMinX;
-            float screenHeight = screenMaxY - screenMinY;
+            Vector2 bottomLeft = Project(minX, minY);
+            // Measure the edges, not an axis-aligned box inflated by billboard tilt.
+            float screenWidth = Vector2.Distance(bottomLeft, Project(maxX + 1, minY));
+            float screenHeight = Vector2.Distance(bottomLeft, Project(minX, maxY + 1));
+            Vector2 Project(int x, int y) => camera.WorldToScreenPoint(spriteTransform.TransformPoint(
+                new Vector3((x - sprite.pivot.x) / ppu, (y - sprite.pivot.y) / ppu, 0)));
             float screenAspect = screenWidth / screenHeight;
             float relativeError = Mathf.Abs(screenAspect / sourceAspect - 1f);
             Transform parent = spriteTransform.parent;
