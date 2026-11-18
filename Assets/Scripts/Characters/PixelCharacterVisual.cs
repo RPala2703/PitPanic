@@ -28,6 +28,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     private enum PlayerFacing { Front, Right, Back, Left }
     private PlayerFacing playerFacing = PlayerFacing.Front;
     private CasinoPlayerController playerController;
+    private CasinoDealerStation[] playerOccludingTables;
     private int normalSortingOrder;
     private bool dealerWalkArt;
     private bool dealerWasWalking;
@@ -273,6 +274,9 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         dealerWalkArt = dealer != null && HasCompleteWalkCycle(dealerWalkFrames);
         customer = GetComponentInParent<CasinoCustomerAI>();
         playerController = GetComponentInParent<CasinoPlayerController>();
+        if (isPlayerVisual)
+            playerOccludingTables = FindObjectsByType<CasinoDealerStation>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
         if (customer != null && customerAnimationAtlas != null) animationAtlas = customerAnimationAtlas;
         carrier = GetComponentInParent<CasinoPlayerFloatCarrier>();
         restScale = spriteRenderer != null ? spriteRenderer.transform.localScale : Vector3.one;
@@ -543,9 +547,15 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             spriteRenderer.sortingOrder = dealer.AssignedStation.DealerBackdropOrder(normalSortingOrder);
             spriteRenderer.transform.position += dealer.AssignedStation.DealerPosition.forward * .36f;
         }
-        else if (dealer != null)
+        else if (dealer != null || isPlayerVisual)
         {
             spriteRenderer.sortingOrder = normalSortingOrder;
+            if (isPlayerVisual)
+                foreach (CasinoDealerStation station in playerOccludingTables)
+                    if (station != null)
+                        spriteRenderer.sortingOrder = station.PlayerBackdropOrder(
+                            playerController.transform.position, spriteRenderer.bounds, camera,
+                            spriteRenderer.sortingOrder);
         }
     }
 

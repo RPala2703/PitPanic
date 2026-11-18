@@ -693,6 +693,9 @@ planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
 At staffed tables, the dealer's sprite sits slightly toward the table so the
 table edge occludes their feet; the ground anchor and NavMesh are unchanged.
+The player also sorts behind overlapping blackjack/roulette artwork on the far
+side of a table, returning to normal sorting on the near side or when clear of
+the artwork. This changes rendering only, not the player's position or collisions.
 During swaps, incoming dealers approach from the side and wait for the outgoing
 dealer to clear the stand before taking over. The live art validation checks
 prefab bindings, full sprite bounds and URP textures.

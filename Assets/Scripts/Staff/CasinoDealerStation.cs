@@ -86,6 +86,25 @@ public sealed class CasinoDealerStation : MonoBehaviour
             ? Mathf.Min(defaultOrder, tableSurface.sortingOrder - 1)
             : defaultOrder;
 
+    public int PlayerBackdropOrder(Vector3 feet, Bounds playerBounds, Camera camera, int defaultOrder)
+    {
+        if (tableSurface == null || !tableSurface.enabled || !tableSurface.gameObject.activeInHierarchy)
+            return defaultOrder;
+        Vector3 groundForward = Vector3.ProjectOnPlane(camera.transform.forward, Vector3.up);
+        if (Vector3.Dot(feet - transform.position, groundForward) <= 0f) return defaultOrder;
+        Bounds tableBounds = tableSurface.bounds;
+        return ProjectedOverlap(playerBounds, tableBounds, camera.transform.right) &&
+            ProjectedOverlap(playerBounds, tableBounds, camera.transform.up)
+            ? DealerBackdropOrder(defaultOrder) : defaultOrder;
+    }
+
+    private static bool ProjectedOverlap(Bounds a, Bounds b, Vector3 axis)
+    {
+        Vector3 absoluteAxis = new Vector3(Mathf.Abs(axis.x), Mathf.Abs(axis.y), Mathf.Abs(axis.z));
+        return Mathf.Abs(Vector3.Dot(a.center - b.center, axis)) <
+            Vector3.Dot(a.extents + b.extents, absoluteAxis);
+    }
+
     public AIDealer CompleteReplacement(AIDealer replacement)
     {
         if (replacement == null || PendingReplacement != replacement)

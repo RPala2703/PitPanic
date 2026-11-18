@@ -343,6 +343,7 @@ public static class ApprovedArtPlayModeValidation
                     $"Real Penguin player did not respond to movement input: level={level}, " +
                     $"start={playerStart}, end={player.transform.position}, focused={Application.isFocused}.");
                 Debug.Log($"LIVE PLAYER level={level} species=Penguin moved={Vector3.Distance(playerStart, player.transform.position):F2}");
+                yield return ValidatePlayerTableLayering(player, level);
                 CasinoCustomerSpawner spawner = FindFirstObjectByType<CasinoCustomerSpawner>();
                 GameObject[] pool = (GameObject[])typeof(CasinoCustomerSpawner)
                     .GetField("customerCharacterPrefabs", Flags).GetValue(spawner);
@@ -588,6 +589,67 @@ public static class ApprovedArtPlayModeValidation
                 .Where(renderer => renderer.name == "Pixel Roulette Wheel").All(renderer => !renderer.enabled),
                 "Duplicate wheel is drawn over the approved table.");
             ValidateRouletteSeating();
+        }
+
+        private IEnumerator ValidatePlayerTableLayering(CasinoPlayerController player, int level)
+        {
+            PixelCharacterVisual visual = player.GetComponentInChildren<PixelCharacterVisual>();
+            CharacterController controller = player.GetComponent<CharacterController>();
+            Vector3 start = player.transform.position;
+            int normalOrder = visual.Renderer.sortingOrder;
+            try
+            {
+                foreach (CasinoDealerStation station in FindObjectsByType<CasinoDealerStation>(FindObjectsSortMode.None))
+                {
+                    string surface = station.BlackjackTable != null ? "Pixel BlackjackV2" : "Pixel Roulette";
+                    SpriteRenderer table = station.transform.Find("VisualRoot/" + surface).GetComponent<SpriteRenderer>();
+                    Bounds bounds = table.bounds;
+                    Vector3[] positions =
+                    {
+                        new Vector3(bounds.center.x + bounds.extents.x * .45f, start.y, bounds.max.z + .1f),
+                        new Vector3(bounds.center.x, start.y, bounds.min.z - .8f),
+                        new Vector3(bounds.max.x + 2f, start.y, bounds.max.z + .45f)
+                    };
+                    for (int i = 0; i < positions.Length; i++)
+                    {
+                        controller.enabled = false;
+                        player.transform.position = positions[i];
+                        controller.enabled = true;
+                        yield return null;
+                        yield return new WaitForEndOfFrame();
+                        int expected = i == 0 ? Mathf.Min(normalOrder, table.sortingOrder - 1) : normalOrder;
+                        Check(visual.Renderer.sortingOrder == expected,
+                            $"Player table layering failed: level={level}, table={station.name}, " +
+                            $"side={i}, expected={expected}, actual={visual.Renderer.sortingOrder}.");
+                        Check(Vector3.Distance(player.transform.position, positions[i]) < .1f,
+                            "Player layering must not reposition the player.");
+                        yield return Capture($"level-{level}-{station.name}-player-layer-{i}");
+                        if (i == 0)
+                        {
+                            Vector3 before = player.transform.position;
+                            InputSystem.QueueStateEvent(keyboard, new KeyboardState(UnityEngine.InputSystem.Key.D));
+                            yield return new WaitForSeconds(.15f);
+                            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                            yield return null;
+                            yield return new WaitForEndOfFrame();
+                            Check(player.transform.position.x > before.x + .2f &&
+                                visual.Renderer.sortingOrder < table.sortingOrder,
+                                $"Player must walk behind {station.name} without losing occlusion.");
+                        }
+                    }
+                }
+                Debug.Log($"PLAYER TABLE LAYERING PASSED: level={level}, behind, walking, front and clear.");
+            }
+            finally
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                controller.enabled = false;
+                player.transform.position = start;
+                controller.enabled = true;
+            }
+            yield return null;
+            yield return new WaitForEndOfFrame();
+            Check(visual.Renderer.sortingOrder == normalOrder, "Player sorting did not reset after leaving tables.");
         }
 
         private static void ValidateRouletteSeating()
