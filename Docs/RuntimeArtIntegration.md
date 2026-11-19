@@ -681,7 +681,7 @@ prefab maps S to south, D to east, W to north and A to west, playing frames
 frame `03` for the last facing: both feet are planted in that pose. Walking
 again restarts the cycle at `01`.
 
-The walk frames use full 256x256 bounds, a shared bottom-center pivot,
+The walk frames use the supplied 48x64 bounds at 32 PPU, a shared bottom-center pivot,
 point filtering, and no compression or mipmaps. The existing uniform
 sprite scaling and foot anchor are unchanged, preserving each frame's
 aspect ratio and offsets within its original canvas. The title entrance
@@ -694,7 +694,7 @@ saved prefab in Play Mode without re-importing or reassigning its sprites.
 
 ### Four-frame directional dealer walk cycles
 
-Tiger, Pig, Bear and Fox each use their 16 supplied PNGs at the same 180 ms cadence as
+Tiger, Pig, Bear and Fox each use their 16 supplied 48x64 PNGs at the same 180 ms cadence as
 Penguin. They face the direction of travel while walking and return to the
 planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
@@ -702,7 +702,8 @@ Regular Rabbit, Dog, Cat, Raccoon, Deer and Elephant customers each use their su
 the same 180 ms cadence, directional walking and front-facing frame `03` idle.
 These are the original `48x64/frames` files from each clean walk pack, imported at
 32 PPU with point filtering. The existing sprite references and world-height
-targets are unchanged; player/dealer frames remain 256x256 at 256 PPU.
+targets are unchanged. The Penguin and four dealers also use the supplied
+48x64 walk frames at 32 PPU; VIP portraits and outfits are unchanged.
 Customers stop walking at their assigned table positions. They use the planted
 frame facing their table, while idle customers elsewhere face front.
 Customer navigation and reservation/service behaviour are unchanged.

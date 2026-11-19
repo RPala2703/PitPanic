@@ -13,14 +13,8 @@ public sealed class ApprovedCasinoArtImporter : AssetPostprocessor
         if (!assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/", StringComparison.Ordinal)) return;
         TextureImporter importer = (TextureImporter)assetImporter;
         bool directionalArt = assetPath.StartsWith(
-            ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Player/", StringComparison.Ordinal) ||
-            assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Staff/tiger-walk-",
-                StringComparison.Ordinal) ||
-            assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Staff/pig-walk-",
-                StringComparison.Ordinal) ||
-            assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Staff/bear-walk-",
-                StringComparison.Ordinal) ||
-            assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Staff/fox-walk-",
+            ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Player/", StringComparison.Ordinal) &&
+            !assetPath.StartsWith(ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Player/penguin-walk-",
                 StringComparison.Ordinal);
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;

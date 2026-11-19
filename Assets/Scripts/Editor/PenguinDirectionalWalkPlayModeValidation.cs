@@ -54,7 +54,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
             PrefabUtility.UnloadPrefabContents(prefab);
         }
         AssetDatabase.SaveAssets();
-        Debug.Log("PENGUIN WALK ART IMPORTED: 16 full 256x256 frames, point-filtered at 256 PPU with shared bottom-center pivots. Frame 03 is the planted idle in each direction.");
+        Debug.Log("PENGUIN WALK ART IMPORTED: 16 full 48x64 frames, point-filtered at 32 PPU with shared bottom-center pivots. Frame 03 is the planted idle in each direction.");
     }
 
     private static string WalkSpriteName(int direction, int frame) =>
@@ -68,7 +68,7 @@ public static class PenguinDirectionalWalkPlayModeValidation
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
         importer.spritePivot = new Vector2(.5f, 0);
-        importer.spritePixelsPerUnit = 256;
+        importer.spritePixelsPerUnit = 32;
         importer.filterMode = FilterMode.Point;
         importer.wrapMode = TextureWrapMode.Clamp;
         importer.mipmapEnabled = false;
@@ -77,16 +77,16 @@ public static class PenguinDirectionalWalkPlayModeValidation
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         TextureImporterSettings settings = new TextureImporterSettings();
         importer.ReadTextureSettings(settings);
-        settings.spritePixelsPerUnit = 256;
+        settings.spritePixelsPerUnit = 32;
         settings.spritePivot = new Vector2(.5f, 0);
         settings.spriteMeshType = SpriteMeshType.FullRect;
         settings.spriteAlignment = (int)SpriteAlignment.Custom;
         importer.SetTextureSettings(settings);
         importer.SaveAndReimport();
         Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
-        if (sprite == null || sprite.rect != new Rect(0, 0, 256, 256) ||
-            sprite.pixelsPerUnit != 256 || sprite.pivot != new Vector2(128, 0))
-            throw new InvalidOperationException($"Could not import the full 256x256 Penguin walk frame from {path}.");
+        if (sprite == null || sprite.rect != new Rect(0, 0, 48, 64) ||
+            sprite.pixelsPerUnit != 32 || sprite.pivot != new Vector2(24, 0))
+            throw new InvalidOperationException($"Could not import the full 48x64 Penguin walk frame from {path}.");
         return sprite;
     }
 

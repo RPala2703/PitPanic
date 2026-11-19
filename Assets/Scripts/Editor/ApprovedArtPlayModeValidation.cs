@@ -115,6 +115,20 @@ public static class ApprovedArtPlayModeValidation
             : sprite == pixel.SelectedStandingArt && sprite.name == expectedName;
         Check(pixel.UsesApprovedStandingArt && expectedSprite && path.StartsWith(expectedPath),
             $"Wrong live sprite for {species}/VIP={pixel.IsVip}: {path}/{sprite?.name}");
+        if (directionalPlayer || directionalDealer)
+        {
+            SerializedProperty frames = new SerializedObject(pixel).FindProperty(
+                directionalPlayer ? "playerWalkFrames" : "dealerWalkFrames");
+            Check(frames.arraySize == 16, $"{species} must have 16 directional frames.");
+            for (int i = 0; i < frames.arraySize; i++)
+            {
+                Sprite frame = frames.GetArrayElementAtIndex(i).objectReferenceValue as Sprite;
+                Check(frame != null && frame.rect == new Rect(0, 0, 48, 64) &&
+                    frame.pivot == new Vector2(24, 0) && frame.pixelsPerUnit == 32 &&
+                    frame.texture.filterMode == FilterMode.Point && frame.texture.mipmapCount == 1,
+                    $"{species} walk frame {i} is missing or has incorrect 48x64 import settings.");
+            }
+        }
         if (directionalDealer)
         {
             string[] headings = { "south", "east", "north", "west" };
@@ -161,9 +175,8 @@ public static class ApprovedArtPlayModeValidation
         Check(renderer.enabled && renderer.color.a > .9f, $"Character {species} is hidden.");
         Check(pixel.GetComponentsInChildren<MeshRenderer>(true).All(mesh => !mesh.enabled),
             $"Legacy procedural character is visible beside approved {species}.");
-        bool largeCanvas = directionalPlayer || directionalDealer;
-        int pixelsPerUnit = largeCanvas ? 256 : 32;
-        Vector2 expectedSize = largeCanvas ? new Vector2(256, 256) : new Vector2(48, 64);
+        const int pixelsPerUnit = 32;
+        Vector2 expectedSize = new Vector2(48, 64);
         Check(sprite.pivot == new Vector2(sprite.rect.width * .5f, 0),
             "Standing/directional sprite lost its bottom-center foot pivot.");
         Check(sprite.pixelsPerUnit == pixelsPerUnit && sprite.texture.filterMode == FilterMode.Point &&
