@@ -698,7 +698,7 @@ Tiger, Pig, Bear and Fox each use their 16 supplied PNGs at the same 180 ms cade
 Penguin. They face the direction of travel while walking and return to the
 planted front-facing frame (south `03`) when stopped. Walking restarts at
 frame `01`.
-Regular Rabbit, Dog, Cat, Raccoon and Deer customers each use their supplied 16 transparent 48x64 PNGs with
+Regular Rabbit, Dog, Cat, Raccoon, Deer and Elephant customers each use their supplied 16 transparent 48x64 PNGs with
 the same 180 ms cadence, directional walking and front-facing frame `03` idle.
 These are the original `48x64/frames` files from each clean walk pack, imported at
 32 PPU with point filtering. The existing sprite references and world-height
@@ -706,7 +706,7 @@ targets are unchanged; player/dealer frames remain 256x256 at 256 PPU.
 Customers stop walking at their assigned table positions. They use the planted
 frame facing their table, while idle customers elsewhere face front.
 Customer navigation and reservation/service behaviour are unchanged.
-VIP Rabbits, Dogs, Cats, Raccoons and Deer retain their existing formalwear and gold outline because
+VIP customers retain their existing formalwear and gold outline because
 these packs supply only the regular outfits.
 At staffed tables, the dealer's sprite sits slightly toward the table so the
 table edge occludes their feet; the ground anchor and NavMesh are unchanged.
@@ -729,9 +729,9 @@ Approach/NavMesh positions, betting points and reservation/service references
 are retained. The existing `CasinoSeat`/`IsSeated` names continue to mean an
 occupied gameplay slot; customers are visually standing, not sitting.
 
-Regular Rabbit, Dog, Cat, Raccoon and Deer use their supplied north/west planted frame 03
-at the table and return to front frame 03 when idle elsewhere. Regular Elephant
-and all VIPs currently have front-only approved artwork.
+Regular customers use their supplied north/west planted frame 03 at the table
+and return to front frame 03 when idle elsewhere. VIPs currently have
+front-only approved artwork.
 Their world facing is aligned with the table, but their existing front-facing
 illustrations are preserved rather than replaced with older-style artwork.
 Matching back/side artwork is still required to turn those sprites visually.
