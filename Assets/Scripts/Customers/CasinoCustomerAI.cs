@@ -13,6 +13,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     {
         Wandering,
         TravellingToSeat,
+        ApproachingTable,
         VisitingCashier,
         Seated,
         Leaving
@@ -57,6 +58,8 @@ public sealed class CasinoCustomerAI : MonoBehaviour
     public event Action<CasinoCustomerAI> Seated;
     public event Action<CasinoCustomerAI> LeavingSeat;
     public bool IsSeated => state == CustomerState.Seated;
+    public bool IsApproachingTable => state == CustomerState.ApproachingTable;
+    public Vector3 TableApproachVelocity { get; private set; }
     public bool IsWaitingAtCashDesk => state == CustomerState.VisitingCashier && cashierArrivalReported;
     public bool IsVisitingCashier => state == CustomerState.VisitingCashier;
     public bool CanBeGuidedToCashier => state == CustomerState.Wandering && !serviceActive;
@@ -180,12 +183,26 @@ public sealed class CasinoCustomerAI : MonoBehaviour
         }
         else if (state == CustomerState.TravellingToSeat && HasReachedDestination())
         {
+            agent.isStopped = true;
+            agent.enabled = false;
+            state = CustomerState.ApproachingTable;
+        }
+        else if (state == CustomerState.ApproachingTable)
+        {
+            if (reservedSeat == null || visual == null)
+                throw new InvalidOperationException($"{name} lost its table position while approaching.");
+            Vector3 position = visual.position;
+            Vector3 target = reservedSeat.SittingPosition;
+            visual.position = Vector3.MoveTowards(position, target, Time.deltaTime * 2f);
+            TableApproachVelocity = Time.deltaTime > 0 ? (visual.position - position) / Time.deltaTime : Vector3.zero;
+            if (visual.position != target) return;
+            TableApproachVelocity = Vector3.zero;
             if (reservedSeat != null && reservedSeat.SeatCustomer(this))
             {
+                Vector3 visualPosition = visual.position;
                 transform.rotation = reservedSeat.Facing;
+                visual.position = visualPosition;
                 state = CustomerState.Seated;
-                agent.isStopped = true;
-                agent.enabled = false;
                 patience.Begin(WaitingPatienceSeconds);
                 Seated?.Invoke(this);
             }
@@ -236,7 +253,7 @@ public sealed class CasinoCustomerAI : MonoBehaviour
             }
         }
 
-        if (visual != null)
+        if (visual != null && state != CustomerState.ApproachingTable)
         {
             Vector3 seatedOffset = state == CustomerState.Seated && reservedSeat != null
                 ? transform.InverseTransformPoint(reservedSeat.SittingPosition)

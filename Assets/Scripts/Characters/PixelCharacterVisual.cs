@@ -39,7 +39,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         playerFront != null && playerRight != null && playerBack != null && playerLeft != null;
     public bool UsesPlayerWalkArt => isPlayerVisual && HasPlayerWalkFrames;
     public bool UsesDealerWalkArt => dealerWalkArt;
-    public bool UsesCustomerWalkArt => customer != null && !vip && HasCompleteWalkCycle(customerWalkFrames);
+    public bool UsesCustomerWalkArt => customer != null && HasCompleteWalkCycle(customerWalkFrames);
     private bool UsesNpcWalkArt => dealerWalkArt || UsesCustomerWalkArt;
     public bool IsPlayerWalkSprite(Sprite sprite) =>
         HasPlayerWalkFrames && System.Array.IndexOf(playerWalkFrames, sprite) >= 0;
@@ -99,6 +99,7 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         {
             spriteRenderer.sprite = selected;
             spriteRenderer.GetComponent<PixelSpriteTextureBinding>()?.RefreshSprite();
+            if (vip) EnsureVipAccessories();
         }
         float scale = StandingHeight(GetComponent<CasinoCharacterVisual>().Species) / selected.bounds.size.y;
         Transform parent = spriteRenderer.transform.parent;
@@ -114,6 +115,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public bool UsesVipAnimation => vip && vipAnimationAtlas != null && animationAtlas == vipAnimationAtlas;
     private static readonly Dictionary<Texture2D, Sprite[]> AnimationCache = new Dictionary<Texture2D, Sprite[]>();
     private static readonly Dictionary<Sprite, Sprite> StandingAuraCache = new Dictionary<Sprite, Sprite>();
+    private static readonly Dictionary<Sprite, Sprite> GoldCustomerCache = new Dictionary<Sprite, Sprite>();
+    private static readonly float[,] AuraFalloff = CreateAuraFalloff();
     private static Sprite vipAura;
     private SpriteRenderer auraRenderer;
     private Color spriteColor = Color.white;
@@ -143,15 +146,15 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     public void ConfigureExpressions(Sprite[] sprites) => expressions = sprites;
     public void SetVip(bool value)
     {
-        if (value && (UsesApprovedStandingArt ? approvedVipStanding == null : vipAnimationAtlas == null))
-            throw new System.InvalidOperationException("VIP customers require their formalwear artwork.");
+        if (value && (UsesApprovedStandingArt ? !UsesCustomerWalkArt : vipAnimationAtlas == null))
+            throw new System.InvalidOperationException("VIP customers require directional customer artwork.");
         vip = value;
         if (spriteRenderer == null) return;
-        if (value) EnsureVipAccessories();
         if (auraRenderer != null) auraRenderer.enabled = value;
         animationAtlas = value ? vipAnimationAtlas : customerAnimationAtlas;
         BindAnimationFrames();
         if (UsesApprovedStandingArt) ApplyStandingArt();
+        if (value) EnsureVipAccessories();
         spriteRenderer.color = spriteColor;
     }
     public Sprite TitleFrame(float elapsed)
@@ -318,10 +321,11 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     {
         if (UsesApprovedStandingArt)
         {
-            if (!StandingAuraCache.TryGetValue(approvedVipStanding, out Sprite outline))
+            Sprite current = spriteRenderer.sprite;
+            if (!StandingAuraCache.TryGetValue(current, out Sprite outline))
             {
-                outline = CreateStandingAura(approvedVipStanding);
-                StandingAuraCache.Add(approvedVipStanding, outline);
+                outline = CreateStandingAura(current);
+                StandingAuraCache.Add(current, outline);
             }
             if (auraRenderer == null)
                 auraRenderer = CreateAccessory("VIP Golden Aura", outline, new Vector3(0, 0, .01f), -1);
@@ -356,9 +360,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
             {
                 int px = sx + dx, py = sy + dy;
                 if (px < 0 || px >= sourceWidth || py < 0 || py >= sourceHeight) continue;
-                float distance = Mathf.Sqrt(dx * dx + dy * dy);
-                float falloff = Mathf.Clamp01(1 - distance / (radius + .5f));
-                alpha = Mathf.Max(alpha, source[py * sourceWidth + px].a * falloff * falloff);
+                alpha = Mathf.Max(alpha, source[py * sourceWidth + px].a *
+                    AuraFalloff[dx + radius, dy + radius]);
             }
             float inside = sx >= 0 && sx < sourceWidth && sy >= 0 && sy < sourceHeight
                 ? source[sy * sourceWidth + sx].a : 0;
@@ -380,6 +383,19 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         aura.name = texture.name;
         aura.hideFlags = HideFlags.HideAndDontSave;
         return aura;
+    }
+
+    private static float[,] CreateAuraFalloff()
+    {
+        const int radius = 4;
+        var falloff = new float[radius * 2 + 1, radius * 2 + 1];
+        for (int dy = -radius; dy <= radius; dy++)
+        for (int dx = -radius; dx <= radius; dx++)
+        {
+            float value = Mathf.Clamp01(1 - Mathf.Sqrt(dx * dx + dy * dy) / (radius + .5f));
+            falloff[dx + radius, dy + radius] = value * value;
+        }
+        return falloff;
     }
 
     private SpriteRenderer CreateAccessory(string objectName, Sprite sprite, Vector3 localPosition, int orderOffset)
@@ -444,6 +460,8 @@ public sealed class PixelCharacterVisual : MonoBehaviour
         Vector3 velocity = agent != null && agent.enabled && agent.isOnNavMesh
             ? agent.velocity
             : hasPreviousPosition && Time.deltaTime > 0f ? displacement / Time.deltaTime : Vector3.zero;
+        if (customer != null && customer.IsApproachingTable)
+            velocity = customer.TableApproachVelocity;
         if (isPlayerVisual || UsesNpcWalkArt) velocity.y = 0f;
         float speed = velocity.magnitude;
         previousPosition = actor.position;
@@ -571,8 +589,103 @@ public sealed class PixelCharacterVisual : MonoBehaviour
     private Sprite PlayerWalkSprite(PlayerFacing facing, int phase) =>
         playerWalkFrames[(int)facing * PlayerWalkFramesPerDirection + phase];
 
-    private Sprite NpcWalkSprite(PlayerFacing facing, int phase) =>
-        (dealerWalkArt ? dealerWalkFrames : customerWalkFrames)[(int)facing * PlayerWalkFramesPerDirection + phase];
+    private Sprite NpcWalkSprite(PlayerFacing facing, int phase)
+    {
+        Sprite sprite = (dealerWalkArt ? dealerWalkFrames : customerWalkFrames)
+            [(int)facing * PlayerWalkFramesPerDirection + phase];
+        return vip && customer != null ? GoldCustomerSprite(sprite) : sprite;
+    }
+
+    private Sprite GoldCustomerSprite(Sprite source)
+    {
+        if (GoldCustomerCache.TryGetValue(source, out Sprite cached)) return cached;
+        int width = (int)source.rect.width, height = (int)source.rect.height;
+        Color32[] pixels = source.texture.GetPixels32();
+        if (source.rect != new Rect(0, 0, source.texture.width, source.texture.height))
+            throw new System.InvalidOperationException("Customer walk art must use the full texture: " + source.name);
+        CasinoAnimalSpecies species = GetComponent<CasinoCharacterVisual>().Species;
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            int index = y * width + x;
+            Color32 color = pixels[index];
+            int rgb = color.r << 16 | color.g << 8 | color.b;
+            int gold = GoldClothingColor(species, rgb, x, height - 1 - y, source.name);
+            if (gold < 0) continue;
+            pixels[index] = new Color32((byte)(gold >> 16), (byte)(gold >> 8), (byte)gold, color.a);
+        }
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        {
+            name = source.name + "-vip-gold",
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp,
+            hideFlags = HideFlags.HideAndDontSave
+        };
+        texture.SetPixels32(pixels);
+        texture.Apply();
+        Sprite result = Sprite.Create(texture, new Rect(0, 0, width, height),
+            new Vector2(source.pivot.x / width, source.pivot.y / height),
+            source.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+        result.name = texture.name;
+        result.hideFlags = HideFlags.HideAndDontSave;
+        GoldCustomerCache.Add(source, result);
+        return result;
+    }
+
+    private static int GoldClothingColor(CasinoAnimalSpecies species, int rgb, int x, int topY, string frame)
+    {
+        // Restrict shared red facial colors to the outfit; the remaining palettes are clothing-specific.
+        if (species == CasinoAnimalSpecies.Deer && topY >= 49 && topY <= 56)
+        {
+            if (rgb == 0x713d26 || rgb == 0x623322) return 0xd79b1a;
+            if (rgb == 0x502a1d) return 0x9e6d11;
+        }
+        if (species == CasinoAnimalSpecies.Raccoon && topY >= 48 && topY <= 56)
+        {
+            // The striped tail shares trouser colors, so exclude it from the directional masks.
+            bool trousers = frame.Contains("-south-") && x >= 12 && x <= 35 ||
+                frame.Contains("-east-") && x >= 19 && x <= 30 && topY >= 50 ||
+                frame.Contains("-west-") && x >= 17 && x <= 28 && topY >= 50 ||
+                frame.Contains("-north-") && (x >= 12 && x <= 16 || x >= 32 && x <= 35);
+            if (trousers)
+            {
+                if (rgb == 0x6b3a26 || rgb == 0x743f29) return 0xd79b1a;
+                if (rgb == 0x613628 || rgb == 0x4f2d23 || rgb == 0x381b14) return 0x9e6d11;
+            }
+        }
+        return species switch
+        {
+            CasinoAnimalSpecies.Rabbit or CasinoAnimalSpecies.Dog when topY >= 32 => rgb switch
+            {
+                0x1b3f89 => 0xf6c02f, 0x12337d => 0xc98a11, 0x112a5a => 0x8c5909,
+                0x5298cc => 0xffe185, 0x3370a0 => 0xe9a91a,
+                0x3e2e3c => 0xd79b1a, 0x49364b => 0xeeb933, 0x2a1e26 => 0x9e6d11,
+                _ => -1
+            },
+            CasinoAnimalSpecies.Cat when topY >= 34 => rgb switch
+            {
+                0xae272a => 0xf6c02f, 0xa22327 => 0xe6a919, 0x86161e => 0xc98a11,
+                0x721119 => 0xa66c0b, 0x5c0e12 => 0x8c5909, _ => -1
+            },
+            CasinoAnimalSpecies.Raccoon => rgb switch
+            {
+                0x5e5a30 => 0xf6c02f, 0x574f2b => 0xd99b18, 0x494324 => 0xa66c0b,
+                _ => -1
+            },
+            CasinoAnimalSpecies.Deer => rgb switch
+            {
+                0x58542b => 0xf6c02f, 0x665e37 => 0xffd961, 0x464225 => 0xc98a11,
+                0x34321d => 0x8c5909, 0x9b292a => 0xe6a919, 0x7a2427 => 0xa66c0b,
+                _ => -1
+            },
+            CasinoAnimalSpecies.Elephant => rgb switch
+            {
+                0x9b305d => 0xffd961, 0x8d2e59 => 0xf6c02f, 0x78234e => 0xd99b18,
+                0x621d42 => 0xa66c0b, 0x46172e => 0x8c5909, _ => -1
+            },
+            _ => -1
+        };
+    }
 
     private Sprite PlayerFacingSprite => PlayerIdleSprite(playerFacing);
 

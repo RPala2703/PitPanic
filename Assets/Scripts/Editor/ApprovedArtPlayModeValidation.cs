@@ -95,7 +95,7 @@ public static class ApprovedArtPlayModeValidation
         bool directionalPlayer = pixel.UsesPlayerDirectionalArt;
         bool directionalDealer = species is CasinoAnimalSpecies.Tiger or CasinoAnimalSpecies.Pig or CasinoAnimalSpecies.Bear
             or CasinoAnimalSpecies.Fox;
-        bool directionalCustomer = !pixel.IsVip &&
+        bool directionalCustomer =
             species is CasinoAnimalSpecies.Rabbit or CasinoAnimalSpecies.Dog or CasinoAnimalSpecies.Cat
                 or CasinoAnimalSpecies.Raccoon or CasinoAnimalSpecies.Deer or CasinoAnimalSpecies.Elephant;
         Check(pixel.UsesCustomerWalkArt == directionalCustomer, $"Unexpected customer walk bindings for {species}.");
@@ -111,9 +111,10 @@ public static class ApprovedArtPlayModeValidation
                 ? pixel.UsesPlayerWalkArt && pixel.IsPlayerWalkSprite(sprite)
                 : sprite == pixel.SelectedStandingArt && sprite.name.EndsWith("-03", StringComparison.Ordinal)
             : directionalDealer ? sprite.name.StartsWith(dealerWalkPrefix, StringComparison.Ordinal)
-            : directionalCustomer ? sprite.name.StartsWith(dealerWalkPrefix, StringComparison.Ordinal)
+            : directionalCustomer ? sprite.name.StartsWith(dealerWalkPrefix, StringComparison.Ordinal) &&
+                (!pixel.IsVip || sprite.name.EndsWith("-vip-gold", StringComparison.Ordinal))
             : sprite == pixel.SelectedStandingArt && sprite.name == expectedName;
-        Check(pixel.UsesApprovedStandingArt && expectedSprite && path.StartsWith(expectedPath),
+        Check(pixel.UsesApprovedStandingArt && expectedSprite && (pixel.IsVip || path.StartsWith(expectedPath)),
             $"Wrong live sprite for {species}/VIP={pixel.IsVip}: {path}/{sprite?.name}");
         if (directionalPlayer || directionalDealer)
         {
@@ -160,7 +161,8 @@ public static class ApprovedArtPlayModeValidation
                 Vector3 facing = customer.Seat.Facing * Vector3.forward;
                 string heading = Mathf.Abs(facing.x) > Mathf.Abs(facing.z)
                     ? facing.x > 0 ? "east" : "west" : facing.z > 0 ? "north" : "south";
-                Check(sprite == pixel.SelectedStandingArt && sprite.name == dealerWalkPrefix + heading + "-03",
+                Check(sprite == pixel.SelectedStandingArt && sprite.name == dealerWalkPrefix + heading + "-03" +
+                    (pixel.IsVip ? "-vip-gold" : ""),
                     $"Standing {species} must stop walking and face the table on its planted frame.");
             }
         }
@@ -192,6 +194,31 @@ public static class ApprovedArtPlayModeValidation
         foreach (Vector2 corner in new[] { Vector2.zero, Vector2.right, Vector2.up, Vector2.one })
             Check(Array.IndexOf(sprite.uv, corner) >= 0, $"Live {species} UVs crop the source image.");
         ValidateAura(pixel);
+        if (pixel.IsVip && directionalCustomer) ValidateGoldCustomer(pixel);
+    }
+
+    private static readonly HashSet<Sprite> ValidatedGoldCustomers = new HashSet<Sprite>();
+
+    private static void ValidateGoldCustomer(PixelCharacterVisual pixel)
+    {
+        Sprite sprite = pixel.Renderer.sprite;
+        if (!ValidatedGoldCustomers.Add(sprite)) return;
+        string sourceName = sprite.name.Substring(0, sprite.name.Length - "-vip-gold".Length);
+        string sourcePath = ApprovedCasinoArtIntegration.ArtRoot + "/Characters/Customers/" + sourceName + ".png";
+        Sprite source = AssetDatabase.LoadAssetAtPath<Sprite>(sourcePath);
+        Check(source != null && source.rect == sprite.rect && source.pivot == sprite.pivot,
+            "VIP does not use the matching normal customer frame.");
+        Color32[] normal = source.texture.GetPixels32(), gold = sprite.texture.GetPixels32();
+        int changed = 0;
+        for (int i = 0; i < normal.Length; i++)
+        {
+            Check(normal[i].a == gold[i].a, "VIP recoloring changed the customer silhouette.");
+            if (normal[i].Equals(gold[i])) continue;
+            changed++;
+            Check(gold[i].r > gold[i].g && gold[i].g > gold[i].b && gold[i].r > 120,
+                "VIP outfit contains a non-gold replacement pixel.");
+        }
+        Check(changed > 30, "VIP outfit is not recolored gold: " + sprite.name);
     }
 
     private static void ValidateAura(PixelCharacterVisual pixel)
@@ -446,6 +473,8 @@ public static class ApprovedArtPlayModeValidation
                 }
 
                 int firstFrame = Time.frameCount;
+                var previousApproach = new Dictionary<CasinoCustomerAI, (Vector3 position, bool approaching)>();
+                int smoothArrivals = 0;
                 float until = Time.realtimeSinceStartup + 35;
                 while (Time.realtimeSinceStartup < until)
                 {
@@ -455,6 +484,22 @@ public static class ApprovedArtPlayModeValidation
                         foreach (PixelCharacterVisual pixel in FindObjectsByType<PixelCharacterVisual>(FindObjectsSortMode.None))
                             ValidateActor(pixel);
                     CasinoCustomerAI[] customers = FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None);
+                    foreach (CasinoCustomerAI customer in customers)
+                    {
+                        PixelCharacterVisual visual = customer.GetComponentInChildren<PixelCharacterVisual>();
+                        bool approaching = customer.IsApproachingTable;
+                        if (previousApproach.TryGetValue(customer, out var previous) && (approaching || previous.approaching))
+                        {
+                            float movement = Vector3.Distance(previous.position, visual.transform.position);
+                            Check(movement <= 3f * Time.deltaTime + .06f,
+                                $"Customer snapped while approaching {customer.Seat?.name}: {movement:F3}.");
+                            if (approaching && customer.TableApproachVelocity.magnitude > .12f)
+                                Check(visual.CurrentPose == CasinoAnimationPose.Walk,
+                                    "Customer slid into its table without walking.");
+                            if (previous.approaching && customer.IsSeated) smoothArrivals++;
+                        }
+                        previousApproach[customer] = (visual.transform.position, approaching);
+                    }
                     if (Time.frameCount - firstFrame > 120 && customers.Count(customer => customer.IsSeated) >= 4 &&
                         (level == 2 || RouletteCustomersSeated()) &&
                         (level != 2 || CustomerOpeningVipsSeated(customers))) break;
@@ -486,6 +531,7 @@ public static class ApprovedArtPlayModeValidation
                 }
                 Check(FindObjectsByType<CasinoCustomerAI>(FindObjectsSortMode.None).Any(customer => customer.IsSeated),
                     $"No real seated customer on level {level}.");
+                Check(smoothArrivals > 0, $"No continuous table arrival observed on level {level}.");
                 if (level != 2)
                     Check(RouletteCustomersSeated(), $"Not all four rearranged Roulette seats were reached on level {level}.");
                 if (level == 2)
@@ -534,61 +580,58 @@ public static class ApprovedArtPlayModeValidation
                     out UnityEngine.AI.NavMeshHit hit, .5f, UnityEngine.AI.NavMesh.AllAreas),
                     $"{species} walk validation requires an open floor route.");
                 agent.obstacleAvoidanceType = UnityEngine.AI.ObstacleAvoidanceType.NoObstacleAvoidance;
-                for (int direction = 0; direction < headings.Length; direction++)
+                for (int vipMode = 0; vipMode < 2; vipMode++)
                 {
-                    Check(agent.Warp(hit.position), $"{species} could not reach its walk validation route.");
-                    agent.ResetPath();
-                    agent.velocity = Vector3.zero;
-                    yield return null;
-                    yield return new WaitForEndOfFrame();
-                    Check(visual.Renderer.sprite.name == prefix + "south-03",
-                        $"Idle {species} must face front on the planted frame.");
-                    var sequence = new List<string>();
-                    var changes = new List<float>();
-                    Vector3 origin = customer.transform.position;
-                    float start = Time.time;
-                    while (Time.time - start < 1.05f && sequence.Count < 5)
+                    visual.SetVip(vipMode == 1);
+                    string suffix = vipMode == 1 ? "-vip-gold" : "";
+                    for (int direction = 0; direction < headings.Length; direction++)
                     {
-                        agent.velocity = directions[direction] * 1.5f;
+                        Check(agent.Warp(hit.position), $"{species} could not reach its walk validation route.");
+                        agent.ResetPath();
+                        agent.velocity = Vector3.zero;
+                        yield return null;
                         yield return new WaitForEndOfFrame();
-                        string name = visual.Renderer.sprite.name;
-                        if (sequence.Count == 0 || sequence[sequence.Count - 1] != name)
+                        Check(visual.Renderer.sprite.name == prefix + "south-03" + suffix,
+                            $"Idle {species} must face front on the planted frame.");
+                        var sequence = new List<string>();
+                        var changes = new List<float>();
+                        Vector3 origin = customer.transform.position;
+                        float start = Time.time;
+                        while (Time.time - start < 1.05f && sequence.Count < 5)
                         {
-                            sequence.Add(name);
-                            changes.Add(Time.time);
+                            agent.velocity = directions[direction] * 1.5f;
+                            yield return new WaitForEndOfFrame();
+                            string name = visual.Renderer.sprite.name;
+                            if (sequence.Count == 0 || sequence[sequence.Count - 1] != name)
+                            {
+                                sequence.Add(name);
+                                changes.Add(Time.time);
+                            }
+                            ValidateActor(visual);
                         }
-                        ValidateActor(visual);
+                        Check(Vector3.Dot(customer.transform.position - origin, directions[direction]) > .8f,
+                            $"{species} animation must follow actual NavMesh movement.");
+                        Check(sequence.Count >= 5, $"{species} did not complete and repeat its four-frame walk.");
+                        for (int i = 0; i < sequence.Count; i++)
+                            Check(sequence[i] == $"{prefix}{headings[direction]}-{i % 4 + 1:00}{suffix}",
+                                $"{species} {headings[direction]} walk was out of order: {string.Join(", ", sequence)}");
+                        float cadence = (changes[4] - changes[0]) / 4f;
+                        Check(Mathf.Abs(cadence - .18f) < .04f,
+                            $"{species} {headings[direction]} cadence was {cadence:F3}s instead of 180 ms.");
+                        yield return Capture($"{prefix}{headings[direction]}{suffix}");
+                        agent.velocity = Vector3.zero;
+                        agent.ResetPath();
+                        yield return null;
+                        yield return new WaitForEndOfFrame();
+                        Check(visual.Renderer.sprite.name == prefix + "south-03" + suffix,
+                            $"{species} retained its {headings[direction]} facing after stopping.");
+                        yield return new WaitForSeconds(.4f);
+                        Check(visual.Renderer.sprite.name == prefix + "south-03" + suffix,
+                            $"Idle {species} must not keep cycling its feet.");
+                        Debug.Log($"{species.ToString().ToUpperInvariant()} {(vipMode == 1 ? "VIP " : "")}WALK PASSED {headings[direction]}: sequence={string.Join(",", sequence)}, " +
+                            $"cadence={cadence:F3}s, planted front idle.");
                     }
-                    Check(Vector3.Dot(customer.transform.position - origin, directions[direction]) > .8f,
-                        $"{species} animation must follow actual NavMesh movement.");
-                    Check(sequence.Count >= 5, $"{species} did not complete and repeat its four-frame walk.");
-                    for (int i = 0; i < sequence.Count; i++)
-                        Check(sequence[i] == $"{prefix}{headings[direction]}-{i % 4 + 1:00}",
-                            $"{species} {headings[direction]} walk was out of order: {string.Join(", ", sequence)}");
-                    float cadence = (changes[4] - changes[0]) / 4f;
-                    Check(Mathf.Abs(cadence - .18f) < .04f,
-                        $"{species} {headings[direction]} cadence was {cadence:F3}s instead of 180 ms.");
-                    yield return Capture($"{prefix}{headings[direction]}");
-                    agent.velocity = Vector3.zero;
-                    agent.ResetPath();
-                    yield return null;
-                    yield return new WaitForEndOfFrame();
-                    Check(visual.Renderer.sprite.name == prefix + "south-03",
-                        $"{species} retained its {headings[direction]} facing after stopping.");
-                    yield return new WaitForSeconds(.4f);
-                    Check(visual.Renderer.sprite.name == prefix + "south-03",
-                        $"Idle {species} must not keep cycling its feet.");
-                    Debug.Log($"{species.ToString().ToUpperInvariant()} WALK PASSED {headings[direction]}: sequence={string.Join(",", sequence)}, " +
-                        $"cadence={cadence:F3}s, planted front idle.");
                 }
-                visual.SetVip(true);
-                yield return null;
-                yield return new WaitForEndOfFrame();
-                Check(!visual.UsesCustomerWalkArt &&
-                    visual.Renderer.sprite.name == $"VIP_{species}_Standing_48x64",
-                    $"{species}'s regular walk frames replaced the VIP formalwear.");
-                ValidateActor(visual);
-                ValidateAura(visual);
                 visual.SetVip(false);
                 yield return null;
                 yield return new WaitForEndOfFrame();

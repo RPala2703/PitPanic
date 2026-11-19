@@ -703,12 +703,12 @@ the same 180 ms cadence, directional walking and front-facing frame `03` idle.
 These are the original `48x64/frames` files from each clean walk pack, imported at
 32 PPU with point filtering. The existing sprite references and world-height
 targets are unchanged. The Penguin and four dealers also use the supplied
-48x64 walk frames at 32 PPU; VIP portraits and outfits are unchanged.
+48x64 walk frames at 32 PPU; VIP portraits are unchanged.
 Customers stop walking at their assigned table positions. They use the planted
 frame facing their table, while idle customers elsewhere face front.
 Customer navigation and reservation/service behaviour are unchanged.
-VIP customers retain their existing formalwear and gold outline because
-these packs supply only the regular outfits.
+VIP customers use the corresponding regular directional frames, with their
+outfits recolored bright gold and the golden outline retained for every frame.
 At staffed tables, the dealer's sprite sits slightly toward the table so the
 table edge occludes their feet; the ground anchor and NavMesh are unchanged.
 The player also sorts behind overlapping blackjack/roulette artwork on the far
@@ -730,12 +730,11 @@ Approach/NavMesh positions, betting points and reservation/service references
 are retained. The existing `CasinoSeat`/`IsSeated` names continue to mean an
 occupied gameplay slot; customers are visually standing, not sitting.
 
-Regular customers use their supplied north/west planted frame 03 at the table
-and return to front frame 03 when idle elsewhere. VIPs currently have
-front-only approved artwork.
-Their world facing is aligned with the table, but their existing front-facing
-illustrations are preserved rather than replaced with older-style artwork.
-Matching back/side artwork is still required to turn those sprites visually.
+Customers use their north/west planted frame 03 at the table and return to
+front frame 03 when idle elsewhere. VIPs use the matching gold-clothed frame.
+The final movement from the reachable navigation point to the standing anchor
+uses the walk cycle, preserves the visual world position while turning, and
+occupies the slot only after reaching the anchor.
 
 `Pit Panic/Art/Use Standing Table Customers` is the targeted saved-scene command;
 the main art integration and scene generator retain the same layout. Live art
