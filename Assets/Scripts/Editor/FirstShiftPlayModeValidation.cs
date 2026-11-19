@@ -931,6 +931,14 @@ public static class FirstShiftPlayModeValidation
             Check(rgame.IsRunning, "Roulette retry failed");
             Check(rgame.IsCoverMode && roulette.IsCoverReady && rgame.WinningNumber == roulette.AssistanceWinningNumber,
                 "Staffed Roulette did not open real-result COVER");
+            Transform coverArea = FindFirstObjectByType<CasinoMinigamePresentation>().GameArea;
+            foreach (RouletteCustomerBet bet in roulette.AssistanceBets)
+            {
+                string expected = bet.Bet.StakePence % 100 == 0
+                    ? $"£{bet.Bet.StakePence / 100}" : RouletteRoundController.FormatPounds(bet.Bet.StakePence);
+                Check(coverArea.Find($"COVER Chip {bet.BetId}").GetComponentInChildren<Text>().text == expected,
+                    "COVER chip did not show only its stake value");
+            }
             int coverNumber = rgame.WinningNumber;
             long coverRound = rgame.AssistanceRoundId;
             Check((Transform)Get(rgame, "spinStageRoot") == null && (Transform)Get(rgame, "sweepStageRoot") == null,
@@ -1236,6 +1244,12 @@ public static class FirstShiftPlayModeValidation
             foreach (object chip in new ArrayList(chips))
             {
                 Type type = chip.GetType();
+                var displayedBet = (RouletteCustomerBet)type.GetField("CustomerBet").GetValue(chip);
+                var displayedRect = (RectTransform)type.GetField("Rect").GetValue(chip);
+                string expected = displayedBet.Bet.StakePence % 100 == 0
+                    ? $"£{displayedBet.Bet.StakePence / 100}" : RouletteRoundController.FormatPounds(displayedBet.Bet.StakePence);
+                Check(displayedRect.Find("Bet Chip Label").GetComponent<Text>().text == expected,
+                    "Roulette sweep chip did not show only its stake value");
                 if ((bool)type.GetField("Protected").GetValue(chip)) continue;
                 var rect = (RectTransform)type.GetField("Rect").GetValue(chip);
                 Call(rgame, "BeginPointerAction", RectTransformUtility.WorldToScreenPoint(null, rect.position));
@@ -1245,6 +1259,15 @@ public static class FirstShiftPlayModeValidation
             {
                 var bet = (RouletteCustomerBet)Get(rgame, "currentPayoutBet");
                 Check(bet != null, "Manual Roulette PAY stage did not open");
+                Transform payoutStage = (Transform)Get(rgame, "payoutStageRoot");
+                foreach (RouletteCustomerBet winningBet in roulette.AssistanceBets)
+                {
+                    if (!winningBet.IsWinning) continue;
+                    string expected = winningBet.Bet.StakePence % 100 == 0
+                        ? $"£{winningBet.Bet.StakePence / 100}" : RouletteRoundController.FormatPounds(winningBet.Bet.StakePence);
+                    Check(payoutStage.Find($"Winning Roulette Bet {winningBet.BetId}/Winning Bet Label")
+                        .GetComponent<Text>().text == expected, "Roulette winning chip did not show only its stake value");
+                }
                 int[] counts = RouletteTableMinigame.GetPayoutComposition((int)bet.WinningsPence);
                 for (int i = 0; i < counts.Length; i++)
                     for (int n = 0; n < counts[i]; n++) Call(rgame, "AddPayoutChips", i);

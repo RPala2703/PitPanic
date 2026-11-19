@@ -1177,10 +1177,9 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
                 ? new Color(1f, 0.88f, 0.22f)
                 : new Color(0.92f, 0.82f, 0.48f);
             chipOutline.effectDistance = protectedChip ? new Vector2(4f, -4f) : new Vector2(1f, -1f);
-            string betName = customerBet.Customer != null ? GetCustomerLabel(customerBet.Customer.name) : "BET";
             CasinoMinigamePresentation.CreateText(chipObject.transform, "Bet Chip Label",
-                $"{betName}\n{RouletteRoundController.FormatPounds(customerBet.Bet.StakePence)}",
-                Vector2.zero, new Vector2(30f, 28f), 7, Color.white);
+                FormatBetChipValue(customerBet.Bet.StakePence),
+                Vector2.zero, new Vector2(30f, 20f), 9, Color.white);
             sweepChips.Add(new SweepChip
             {
                 Rect = chipObject.GetComponent<RectTransform>(),
@@ -1275,10 +1274,9 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
             Outline outline = chipObject.AddComponent<Outline>();
             outline.effectColor = new Color(1f, 0.91f, 0.28f);
             outline.effectDistance = new Vector2(4f, -4f);
-            string betName = customerBet.Customer != null ? GetCustomerLabel(customerBet.Customer.name) : "BET";
             CasinoMinigamePresentation.CreateText(chipObject.transform, "Winning Bet Label",
-                $"{betName}\n{RouletteRoundController.FormatPounds(customerBet.Bet.StakePence)}",
-                Vector2.zero, new Vector2(30f, 28f), 7, Color.white);
+                FormatBetChipValue(customerBet.Bet.StakePence),
+                Vector2.zero, new Vector2(30f, 20f), 9, Color.white);
         }
     }
 
@@ -1308,15 +1306,8 @@ public sealed partial class RouletteTableMinigame : CasinoMinigame
         }
     }
 
-    private static string GetCustomerLabel(string customerName)
-    {
-        if (string.IsNullOrEmpty(customerName))
-        {
-            return "BET";
-        }
-
-        return customerName.Length <= 6 ? customerName : customerName.Substring(0, 6);
-    }
+    private static string FormatBetChipValue(int stakePence) =>
+        stakePence % 100 == 0 ? $"£{stakePence / 100}" : RouletteRoundController.FormatPounds(stakePence);
 
     private System.Collections.IEnumerator ResetProtectedChipScale(RectTransform chip)
     {

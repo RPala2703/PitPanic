@@ -104,14 +104,15 @@ public sealed partial class RouletteTableMinigame
                     duplicateCount++;
                 }
             chipPosition.x += (duplicateIndex - (duplicateCount - 1) * .5f) * 10;
-            Button chip = CreatePayButton(gameArea, $"COVER Chip {betId}", (i + 1).ToString(),
+            Button chip = CreatePayButton(gameArea, $"COVER Chip {betId}", FormatBetChipValue(bet.Bet.StakePence),
                 chipPosition, new Vector2(24, 24), () => SelectCoverBet(betId));
             CasinoPixelArt.SetSprite(chip.GetComponent<Image>(), CasinoPixelArt.ChipForAmount(bet.Bet.StakePence), Color.white);
             Outline customerRim = chip.gameObject.AddComponent<Outline>();
             customerRim.effectColor = customerColor;
             customerRim.effectDistance = new Vector2(2, -2);
-            chip.GetComponentInChildren<Text>().fontSize = 12;
-            chip.GetComponentInChildren<Text>().raycastTarget = false;
+            Text chipLabel = chip.GetComponentInChildren<Text>();
+            chipLabel.rectTransform.sizeDelta = new Vector2(24, 18);
+            CasinoPixelFont.Fit(chipLabel, 8);
             coverButtons[betId] = new List<Button> { entry, chip };
         }
 

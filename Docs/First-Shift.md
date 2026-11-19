@@ -159,9 +159,9 @@ waiting for them to cover another table.
 
 A working dealer spins the real wheel first. When COVER! is requested, open
 Roulette with **E → COVER!**, read the revealed number, and click each winning
-customer bet or its numbered chip on the 3-column, 12-row layout. Matching
-numbers identify the same customer in the bet list and on the layout, including
-separate chips for identical bets. Leave losers alone; use **NO WINNERS** if
+customer bet or its value-labelled chip on the 3-column, 12-row layout. The
+chip's colored rim matches the bet-list entry, including separate chips for
+identical bets. Leave losers alone; use **NO WINNERS** if
 none win. **BET GUIDE** shows simple examples and profit odds.
 
 COVER! never spins, sweeps or asks the player to build payouts. It uses that
